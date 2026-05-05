@@ -1,34 +1,30 @@
 import { createFileRoute, useParams } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Rnd } from "react-rnd";
 import html2canvas from "html2canvas";
 import { supabase } from "@/integrations/supabase/client";
 import { useProject } from "@/components/project-context";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { detectConcepts } from "@/lib/scene-splitter";
 import { toast } from "sonner";
-import { Pencil, Save, Trash2, Sparkles } from "lucide-react";
+import { Pencil, Save, Trash2 } from "lucide-react";
 import { toolbarStore } from "@/components/toolbar-store";
+import { AnimationSearchPanel } from "@/components/AnimationSearchPanel";
+import {
+  AnimationBlockRenderer,
+  type AnimationBlockContent,
+} from "@/components/AnimationBlock";
+import type { AnimationResult } from "@/lib/animation-providers";
 
 export const Route = createFileRoute("/projects/$projectId/script")({
   component: ScriptCanvas,
 });
 
-interface AnimComponent {
-  id: string;
-  slug: string;
-  name: string;
-  category: string;
-  concepts: string[];
-  tags: string[];
-}
-
 interface PlacedElement {
   id: string;
   scene_id: string;
   type: string;
-  content: { slug: string; name: string };
+  content: AnimationBlockContent;
   position: { x: number; y: number; w: number; h: number };
   z_index: number;
 }
