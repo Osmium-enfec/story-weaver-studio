@@ -47,6 +47,21 @@ export function AnimationBlockRenderer({ content }: { content: AnimationBlockCon
     );
   }
 
+  if (content.provider === "iconscout" && content.video_url) {
+    return (
+      <div style={wrapperStyle} className="pointer-events-none">
+        <video
+          src={content.video_url}
+          autoPlay={content.autoplay ?? true}
+          loop={content.loop ?? true}
+          muted
+          playsInline
+          style={{ width: "100%", height: "100%", objectFit: "contain" }}
+        />
+      </div>
+    );
+  }
+
   // Fallback: internal placeholder block
   return (
     <div
