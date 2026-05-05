@@ -200,7 +200,7 @@ function ScriptCanvas() {
       .insert({
         scene_id: sceneId,
         type: a.provider === "internal" ? "animation" : "lottie",
-        content: content as unknown as Record<string, unknown>,
+        content: content as unknown as never,
         position: { x, y, w, h },
         z_index: elements.length,
       })
