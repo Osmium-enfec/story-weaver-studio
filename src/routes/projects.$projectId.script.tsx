@@ -14,6 +14,7 @@ import {
   AnimationBlockRenderer,
   type AnimationBlockContent,
 } from "@/components/AnimationBlock";
+import { PlaybackDialog } from "@/components/PlaybackDialog";
 import type { AnimationResult } from "@/lib/animation-providers";
 import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
 
@@ -45,6 +46,8 @@ function ScriptCanvas() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [playOpen, setPlayOpen] = useState(false);
+  const [canvasSize, setCanvasSize] = useState({ w: 1280, h: 720 });
 
   // Auto-stop play after a duration
   useEffect(() => {
@@ -110,11 +113,17 @@ function ScriptCanvas() {
   useEffect(() => {
     toolbarStore.set([
       {
-        label: isPlaying ? "Stop" : "Play",
-        icon: isPlaying ? "stop" : "play",
-        variant: isPlaying ? "secondary" : "default",
+        label: "Play",
+        icon: "play",
+        variant: "default",
         disabled: isExporting,
-        onClick: () => setIsPlaying((p) => !p),
+        onClick: () => {
+          if (canvasRef.current) {
+            const r = canvasRef.current.getBoundingClientRect();
+            setCanvasSize({ w: Math.round(r.width), h: Math.round(r.height) });
+          }
+          setPlayOpen(true);
+        },
       },
       {
         label: isExporting ? "Exporting…" : "Export",
@@ -204,6 +213,14 @@ function ScriptCanvas() {
     const h = Math.round(rect.height * 0.3);
     const x = Math.round((rect.width - w) / 2);
     const y = Math.round((rect.height - h) / 2);
+    // Determine occurrence: count existing elements already bound to the same word
+    const boundWord = selectedWord ?? null;
+    const occurrence = boundWord
+      ? elements.filter(
+          (e) => (e.content.word ?? "").toLowerCase() === boundWord.toLowerCase(),
+        ).length + 1
+      : null;
+
     const content: AnimationBlockContent = {
       provider: a.provider,
       name: a.name,
@@ -218,6 +235,8 @@ function ScriptCanvas() {
       rotation: 0,
       color_support: a.color_support,
       tint: null,
+      word: boundWord,
+      occurrence,
     };
     const { data, error } = await supabase
       .from("scene_elements")
@@ -362,6 +381,19 @@ function ScriptCanvas() {
           <AnimationSearchPanel initialQuery={selectedWord ?? ""} onSelect={addAnimation} />
         </div>
       </aside>
+
+      <PlaybackDialog
+        open={playOpen}
+        onOpenChange={setPlayOpen}
+        script={script}
+        elements={elements.map((e) => ({
+          id: e.id,
+          content: e.content,
+          position: e.position,
+          z_index: e.z_index,
+        }))}
+        canvasSize={canvasSize}
+      />
     </div>
   );
 }

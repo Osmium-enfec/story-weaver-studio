@@ -19,6 +19,9 @@ export interface AnimationBlockContent {
   // color
   color_support?: "fixed" | "theme" | "custom";
   tint?: string | null;
+  // word binding (for timed reveal during playback)
+  word?: string | null;
+  occurrence?: number | null;
 }
 
 export function AnimationBlockRenderer({ content }: { content: AnimationBlockContent }) {
