@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Image, Film, Music, Code2, Sparkles } from "lucide-react";
+import { Image, Film, Music, Code2, Sparkles, Download } from "lucide-react";
+import { IconscoutMirrorPanel } from "@/components/IconscoutMirrorPanel";
 
 export const Route = createFileRoute("/assets")({ component: Assets });
 
@@ -9,6 +10,7 @@ const TABS = [
   { key: "uploaded", label: "Uploaded Media", icon: Image },
   { key: "components", label: "Programming Components", icon: Code2 },
   { key: "lottie", label: "Lottie Library", icon: Sparkles },
+  { key: "mirror", label: "Mirror Iconscout", icon: Download },
   { key: "backgrounds", label: "Backgrounds", icon: Film },
   { key: "audio", label: "Audio", icon: Music },
 ] as const;
