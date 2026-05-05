@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { detectConcepts } from "@/lib/scene-splitter";
 import { toast } from "sonner";
-import { Pencil, Save, Trash2, Sparkles, Play, Square, Download } from "lucide-react";
+import { Pencil, Save, Trash2, Sparkles } from "lucide-react";
+import { toolbarStore } from "@/components/toolbar-store";
 
 export const Route = createFileRoute("/projects/$projectId/script")({
   component: ScriptCanvas,
