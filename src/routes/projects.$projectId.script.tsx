@@ -178,6 +178,27 @@ function ScriptCanvas() {
 
   async function addAnimation(a: AnimationResult) {
     if (!sceneId || !canvasRef.current) return;
+
+    // Mirror Iconscout assets to our own storage on first use, then use local URL
+    let localVideoUrl = a.video_url ?? null;
+    if (a.provider === "iconscout" && a.external_id && a.video_url) {
+      try {
+        const res = await cacheIconscoutItem({
+          data: {
+            external_id: a.external_id,
+            uuid: a.id.replace(/^iconscout:/, ""),
+            name: a.name,
+            slug: a.slug,
+            preview_url: a.video_url,
+            category: a.category,
+          },
+        });
+        if (res.video_url) localVideoUrl = res.video_url;
+      } catch (e) {
+        toast.error(`Cache failed: ${(e as Error).message}`);
+      }
+    }
+
     const rect = canvasRef.current.getBoundingClientRect();
     const w = Math.round(rect.width * 0.3);
     const h = Math.round(rect.height * 0.3);
@@ -188,7 +209,7 @@ function ScriptCanvas() {
       name: a.name,
       slug: a.slug,
       lottie_url: a.lottie_url ?? null,
-      video_url: a.video_url ?? null,
+      video_url: localVideoUrl,
       external_id: a.external_id ?? null,
       loop: true,
       autoplay: true,
