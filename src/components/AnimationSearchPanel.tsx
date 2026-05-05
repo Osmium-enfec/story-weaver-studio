@@ -112,8 +112,10 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
             <LinkIcon className="h-3 w-3" />
           </Button>
         </div>
-        <div className="flex gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+        <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
           <span>Lottie {counts.lottie}</span>
+          <span>•</span>
+          <span>Iconscout {counts.iconscout}</span>
           <span>•</span>
           <span>Internal {counts.internal}</span>
           <span>•</span>
