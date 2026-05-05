@@ -16,32 +16,28 @@ interface Props {
   onOpenChange: (v: boolean) => void;
   script: string;
   elements: PlaybackElement[];
-  aspect: string;
+  /** Original canvas pixel size when elements were placed */
+  canvasSize: { w: number; h: number };
 }
 
 const WORD_RE = /[A-Za-z][A-Za-z0-9_-]*/g;
 
-export function PlaybackDialog({ open, onOpenChange, script, elements, aspect }: Props) {
-  // Map element.id -> the word index in the script it should reveal at
+export function PlaybackDialog({ open, onOpenChange, script, elements, canvasSize }: Props) {
   const wordIndexById = useMemo(() => {
     const map = new Map<string, number>();
     if (!script) return map;
-    // Build flat array of {text, index} of words
-    const tokens: { text: string; idx: number }[] = [];
-    let i = 0;
-    for (const m of script.matchAll(WORD_RE)) {
-      tokens.push({ text: m[0].toLowerCase(), idx: i++ });
-    }
+    const tokens: string[] = [];
+    for (const m of script.matchAll(WORD_RE)) tokens.push(m[0].toLowerCase());
     for (const el of elements) {
       const w = el.content.word?.toLowerCase();
       if (!w) continue;
       const occ = el.content.occurrence ?? 1;
       let seen = 0;
-      for (const t of tokens) {
-        if (t.text === w) {
+      for (let i = 0; i < tokens.length; i++) {
+        if (tokens[i] === w) {
           seen++;
           if (seen === occ) {
-            map.set(el.id, t.idx);
+            map.set(el.id, i);
             break;
           }
         }
@@ -53,6 +49,8 @@ export function PlaybackDialog({ open, onOpenChange, script, elements, aspect }:
   const [revealedWordIdx, setRevealedWordIdx] = useState(-1);
   const [playing, setPlaying] = useState(false);
   const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
 
   useEffect(() => {
     if (!open) {
@@ -62,31 +60,35 @@ export function PlaybackDialog({ open, onOpenChange, script, elements, aspect }:
     }
   }, [open]);
 
+  // Compute scale so the original canvas fits the dialog stage
+  useEffect(() => {
+    if (!open) return;
+    function update() {
+      const node = stageRef.current;
+      if (!node) return;
+      const rect = node.getBoundingClientRect();
+      const s = Math.min(rect.width / canvasSize.w, rect.height / canvasSize.h);
+      setScale(s || 1);
+    }
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [open, canvasSize.w, canvasSize.h]);
+
   function start() {
-    if (!script.trim()) {
-      toast.error("Add a script first");
-      return;
-    }
-    if (!("speechSynthesis" in window)) {
-      toast.error("Browser TTS not supported");
-      return;
-    }
+    if (!script.trim()) return toast.error("Add a script first");
+    if (!("speechSynthesis" in window)) return toast.error("Browser TTS not supported");
     setRevealedWordIdx(-1);
     const u = new SpeechSynthesisUtterance(script);
     u.rate = 1;
-    u.pitch = 1;
-    let wordIdx = -1;
     u.onboundary = (e: SpeechSynthesisEvent) => {
       if (e.name !== "word") return;
-      // Determine which word index we're on by counting WORD_RE matches up to charIndex
       const upto = script.slice(0, e.charIndex);
       const count = (upto.match(WORD_RE) || []).length;
-      wordIdx = count; // current word being spoken is at index `count`
-      setRevealedWordIdx(wordIdx);
+      setRevealedWordIdx(count);
     };
     u.onend = () => {
       setPlaying(false);
-      // Reveal everything at the end
       setRevealedWordIdx(Number.MAX_SAFE_INTEGER);
     };
     u.onerror = () => setPlaying(false);
@@ -101,12 +103,11 @@ export function PlaybackDialog({ open, onOpenChange, script, elements, aspect }:
     setPlaying(false);
   }
 
-  // Visible elements: those bound to no word OR whose word index <= revealedWordIdx
   const visibleIds = new Set(
     elements
       .filter((el) => {
         const wIdx = wordIndexById.get(el.id);
-        if (wIdx === undefined) return true; // unbound: show from start
+        if (wIdx === undefined) return true;
         return wIdx <= revealedWordIdx;
       })
       .map((e) => e.id),
@@ -117,13 +118,18 @@ export function PlaybackDialog({ open, onOpenChange, script, elements, aspect }:
       <DialogContent className="max-w-5xl">
         <DialogTitle className="sr-only">Playback</DialogTitle>
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-center bg-muted/30 p-3 rounded-lg">
+          <div
+            ref={stageRef}
+            className="relative flex items-center justify-center bg-muted/30 rounded-lg overflow-hidden"
+            style={{ height: "60vh" }}
+          >
             <div
-              className="relative overflow-hidden rounded-xl bg-white shadow-md"
+              className="relative bg-white shadow-md rounded-xl overflow-hidden"
               style={{
-                aspectRatio: aspect,
-                width: "100%",
-                maxHeight: "65vh",
+                width: canvasSize.w,
+                height: canvasSize.h,
+                transform: `scale(${scale})`,
+                transformOrigin: "center center",
                 backgroundImage:
                   "linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%)",
               }}
@@ -133,18 +139,18 @@ export function PlaybackDialog({ open, onOpenChange, script, elements, aspect }:
                 return (
                   <div
                     key={el.id}
-                    className="absolute transition-opacity duration-300"
                     style={{
-                      left: `${(el.position.x / 1000) * 100}%`,
-                      top: `${(el.position.y / 1000) * 100}%`,
-                      width: `${(el.position.w / 1000) * 100}%`,
-                      height: `${(el.position.h / 1000) * 100}%`,
-                      // Use parent-relative px positions actually — fall back below
+                      position: "absolute",
+                      left: el.position.x,
+                      top: el.position.y,
+                      width: el.position.w,
+                      height: el.position.h,
                       opacity: visible ? 1 : 0,
+                      transition: "opacity 300ms ease",
                       zIndex: el.z_index,
                     }}
                   >
-                    <AbsoluteBlock el={el} visible={visible} />
+                    <AnimationBlockRenderer content={el.content} />
                   </div>
                 );
               })}
@@ -163,25 +169,6 @@ export function PlaybackDialog({ open, onOpenChange, script, elements, aspect }:
         </div>
       </DialogContent>
     </Dialog>
-  );
-}
-
-// Render an element using its absolute pixel position relative to canvas.
-// Since canvas size in dialog differs from editor, we position by px directly
-// inside a container that matches the original canvas via aspect ratio scaling.
-// Simpler: use absolute px (matches original sizing).
-function AbsoluteBlock({ el, visible }: { el: PlaybackElement; visible: boolean }) {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        opacity: visible ? 1 : 0,
-        transition: "opacity 300ms ease",
-      }}
-    >
-      <AnimationBlockRenderer content={el.content} />
-    </div>
   );
 }
 
