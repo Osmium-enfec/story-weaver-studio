@@ -14,6 +14,7 @@ import {
   AnimationBlockRenderer,
   type AnimationBlockContent,
 } from "@/components/AnimationBlock";
+import { PlaybackDialog } from "@/components/PlaybackDialog";
 import type { AnimationResult } from "@/lib/animation-providers";
 import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
 
