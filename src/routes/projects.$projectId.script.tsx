@@ -140,8 +140,8 @@ function ScriptCanvas() {
       .select("*")
       .single();
     if (error) return toast.error(error.message);
-    setElements((prev) => [...prev, data as PlacedElement]);
-    setSelectedElementId((data as PlacedElement).id);
+    setElements((prev) => [...prev, data as unknown as PlacedElement]);
+    setSelectedElementId((data as unknown as PlacedElement).id);
   }
 
   async function updateElement(id: string, position: PlacedElement["position"]) {
