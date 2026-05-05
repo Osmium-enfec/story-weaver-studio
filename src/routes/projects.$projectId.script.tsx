@@ -286,8 +286,8 @@ function ScriptCanvas() {
                     : "border-transparent hover:border-primary/40"
                 }`}
               >
-                <div className="relative flex h-full w-full items-center justify-center rounded-md bg-primary/10 text-center">
-                  <div>
+                <div className={`relative flex h-full w-full items-center justify-center rounded-md bg-primary/10 text-center ${isPlaying ? "animate-pulse" : ""}`}>
+                  <div className={isPlaying ? "animate-fade-in" : ""}>
                     <Sparkles className="mx-auto h-5 w-5 text-primary" />
                     <p className="mt-1 text-xs font-medium text-primary">{el.content.name}</p>
                   </div>
