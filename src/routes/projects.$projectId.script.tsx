@@ -328,42 +328,14 @@ function ScriptCanvas() {
 
       {/* RIGHT 25% — animations panel */}
       <aside className="flex h-full w-1/4 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        <div className="border-b border-border p-4">
+        <div className="border-b border-border px-4 py-3">
           <h3 className="text-sm font-semibold">Animations</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {selectedWord
-              ? `Suggestions for "${selectedWord}"`
-              : "Click a word in your script"}
+            {selectedWord ? `Searching "${selectedWord}"` : "Search, paste a URL, or upload"}
           </p>
         </div>
-        <div className="flex-1 overflow-y-auto p-3">
-          {selectedWord ? (
-            wordMatches.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No matches found.</p>
-            ) : (
-              <div className="space-y-2">
-                {wordMatches.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => addAnimation(c)}
-                    className="group flex w-full items-start gap-3 rounded-lg border border-border bg-background p-3 text-left transition-all hover:border-primary hover:shadow-sm"
-                  >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                      <Sparkles className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium">{c.name}</div>
-                      <div className="text-xs text-muted-foreground">{c.category}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )
-          ) : (
-            <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
-              Select any word to see relevant animations.
-            </div>
-          )}
+        <div className="min-h-0 flex-1">
+          <AnimationSearchPanel initialQuery={selectedWord ?? ""} onSelect={addAnimation} />
         </div>
       </aside>
     </div>
