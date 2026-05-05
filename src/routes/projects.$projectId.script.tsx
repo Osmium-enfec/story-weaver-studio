@@ -263,18 +263,15 @@ function ScriptCanvas() {
                     : "border-transparent hover:border-primary/40"
                 }`}
               >
-                <div className={`relative flex h-full w-full items-center justify-center rounded-md bg-primary/10 text-center ${isPlaying ? "animate-pulse" : ""}`}>
-                  <div className={isPlaying ? "animate-fade-in" : ""}>
-                    <Sparkles className="mx-auto h-5 w-5 text-primary" />
-                    <p className="mt-1 text-xs font-medium text-primary">{el.content.name}</p>
-                  </div>
+                <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
+                  <AnimationBlockRenderer content={el.content} />
                   {selectedElementId === el.id && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         deleteElement(el.id);
                       }}
-                      className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow"
+                      className="absolute -right-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
