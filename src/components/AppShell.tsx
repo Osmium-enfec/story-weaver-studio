@@ -1,13 +1,7 @@
-import { Link, Outlet, useLocation, useParams } from "@tanstack/react-router";
+import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { Film } from "lucide-react";
-import { ProjectStepper } from "./ProjectStepper";
 
 export function AppShell() {
-  const location = useLocation();
-  const params = useParams({ strict: false }) as { projectId?: string };
-  const projectId = params.projectId;
-  const isProjectRoute = !!projectId && location.pathname.startsWith("/projects/");
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-40 border-b border-border bg-card/80 backdrop-blur">
@@ -16,7 +10,7 @@ export function AppShell() {
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Film className="h-4 w-4" />
             </span>
-            <span>CourseMotion Studio</span>
+            <span>Code Motion</span>
           </Link>
           <nav className="flex items-center gap-1 text-sm">
             <NavLink to="/" label="Dashboard" />
@@ -24,7 +18,6 @@ export function AppShell() {
             <NavLink to="/settings" label="Settings" />
           </nav>
         </div>
-        {isProjectRoute && projectId && <ProjectStepper projectId={projectId} />}
       </header>
       <main className="mx-auto max-w-7xl px-6 py-8">
         <Outlet />
