@@ -381,6 +381,19 @@ function ScriptCanvas() {
           <AnimationSearchPanel initialQuery={selectedWord ?? ""} onSelect={addAnimation} />
         </div>
       </aside>
+
+      <PlaybackDialog
+        open={playOpen}
+        onOpenChange={setPlayOpen}
+        script={script}
+        elements={elements.map((e) => ({
+          id: e.id,
+          content: e.content,
+          position: e.position,
+          z_index: e.z_index,
+        }))}
+        canvasSize={canvasSize}
+      />
     </div>
   );
 }
