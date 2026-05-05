@@ -113,11 +113,17 @@ function ScriptCanvas() {
   useEffect(() => {
     toolbarStore.set([
       {
-        label: isPlaying ? "Stop" : "Play",
-        icon: isPlaying ? "stop" : "play",
-        variant: isPlaying ? "secondary" : "default",
+        label: "Play",
+        icon: "play",
+        variant: "default",
         disabled: isExporting,
-        onClick: () => setIsPlaying((p) => !p),
+        onClick: () => {
+          if (canvasRef.current) {
+            const r = canvasRef.current.getBoundingClientRect();
+            setCanvasSize({ w: Math.round(r.width), h: Math.round(r.height) });
+          }
+          setPlayOpen(true);
+        },
       },
       {
         label: isExporting ? "Exporting…" : "Export",
@@ -129,8 +135,6 @@ function ScriptCanvas() {
     ]);
     return () => toolbarStore.clear();
   }, [isPlaying, isExporting]);
-
-  useEffect(() => setScript(project.script ?? ""), [project.script]);
 
   // Ensure a canvas scene exists, then load placed elements
   useEffect(() => {
