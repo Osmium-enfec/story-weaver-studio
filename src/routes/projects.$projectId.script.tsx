@@ -90,7 +90,7 @@ function ScriptCanvas() {
         .select("*")
         .eq("scene_id", id!)
         .order("z_index");
-      setElements((els ?? []) as PlacedElement[]);
+      setElements((els ?? []) as unknown as PlacedElement[]);
     })();
   }, [projectId]);
 
