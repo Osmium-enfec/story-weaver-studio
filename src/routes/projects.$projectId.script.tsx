@@ -1,13 +1,14 @@
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Rnd } from "react-rnd";
+import html2canvas from "html2canvas";
 import { supabase } from "@/integrations/supabase/client";
 import { useProject } from "@/components/project-context";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { detectConcepts } from "@/lib/scene-splitter";
 import { toast } from "sonner";
-import { Pencil, Save, Trash2, Sparkles } from "lucide-react";
+import { Pencil, Save, Trash2, Sparkles, Play, Square, Download } from "lucide-react";
 
 export const Route = createFileRoute("/projects/$projectId/script")({
   component: ScriptCanvas,
