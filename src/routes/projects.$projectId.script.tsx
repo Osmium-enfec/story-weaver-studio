@@ -1,13 +1,14 @@
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Rnd } from "react-rnd";
+import html2canvas from "html2canvas";
 import { supabase } from "@/integrations/supabase/client";
 import { useProject } from "@/components/project-context";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { detectConcepts } from "@/lib/scene-splitter";
 import { toast } from "sonner";
-import { Pencil, Save, Trash2, Sparkles } from "lucide-react";
+import { Pencil, Save, Trash2, Sparkles, Play, Square, Download } from "lucide-react";
 
 export const Route = createFileRoute("/projects/$projectId/script")({
   component: ScriptCanvas,
@@ -44,6 +45,69 @@ function ScriptCanvas() {
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Auto-stop play after a duration
+  useEffect(() => {
+    if (!isPlaying) return;
+    const t = setTimeout(() => setIsPlaying(false), 4000);
+    return () => clearTimeout(t);
+  }, [isPlaying]);
+
+  async function exportVideo() {
+    if (!canvasRef.current) return;
+    setIsExporting(true);
+    setIsPlaying(true);
+    try {
+      const node = canvasRef.current;
+      const rect = node.getBoundingClientRect();
+      const off = document.createElement("canvas");
+      off.width = Math.round(rect.width);
+      off.height = Math.round(rect.height);
+      const ctx = off.getContext("2d")!;
+      const stream = (off as HTMLCanvasElement).captureStream(30);
+      const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : "video/webm";
+      const recorder = new MediaRecorder(stream, { mimeType: mime });
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      const done = new Promise<Blob>((resolve) => {
+        recorder.onstop = () => resolve(new Blob(chunks, { type: mime }));
+      });
+      recorder.start();
+
+      const totalMs = 4000;
+      const start = performance.now();
+      while (performance.now() - start < totalMs) {
+        // eslint-disable-next-line no-await-in-loop
+        const snap = await html2canvas(node, {
+          backgroundColor: null,
+          logging: false,
+          scale: 1,
+        });
+        ctx.clearRect(0, 0, off.width, off.height);
+        ctx.drawImage(snap, 0, 0, off.width, off.height);
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      recorder.stop();
+      const blob = await done;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${project.title || "code-motion"}.webm`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Video exported");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setIsExporting(false);
+      setIsPlaying(false);
+    }
+  }
 
   useEffect(() => setScript(project.script ?? ""), [project.script]);
 
@@ -158,6 +222,32 @@ function ScriptCanvas() {
     <div className="flex gap-4" style={{ height: "calc(100vh - 9rem)" }}>
       {/* MAIN CARD — 75% width */}
       <div className="flex h-full w-3/4 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        {/* Top toolbar */}
+        <div className="flex items-center justify-between border-b border-border px-4 py-2">
+          <div className="text-sm font-medium text-muted-foreground">Canvas</div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant={isPlaying ? "secondary" : "default"}
+              onClick={() => setIsPlaying((p) => !p)}
+              disabled={isExporting}
+              className="gap-1"
+            >
+              {isPlaying ? <Square className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+              {isPlaying ? "Stop" : "Play"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={exportVideo}
+              disabled={isExporting}
+              className="gap-1"
+            >
+              <Download className="h-3.5 w-3.5" />
+              {isExporting ? "Exporting…" : "Export"}
+            </Button>
+          </div>
+        </div>
         {/* Canvas — 75% height */}
         <div className="flex min-h-0 flex-[3] items-center justify-center bg-muted/30 p-4">
           <div
@@ -196,8 +286,8 @@ function ScriptCanvas() {
                     : "border-transparent hover:border-primary/40"
                 }`}
               >
-                <div className="relative flex h-full w-full items-center justify-center rounded-md bg-primary/10 text-center">
-                  <div>
+                <div className={`relative flex h-full w-full items-center justify-center rounded-md bg-primary/10 text-center ${isPlaying ? "animate-pulse" : ""}`}>
+                  <div className={isPlaying ? "animate-fade-in" : ""}>
                     <Sparkles className="mx-auto h-5 w-5 text-primary" />
                     <p className="mt-1 text-xs font-medium text-primary">{el.content.name}</p>
                   </div>
