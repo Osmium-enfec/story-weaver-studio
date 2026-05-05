@@ -9,38 +9,169 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as AssetsRouteImport } from './routes/assets'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
+import { Route as ProjectsProjectIdVoiceRouteImport } from './routes/projects.$projectId.voice'
+import { Route as ProjectsProjectIdStoryboardRouteImport } from './routes/projects.$projectId.storyboard'
+import { Route as ProjectsProjectIdScriptRouteImport } from './routes/projects.$projectId.script'
+import { Route as ProjectsProjectIdPreviewRouteImport } from './routes/projects.$projectId.preview'
+import { Route as ProjectsProjectIdExportRouteImport } from './routes/projects.$projectId.export'
+import { Route as ProjectsProjectIdEditorRouteImport } from './routes/projects.$projectId.editor'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssetsRoute = AssetsRouteImport.update({
+  id: '/assets',
+  path: '/assets',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
+  id: '/projects/$projectId',
+  path: '/projects/$projectId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectsProjectIdVoiceRoute = ProjectsProjectIdVoiceRouteImport.update({
+  id: '/voice',
+  path: '/voice',
+  getParentRoute: () => ProjectsProjectIdRoute,
+} as any)
+const ProjectsProjectIdStoryboardRoute =
+  ProjectsProjectIdStoryboardRouteImport.update({
+    id: '/storyboard',
+    path: '/storyboard',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
+const ProjectsProjectIdScriptRoute = ProjectsProjectIdScriptRouteImport.update({
+  id: '/script',
+  path: '/script',
+  getParentRoute: () => ProjectsProjectIdRoute,
+} as any)
+const ProjectsProjectIdPreviewRoute =
+  ProjectsProjectIdPreviewRouteImport.update({
+    id: '/preview',
+    path: '/preview',
+    getParentRoute: () => ProjectsProjectIdRoute,
+  } as any)
+const ProjectsProjectIdExportRoute = ProjectsProjectIdExportRouteImport.update({
+  id: '/export',
+  path: '/export',
+  getParentRoute: () => ProjectsProjectIdRoute,
+} as any)
+const ProjectsProjectIdEditorRoute = ProjectsProjectIdEditorRouteImport.update({
+  id: '/editor',
+  path: '/editor',
+  getParentRoute: () => ProjectsProjectIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/assets': typeof AssetsRoute
+  '/settings': typeof SettingsRoute
+  '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
+  '/projects/$projectId/editor': typeof ProjectsProjectIdEditorRoute
+  '/projects/$projectId/export': typeof ProjectsProjectIdExportRoute
+  '/projects/$projectId/preview': typeof ProjectsProjectIdPreviewRoute
+  '/projects/$projectId/script': typeof ProjectsProjectIdScriptRoute
+  '/projects/$projectId/storyboard': typeof ProjectsProjectIdStoryboardRoute
+  '/projects/$projectId/voice': typeof ProjectsProjectIdVoiceRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/assets': typeof AssetsRoute
+  '/settings': typeof SettingsRoute
+  '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
+  '/projects/$projectId/editor': typeof ProjectsProjectIdEditorRoute
+  '/projects/$projectId/export': typeof ProjectsProjectIdExportRoute
+  '/projects/$projectId/preview': typeof ProjectsProjectIdPreviewRoute
+  '/projects/$projectId/script': typeof ProjectsProjectIdScriptRoute
+  '/projects/$projectId/storyboard': typeof ProjectsProjectIdStoryboardRoute
+  '/projects/$projectId/voice': typeof ProjectsProjectIdVoiceRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/assets': typeof AssetsRoute
+  '/settings': typeof SettingsRoute
+  '/projects/$projectId': typeof ProjectsProjectIdRouteWithChildren
+  '/projects/$projectId/editor': typeof ProjectsProjectIdEditorRoute
+  '/projects/$projectId/export': typeof ProjectsProjectIdExportRoute
+  '/projects/$projectId/preview': typeof ProjectsProjectIdPreviewRoute
+  '/projects/$projectId/script': typeof ProjectsProjectIdScriptRoute
+  '/projects/$projectId/storyboard': typeof ProjectsProjectIdStoryboardRoute
+  '/projects/$projectId/voice': typeof ProjectsProjectIdVoiceRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/assets'
+    | '/settings'
+    | '/projects/$projectId'
+    | '/projects/$projectId/editor'
+    | '/projects/$projectId/export'
+    | '/projects/$projectId/preview'
+    | '/projects/$projectId/script'
+    | '/projects/$projectId/storyboard'
+    | '/projects/$projectId/voice'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/assets'
+    | '/settings'
+    | '/projects/$projectId'
+    | '/projects/$projectId/editor'
+    | '/projects/$projectId/export'
+    | '/projects/$projectId/preview'
+    | '/projects/$projectId/script'
+    | '/projects/$projectId/storyboard'
+    | '/projects/$projectId/voice'
+  id:
+    | '__root__'
+    | '/'
+    | '/assets'
+    | '/settings'
+    | '/projects/$projectId'
+    | '/projects/$projectId/editor'
+    | '/projects/$projectId/export'
+    | '/projects/$projectId/preview'
+    | '/projects/$projectId/script'
+    | '/projects/$projectId/storyboard'
+    | '/projects/$projectId/voice'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AssetsRoute: typeof AssetsRoute
+  SettingsRoute: typeof SettingsRoute
+  ProjectsProjectIdRoute: typeof ProjectsProjectIdRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/assets': {
+      id: '/assets'
+      path: '/assets'
+      fullPath: '/assets'
+      preLoaderRoute: typeof AssetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,21 +179,85 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/projects/$projectId': {
+      id: '/projects/$projectId'
+      path: '/projects/$projectId'
+      fullPath: '/projects/$projectId'
+      preLoaderRoute: typeof ProjectsProjectIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/projects/$projectId/voice': {
+      id: '/projects/$projectId/voice'
+      path: '/voice'
+      fullPath: '/projects/$projectId/voice'
+      preLoaderRoute: typeof ProjectsProjectIdVoiceRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
+    '/projects/$projectId/storyboard': {
+      id: '/projects/$projectId/storyboard'
+      path: '/storyboard'
+      fullPath: '/projects/$projectId/storyboard'
+      preLoaderRoute: typeof ProjectsProjectIdStoryboardRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
+    '/projects/$projectId/script': {
+      id: '/projects/$projectId/script'
+      path: '/script'
+      fullPath: '/projects/$projectId/script'
+      preLoaderRoute: typeof ProjectsProjectIdScriptRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
+    '/projects/$projectId/preview': {
+      id: '/projects/$projectId/preview'
+      path: '/preview'
+      fullPath: '/projects/$projectId/preview'
+      preLoaderRoute: typeof ProjectsProjectIdPreviewRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
+    '/projects/$projectId/export': {
+      id: '/projects/$projectId/export'
+      path: '/export'
+      fullPath: '/projects/$projectId/export'
+      preLoaderRoute: typeof ProjectsProjectIdExportRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
+    '/projects/$projectId/editor': {
+      id: '/projects/$projectId/editor'
+      path: '/editor'
+      fullPath: '/projects/$projectId/editor'
+      preLoaderRoute: typeof ProjectsProjectIdEditorRouteImport
+      parentRoute: typeof ProjectsProjectIdRoute
+    }
   }
 }
 
+interface ProjectsProjectIdRouteChildren {
+  ProjectsProjectIdEditorRoute: typeof ProjectsProjectIdEditorRoute
+  ProjectsProjectIdExportRoute: typeof ProjectsProjectIdExportRoute
+  ProjectsProjectIdPreviewRoute: typeof ProjectsProjectIdPreviewRoute
+  ProjectsProjectIdScriptRoute: typeof ProjectsProjectIdScriptRoute
+  ProjectsProjectIdStoryboardRoute: typeof ProjectsProjectIdStoryboardRoute
+  ProjectsProjectIdVoiceRoute: typeof ProjectsProjectIdVoiceRoute
+}
+
+const ProjectsProjectIdRouteChildren: ProjectsProjectIdRouteChildren = {
+  ProjectsProjectIdEditorRoute: ProjectsProjectIdEditorRoute,
+  ProjectsProjectIdExportRoute: ProjectsProjectIdExportRoute,
+  ProjectsProjectIdPreviewRoute: ProjectsProjectIdPreviewRoute,
+  ProjectsProjectIdScriptRoute: ProjectsProjectIdScriptRoute,
+  ProjectsProjectIdStoryboardRoute: ProjectsProjectIdStoryboardRoute,
+  ProjectsProjectIdVoiceRoute: ProjectsProjectIdVoiceRoute,
+}
+
+const ProjectsProjectIdRouteWithChildren =
+  ProjectsProjectIdRoute._addFileChildren(ProjectsProjectIdRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AssetsRoute: AssetsRoute,
+  SettingsRoute: SettingsRoute,
+  ProjectsProjectIdRoute: ProjectsProjectIdRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
