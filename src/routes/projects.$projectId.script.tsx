@@ -83,13 +83,20 @@ function ScriptCanvas() {
       const start = performance.now();
       while (performance.now() - start < totalMs) {
         // eslint-disable-next-line no-await-in-loop
-        const snap = await html2canvas(node, {
-          backgroundColor: null,
-          logging: false,
-          scale: 1,
+        const dataUrl = await toPng(node, {
+          cacheBust: true,
+          pixelRatio: 1,
+          backgroundColor: "#ffffff",
+        });
+        // eslint-disable-next-line no-await-in-loop
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const i = new Image();
+          i.onload = () => resolve(i);
+          i.onerror = reject;
+          i.src = dataUrl;
         });
         ctx.clearRect(0, 0, off.width, off.height);
-        ctx.drawImage(snap, 0, 0, off.width, off.height);
+        ctx.drawImage(img, 0, 0, off.width, off.height);
         // eslint-disable-next-line no-await-in-loop
         await new Promise((r) => setTimeout(r, 100));
       }
