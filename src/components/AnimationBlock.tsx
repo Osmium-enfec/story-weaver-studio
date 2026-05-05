@@ -1,0 +1,60 @@
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+import { Sparkles } from "lucide-react";
+import type { AnimationProvider } from "@/lib/animation-providers";
+
+export interface AnimationBlockContent {
+  provider: AnimationProvider;
+  name: string;
+  slug?: string;
+  lottie_url?: string | null;
+  // playback
+  loop?: boolean;
+  autoplay?: boolean;
+  speed?: number;
+  // style
+  opacity?: number;
+  rotation?: number;
+  // color
+  color_support?: "fixed" | "theme" | "custom";
+  tint?: string | null;
+}
+
+export function AnimationBlockRenderer({ content }: { content: AnimationBlockContent }) {
+  const isLottie =
+    (content.provider === "lottie" || content.provider === "upload") && !!content.lottie_url;
+
+  const wrapperStyle: React.CSSProperties = {
+    width: "100%",
+    height: "100%",
+    opacity: content.opacity ?? 1,
+    transform: `rotate(${content.rotation ?? 0}deg)`,
+    filter: content.tint && content.color_support !== "fixed" ? `drop-shadow(0 0 0 ${content.tint})` : undefined,
+  };
+
+  if (isLottie) {
+    return (
+      <div style={wrapperStyle} className="pointer-events-none">
+        <DotLottieReact
+          src={content.lottie_url!}
+          loop={content.loop ?? true}
+          autoplay={content.autoplay ?? true}
+          speed={content.speed ?? 1}
+          style={{ width: "100%", height: "100%" }}
+        />
+      </div>
+    );
+  }
+
+  // Fallback: internal placeholder block
+  return (
+    <div
+      style={wrapperStyle}
+      className="flex h-full w-full items-center justify-center rounded-md bg-primary/10 text-center"
+    >
+      <div>
+        <Sparkles className="mx-auto h-5 w-5 text-primary" />
+        <p className="mt-1 text-xs font-medium text-primary">{content.name}</p>
+      </div>
+    </div>
+  );
+}
