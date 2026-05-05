@@ -66,6 +66,7 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
 
   const counts = {
     lottie: results.filter((r) => r.provider === "lottie").length,
+    iconscout: results.filter((r) => r.provider === "iconscout").length,
     internal: results.filter((r) => r.provider === "internal").length,
     upload: results.filter((r) => r.provider === "upload").length,
   };
