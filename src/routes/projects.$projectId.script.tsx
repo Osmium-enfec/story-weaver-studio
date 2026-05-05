@@ -37,7 +37,7 @@ function ScriptCanvas() {
   const [script, setScript] = useState(project.script ?? "");
   const [editing, setEditing] = useState(!project.script);
   const [sceneId, setSceneId] = useState<string | null>(null);
-  const [components, setComponents] = useState<AnimComponent[]>([]);
+  // (animation library is now loaded inside AnimationSearchPanel)
   const [elements, setElements] = useState<PlacedElement[]>([]);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
