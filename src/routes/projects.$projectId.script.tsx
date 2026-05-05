@@ -178,17 +178,17 @@ function ScriptCanvas() {
                 bounds="parent"
                 size={{ width: el.position.w, height: el.position.h }}
                 position={{ x: el.position.x, y: el.position.y }}
-                onDragStop={(_, d) =>
-                  updateElement(el.id, { ...el.position, x: d.x, y: d.y })
-                }
-                onResizeStop={(_, __, ref, ____, pos) =>
-                  updateElement(el.id, {
+                onDragStop={(_, d) => {
+                  void updateElement(el.id, { ...el.position, x: d.x, y: d.y });
+                }}
+                onResizeStop={(_, __, ref, ____, pos) => {
+                  void updateElement(el.id, {
                     x: pos.x,
                     y: pos.y,
                     w: parseInt(ref.style.width),
                     h: parseInt(ref.style.height),
-                  })
-                }
+                  });
+                }}
                 onMouseDown={() => setSelectedElementId(el.id)}
                 className={`group/el rounded-lg border-2 ${
                   selectedElementId === el.id
