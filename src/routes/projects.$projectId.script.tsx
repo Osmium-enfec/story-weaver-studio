@@ -1,150 +1,353 @@
-import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, useParams } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Rnd } from "react-rnd";
 import { supabase } from "@/integrations/supabase/client";
 import { useProject } from "@/components/project-context";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { splitScript, detectConcepts, type SplitMode } from "@/lib/scene-splitter";
+import { detectConcepts } from "@/lib/scene-splitter";
 import { toast } from "sonner";
-import { Sparkles, AlertTriangle } from "lucide-react";
+import { Pencil, Save, Trash2, Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/projects/$projectId/script")({
-  component: ScriptStudio,
+  component: ScriptCanvas,
 });
 
-const SPLIT_MODES: { value: SplitMode; label: string }[] = [
-  { value: "sentence", label: "Sentence based" },
-  { value: "paragraph", label: "Paragraph based" },
-  { value: "concept", label: "Concept based" },
-  { value: "manual", label: "Manual markers (---)" },
-];
+interface AnimComponent {
+  id: string;
+  slug: string;
+  name: string;
+  category: string;
+  concepts: string[];
+  tags: string[];
+}
 
-function ScriptStudio() {
-  const { project, reload } = useProject();
+interface PlacedElement {
+  id: string;
+  scene_id: string;
+  type: string;
+  content: { slug: string; name: string };
+  position: { x: number; y: number; w: number; h: number };
+  z_index: number;
+}
+
+const WORD_RE = /[A-Za-z][A-Za-z0-9_-]*/g;
+
+function ScriptCanvas() {
   const { projectId } = useParams({ from: "/projects/$projectId/script" });
-  const navigate = useNavigate();
-  const [script, setScript] = useState(project.script);
-  const [mode, setMode] = useState<SplitMode>("paragraph");
-  const [busy, setBusy] = useState(false);
+  const { project, reload } = useProject();
+  const [script, setScript] = useState(project.script ?? "");
+  const [editing, setEditing] = useState(!project.script);
+  const [sceneId, setSceneId] = useState<string | null>(null);
+  const [components, setComponents] = useState<AnimComponent[]>([]);
+  const [elements, setElements] = useState<PlacedElement[]>([]);
+  const [selectedWord, setSelectedWord] = useState<string | null>(null);
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => setScript(project.script ?? ""), [project.script]);
+
+  // Load animation library
   useEffect(() => {
-    setScript(project.script);
-  }, [project.script]);
+    (async () => {
+      const { data } = await supabase
+        .from("animation_components")
+        .select("id,slug,name,category,concepts,tags")
+        .order("name");
+      setComponents((data ?? []) as AnimComponent[]);
+    })();
+  }, []);
 
-  const preview = useMemo(() => splitScript(script, mode, project.course_type), [script, mode, project.course_type]);
-  const concepts = useMemo(() => detectConcepts(script), [script]);
-  const totalMs = preview.reduce((s, p) => s + p.duration_ms, 0);
-  const longScenes = preview.filter((s) => s.narration.length > 280).length;
+  // Ensure a canvas scene exists, then load placed elements
+  useEffect(() => {
+    (async () => {
+      const { data: existing } = await supabase
+        .from("scenes")
+        .select("id")
+        .eq("project_id", projectId)
+        .order("order_index")
+        .limit(1);
+      let id = existing?.[0]?.id as string | undefined;
+      if (!id) {
+        const { data: created, error } = await supabase
+          .from("scenes")
+          .insert({
+            project_id: projectId,
+            order_index: 0,
+            narration: "",
+            visual_brief: "",
+            detected_concepts: [],
+            duration_ms: 8000,
+          })
+          .select("id")
+          .single();
+        if (error) return toast.error(error.message);
+        id = created!.id as string;
+      }
+      setSceneId(id!);
+      const { data: els } = await supabase
+        .from("scene_elements")
+        .select("*")
+        .eq("scene_id", id!)
+        .order("z_index");
+      setElements((els ?? []) as PlacedElement[]);
+    })();
+  }, [projectId]);
+
+  const ratio = project.aspect_ratio;
+  const aspect = ratio === "9:16" ? "9 / 16" : ratio === "1:1" ? "1 / 1" : "16 / 9";
+
+  // Word -> matching animations
+  const wordMatches = useMemo(() => {
+    if (!selectedWord) return [] as AnimComponent[];
+    const w = selectedWord.toLowerCase();
+    const concepts = detectConcepts(selectedWord).map((c) => c.toLowerCase());
+    const matched = components.filter((c) => {
+      const inTags = c.tags.some((t) => t.toLowerCase().includes(w) || w.includes(t.toLowerCase()));
+      const inConcepts = c.concepts.some((cc) =>
+        concepts.includes(cc.toLowerCase()) || cc.toLowerCase().includes(w),
+      );
+      const inName = c.name.toLowerCase().includes(w) || c.slug.includes(w);
+      return inTags || inConcepts || inName;
+    });
+    return matched.length ? matched : components;
+  }, [selectedWord, components]);
 
   async function saveScript() {
     const { error } = await supabase.from("projects").update({ script }).eq("id", projectId);
     if (error) return toast.error(error.message);
     toast.success("Script saved");
+    setEditing(false);
     reload();
   }
 
-  async function generateStoryboard() {
-    if (preview.length === 0) {
-      toast.error("Add some script text first");
-      return;
-    }
-    setBusy(true);
-    // Save script
-    await supabase.from("projects").update({ script, estimated_duration_ms: totalMs }).eq("id", projectId);
-    // Replace existing scenes
-    await supabase.from("scenes").delete().eq("project_id", projectId);
-    const rows = preview.map((s, i) => ({
-      project_id: projectId,
-      order_index: i,
-      narration: s.narration,
-      visual_brief: s.visual_brief,
-      detected_concepts: s.detected_concepts,
-      duration_ms: s.duration_ms,
-      suggested_animation: s.suggested_animation,
-    }));
-    const { error } = await supabase.from("scenes").insert(rows);
-    setBusy(false);
+  async function addAnimation(c: AnimComponent) {
+    if (!sceneId || !canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const w = Math.round(rect.width * 0.3);
+    const h = Math.round(rect.height * 0.3);
+    const x = Math.round((rect.width - w) / 2);
+    const y = Math.round((rect.height - h) / 2);
+    const { data, error } = await supabase
+      .from("scene_elements")
+      .insert({
+        scene_id: sceneId,
+        type: "animation",
+        content: { slug: c.slug, name: c.name },
+        position: { x, y, w, h },
+        z_index: elements.length,
+      })
+      .select("*")
+      .single();
     if (error) return toast.error(error.message);
-    toast.success(`Generated ${rows.length} screens`);
-    navigate({ to: `/projects/${projectId}/storyboard` as string });
+    setElements((prev) => [...prev, data as PlacedElement]);
+    setSelectedElementId((data as PlacedElement).id);
+  }
+
+  async function updateElement(id: string, position: PlacedElement["position"]) {
+    setElements((prev) => prev.map((e) => (e.id === id ? { ...e, position } : e)));
+    await supabase.from("scene_elements").update({ position }).eq("id", id);
+  }
+
+  async function deleteElement(id: string) {
+    setElements((prev) => prev.filter((e) => e.id !== id));
+    await supabase.from("scene_elements").delete().eq("id", id);
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="script" className="text-base font-semibold">Your script</Label>
-          <Button variant="ghost" size="sm" onClick={saveScript}>Save draft</Button>
-        </div>
-        <Textarea
-          id="script"
-          value={script}
-          onChange={(e) => setScript(e.target.value)}
-          placeholder="Paste or type your lesson script here. Use blank lines to separate paragraphs, or '---' for manual scene markers."
-          className="min-h-[460px] font-mono text-sm leading-relaxed"
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Label className="text-sm">Split mode</Label>
-            <Select value={mode} onValueChange={(v) => setMode(v as SplitMode)}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SPLIT_MODES.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+    <div className="flex gap-4" style={{ height: "calc(100vh - 9rem)" }}>
+      {/* MAIN CARD — 75% width */}
+      <div className="flex h-full w-3/4 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        {/* Canvas — 75% height */}
+        <div className="flex min-h-0 flex-[3] items-center justify-center bg-muted/30 p-4">
+          <div
+            ref={canvasRef}
+            className="relative h-full max-h-full overflow-hidden rounded-xl bg-white shadow-md"
+            style={{
+              aspectRatio: aspect,
+              backgroundImage:
+                "linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%)",
+            }}
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setSelectedElementId(null);
+            }}
+          >
+            {elements.map((el) => (
+              <Rnd
+                key={el.id}
+                bounds="parent"
+                size={{ width: el.position.w, height: el.position.h }}
+                position={{ x: el.position.x, y: el.position.y }}
+                onDragStop={(_, d) =>
+                  updateElement(el.id, { ...el.position, x: d.x, y: d.y })
+                }
+                onResizeStop={(_, __, ref, ____, pos) =>
+                  updateElement(el.id, {
+                    x: pos.x,
+                    y: pos.y,
+                    w: parseInt(ref.style.width),
+                    h: parseInt(ref.style.height),
+                  })
+                }
+                onMouseDown={() => setSelectedElementId(el.id)}
+                className={`group/el rounded-lg border-2 ${
+                  selectedElementId === el.id
+                    ? "border-primary"
+                    : "border-transparent hover:border-primary/40"
+                }`}
+              >
+                <div className="relative flex h-full w-full items-center justify-center rounded-md bg-primary/10 text-center">
+                  <div>
+                    <Sparkles className="mx-auto h-5 w-5 text-primary" />
+                    <p className="mt-1 text-xs font-medium text-primary">{el.content.name}</p>
+                  </div>
+                  {selectedElementId === el.id && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteElement(el.id);
+                      }}
+                      className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              </Rnd>
+            ))}
+            {elements.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                Click a word below, then pick an animation →
+              </div>
+            )}
           </div>
-          <Button onClick={generateStoryboard} disabled={busy} size="lg" className="ml-auto gap-2">
-            <Sparkles className="h-4 w-4" />
-            {busy ? "Generating…" : "Generate Storyboard"}
-          </Button>
         </div>
-      </div>
 
-      <aside className="space-y-4 rounded-xl border border-border bg-card p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Script analysis
-        </h2>
-        <Stat label="Estimated screens" value={preview.length.toString()} />
-        <Stat label="Estimated duration" value={`${(totalMs / 1000).toFixed(1)}s`} />
-        <Stat label="Words" value={script.trim().split(/\s+/).filter(Boolean).length.toString()} />
-        <div>
-          <div className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
-            Detected concepts
+        {/* Script — 25% height */}
+        <div className="flex min-h-0 flex-1 flex-col gap-2 border-t border-border bg-card p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Script {selectedWord && <span className="ml-2 text-primary">· {selectedWord}</span>}
+            </h3>
+            {editing ? (
+              <Button size="sm" onClick={saveScript} className="gap-1">
+                <Save className="h-3.5 w-3.5" /> Save
+              </Button>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={() => setEditing(true)} className="gap-1">
+                <Pencil className="h-3.5 w-3.5" /> Edit
+              </Button>
+            )}
           </div>
-          {concepts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">None detected yet.</p>
+          {editing ? (
+            <Textarea
+              value={script}
+              onChange={(e) => setScript(e.target.value)}
+              placeholder="Type your lesson script…"
+              className="min-h-0 flex-1 resize-none font-mono text-sm"
+            />
           ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {concepts.map((c) => (
-                <span key={c} className="rounded-full bg-secondary px-2.5 py-0.5 text-xs">
-                  {c}
-                </span>
-              ))}
+            <div className="min-h-0 flex-1 overflow-y-auto rounded-md bg-muted/30 p-3 text-sm leading-7">
+              {script ? (
+                <ClickableScript
+                  text={script}
+                  selected={selectedWord}
+                  onWordClick={(w) => setSelectedWord(w)}
+                />
+              ) : (
+                <p className="text-muted-foreground">No script yet. Click Edit to add one.</p>
+              )}
             </div>
           )}
         </div>
-        {longScenes > 0 && (
-          <div className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-xs text-destructive">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{longScenes} scene{longScenes > 1 ? "s are" : " is"} longer than 280 chars. Consider splitting.</span>
-          </div>
-        )}
+      </div>
+
+      {/* RIGHT 25% — animations panel */}
+      <aside className="flex h-full w-1/4 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        <div className="border-b border-border p-4">
+          <h3 className="text-sm font-semibold">Animations</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {selectedWord
+              ? `Suggestions for "${selectedWord}"`
+              : "Click a word in your script"}
+          </p>
+        </div>
+        <div className="flex-1 overflow-y-auto p-3">
+          {selectedWord ? (
+            wordMatches.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No matches found.</p>
+            ) : (
+              <div className="space-y-2">
+                {wordMatches.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => addAnimation(c)}
+                    className="group flex w-full items-start gap-3 rounded-lg border border-border bg-background p-3 text-left transition-all hover:border-primary hover:shadow-sm"
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <Sparkles className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium">{c.name}</div>
+                      <div className="text-xs text-muted-foreground">{c.category}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )
+          ) : (
+            <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+              Select any word to see relevant animations.
+            </div>
+          )}
+        </div>
       </aside>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function ClickableScript({
+  text,
+  selected,
+  onWordClick,
+}: {
+  text: string;
+  selected: string | null;
+  onWordClick: (w: string) => void;
+}) {
+  // Tokenize preserving whitespace and punctuation
+  const tokens = useMemo(() => {
+    const out: { word: boolean; text: string }[] = [];
+    let last = 0;
+    for (const m of text.matchAll(WORD_RE)) {
+      const idx = m.index ?? 0;
+      if (idx > last) out.push({ word: false, text: text.slice(last, idx) });
+      out.push({ word: true, text: m[0] });
+      last = idx + m[0].length;
+    }
+    if (last < text.length) out.push({ word: false, text: text.slice(last) });
+    return out;
+  }, [text]);
+
   return (
-    <div className="flex items-baseline justify-between">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="text-lg font-semibold">{value}</span>
-    </div>
+    <p className="whitespace-pre-wrap">
+      {tokens.map((t, i) =>
+        t.word ? (
+          <button
+            key={i}
+            onClick={() => onWordClick(t.text)}
+            className={`rounded px-0.5 transition-colors hover:bg-primary/15 ${
+              selected?.toLowerCase() === t.text.toLowerCase()
+                ? "bg-primary/20 font-semibold text-primary"
+                : ""
+            }`}
+          >
+            {t.text}
+          </button>
+        ) : (
+          <span key={i}>{t.text}</span>
+        ),
+      )}
+    </p>
   );
 }
