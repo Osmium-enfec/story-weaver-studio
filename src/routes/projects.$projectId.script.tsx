@@ -213,6 +213,14 @@ function ScriptCanvas() {
     const h = Math.round(rect.height * 0.3);
     const x = Math.round((rect.width - w) / 2);
     const y = Math.round((rect.height - h) / 2);
+    // Determine occurrence: count existing elements already bound to the same word
+    const boundWord = selectedWord ?? null;
+    const occurrence = boundWord
+      ? elements.filter(
+          (e) => (e.content.word ?? "").toLowerCase() === boundWord.toLowerCase(),
+        ).length + 1
+      : null;
+
     const content: AnimationBlockContent = {
       provider: a.provider,
       name: a.name,
@@ -227,6 +235,8 @@ function ScriptCanvas() {
       rotation: 0,
       color_support: a.color_support,
       tint: null,
+      word: boundWord,
+      occurrence,
     };
     const { data, error } = await supabase
       .from("scene_elements")
