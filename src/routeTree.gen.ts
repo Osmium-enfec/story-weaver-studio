@@ -19,6 +19,8 @@ import { Route as ProjectsProjectIdScriptRouteImport } from './routes/projects.$
 import { Route as ProjectsProjectIdPreviewRouteImport } from './routes/projects.$projectId.preview'
 import { Route as ProjectsProjectIdExportRouteImport } from './routes/projects.$projectId.export'
 import { Route as ProjectsProjectIdEditorRouteImport } from './routes/projects.$projectId.editor'
+import { Route as ApiPublicRenderJobsUpdateRouteImport } from './routes/api.public.render-jobs.update'
+import { Route as ApiPublicRenderJobsJobIdRouteImport } from './routes/api.public.render-jobs.$jobId'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -72,6 +74,18 @@ const ProjectsProjectIdEditorRoute = ProjectsProjectIdEditorRouteImport.update({
   path: '/editor',
   getParentRoute: () => ProjectsProjectIdRoute,
 } as any)
+const ApiPublicRenderJobsUpdateRoute =
+  ApiPublicRenderJobsUpdateRouteImport.update({
+    id: '/api/public/render-jobs/update',
+    path: '/api/public/render-jobs/update',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicRenderJobsJobIdRoute =
+  ApiPublicRenderJobsJobIdRouteImport.update({
+    id: '/api/public/render-jobs/$jobId',
+    path: '/api/public/render-jobs/$jobId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -84,6 +98,8 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/script': typeof ProjectsProjectIdScriptRoute
   '/projects/$projectId/storyboard': typeof ProjectsProjectIdStoryboardRoute
   '/projects/$projectId/voice': typeof ProjectsProjectIdVoiceRoute
+  '/api/public/render-jobs/$jobId': typeof ApiPublicRenderJobsJobIdRoute
+  '/api/public/render-jobs/update': typeof ApiPublicRenderJobsUpdateRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -96,6 +112,8 @@ export interface FileRoutesByTo {
   '/projects/$projectId/script': typeof ProjectsProjectIdScriptRoute
   '/projects/$projectId/storyboard': typeof ProjectsProjectIdStoryboardRoute
   '/projects/$projectId/voice': typeof ProjectsProjectIdVoiceRoute
+  '/api/public/render-jobs/$jobId': typeof ApiPublicRenderJobsJobIdRoute
+  '/api/public/render-jobs/update': typeof ApiPublicRenderJobsUpdateRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -109,6 +127,8 @@ export interface FileRoutesById {
   '/projects/$projectId/script': typeof ProjectsProjectIdScriptRoute
   '/projects/$projectId/storyboard': typeof ProjectsProjectIdStoryboardRoute
   '/projects/$projectId/voice': typeof ProjectsProjectIdVoiceRoute
+  '/api/public/render-jobs/$jobId': typeof ApiPublicRenderJobsJobIdRoute
+  '/api/public/render-jobs/update': typeof ApiPublicRenderJobsUpdateRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -123,6 +143,8 @@ export interface FileRouteTypes {
     | '/projects/$projectId/script'
     | '/projects/$projectId/storyboard'
     | '/projects/$projectId/voice'
+    | '/api/public/render-jobs/$jobId'
+    | '/api/public/render-jobs/update'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -135,6 +157,8 @@ export interface FileRouteTypes {
     | '/projects/$projectId/script'
     | '/projects/$projectId/storyboard'
     | '/projects/$projectId/voice'
+    | '/api/public/render-jobs/$jobId'
+    | '/api/public/render-jobs/update'
   id:
     | '__root__'
     | '/'
@@ -147,6 +171,8 @@ export interface FileRouteTypes {
     | '/projects/$projectId/script'
     | '/projects/$projectId/storyboard'
     | '/projects/$projectId/voice'
+    | '/api/public/render-jobs/$jobId'
+    | '/api/public/render-jobs/update'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -154,6 +180,8 @@ export interface RootRouteChildren {
   AssetsRoute: typeof AssetsRoute
   SettingsRoute: typeof SettingsRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRouteWithChildren
+  ApiPublicRenderJobsJobIdRoute: typeof ApiPublicRenderJobsJobIdRoute
+  ApiPublicRenderJobsUpdateRoute: typeof ApiPublicRenderJobsUpdateRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -228,6 +256,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdEditorRouteImport
       parentRoute: typeof ProjectsProjectIdRoute
     }
+    '/api/public/render-jobs/update': {
+      id: '/api/public/render-jobs/update'
+      path: '/api/public/render-jobs/update'
+      fullPath: '/api/public/render-jobs/update'
+      preLoaderRoute: typeof ApiPublicRenderJobsUpdateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/render-jobs/$jobId': {
+      id: '/api/public/render-jobs/$jobId'
+      path: '/api/public/render-jobs/$jobId'
+      fullPath: '/api/public/render-jobs/$jobId'
+      preLoaderRoute: typeof ApiPublicRenderJobsJobIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -257,16 +299,9 @@ const rootRouteChildren: RootRouteChildren = {
   AssetsRoute: AssetsRoute,
   SettingsRoute: SettingsRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRouteWithChildren,
+  ApiPublicRenderJobsJobIdRoute: ApiPublicRenderJobsJobIdRoute,
+  ApiPublicRenderJobsUpdateRoute: ApiPublicRenderJobsUpdateRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
