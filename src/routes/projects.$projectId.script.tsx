@@ -128,17 +128,6 @@ function ScriptCanvas() {
 
   useEffect(() => setScript(project.script ?? ""), [project.script]);
 
-  // Load animation library
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from("animation_components")
-        .select("id,slug,name,category,concepts,tags")
-        .order("name");
-      setComponents((data ?? []) as AnimComponent[]);
-    })();
-  }, []);
-
   // Ensure a canvas scene exists, then load placed elements
   useEffect(() => {
     (async () => {
@@ -178,22 +167,6 @@ function ScriptCanvas() {
   const ratio = project.aspect_ratio;
   const aspect = ratio === "9:16" ? "9 / 16" : ratio === "1:1" ? "1 / 1" : "16 / 9";
 
-  // Word -> matching animations
-  const wordMatches = useMemo(() => {
-    if (!selectedWord) return [] as AnimComponent[];
-    const w = selectedWord.toLowerCase();
-    const concepts = detectConcepts(selectedWord).map((c) => c.toLowerCase());
-    const matched = components.filter((c) => {
-      const inTags = c.tags.some((t) => t.toLowerCase().includes(w) || w.includes(t.toLowerCase()));
-      const inConcepts = c.concepts.some((cc) =>
-        concepts.includes(cc.toLowerCase()) || cc.toLowerCase().includes(w),
-      );
-      const inName = c.name.toLowerCase().includes(w) || c.slug.includes(w);
-      return inTags || inConcepts || inName;
-    });
-    return matched.length ? matched : components;
-  }, [selectedWord, components]);
-
   async function saveScript() {
     const { error } = await supabase.from("projects").update({ script }).eq("id", projectId);
     if (error) return toast.error(error.message);
@@ -202,19 +175,32 @@ function ScriptCanvas() {
     reload();
   }
 
-  async function addAnimation(c: AnimComponent) {
+  async function addAnimation(a: AnimationResult) {
     if (!sceneId || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const w = Math.round(rect.width * 0.3);
     const h = Math.round(rect.height * 0.3);
     const x = Math.round((rect.width - w) / 2);
     const y = Math.round((rect.height - h) / 2);
+    const content: AnimationBlockContent = {
+      provider: a.provider,
+      name: a.name,
+      slug: a.slug,
+      lottie_url: a.lottie_url ?? null,
+      loop: true,
+      autoplay: true,
+      speed: 1,
+      opacity: 1,
+      rotation: 0,
+      color_support: a.color_support,
+      tint: null,
+    };
     const { data, error } = await supabase
       .from("scene_elements")
       .insert({
         scene_id: sceneId,
-        type: "animation",
-        content: { slug: c.slug, name: c.name },
+        type: a.provider === "internal" ? "animation" : "lottie",
+        content: content as unknown as Record<string, unknown>,
         position: { x, y, w, h },
         z_index: elements.length,
       })
