@@ -46,6 +46,8 @@ function ScriptCanvas() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [playOpen, setPlayOpen] = useState(false);
+  const [canvasSize, setCanvasSize] = useState({ w: 1280, h: 720 });
 
   // Auto-stop play after a duration
   useEffect(() => {
