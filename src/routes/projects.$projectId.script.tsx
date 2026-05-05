@@ -1,7 +1,7 @@
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Rnd } from "react-rnd";
-import html2canvas from "html2canvas";
+import { toPng } from "html-to-image";
 import { supabase } from "@/integrations/supabase/client";
 import { useProject } from "@/components/project-context";
 import { Button } from "@/components/ui/button";
