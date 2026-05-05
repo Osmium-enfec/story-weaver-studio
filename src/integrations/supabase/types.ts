@@ -23,6 +23,7 @@ export type Database = {
           created_at: string
           default_props: Json
           description: string | null
+          external_id: string | null
           id: string
           lottie_url: string | null
           name: string
@@ -31,6 +32,7 @@ export type Database = {
           slug: string
           tags: string[]
           thumbnail_url: string | null
+          video_url: string | null
         }
         Insert: {
           category: string
@@ -40,6 +42,7 @@ export type Database = {
           created_at?: string
           default_props?: Json
           description?: string | null
+          external_id?: string | null
           id?: string
           lottie_url?: string | null
           name: string
@@ -48,6 +51,7 @@ export type Database = {
           slug: string
           tags?: string[]
           thumbnail_url?: string | null
+          video_url?: string | null
         }
         Update: {
           category?: string
@@ -57,6 +61,7 @@ export type Database = {
           created_at?: string
           default_props?: Json
           description?: string | null
+          external_id?: string | null
           id?: string
           lottie_url?: string | null
           name?: string
@@ -65,6 +70,7 @@ export type Database = {
           slug?: string
           tags?: string[]
           thumbnail_url?: string | null
+          video_url?: string | null
         }
         Relationships: []
       }
