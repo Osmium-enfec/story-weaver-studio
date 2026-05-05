@@ -7,6 +7,8 @@ export interface AnimationBlockContent {
   name: string;
   slug?: string;
   lottie_url?: string | null;
+  video_url?: string | null;
+  external_id?: string | null;
   // playback
   loop?: boolean;
   autoplay?: boolean;
