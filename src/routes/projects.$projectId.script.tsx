@@ -45,6 +45,69 @@ function ScriptCanvas() {
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Auto-stop play after a duration
+  useEffect(() => {
+    if (!isPlaying) return;
+    const t = setTimeout(() => setIsPlaying(false), 4000);
+    return () => clearTimeout(t);
+  }, [isPlaying]);
+
+  async function exportVideo() {
+    if (!canvasRef.current) return;
+    setIsExporting(true);
+    setIsPlaying(true);
+    try {
+      const node = canvasRef.current;
+      const rect = node.getBoundingClientRect();
+      const off = document.createElement("canvas");
+      off.width = Math.round(rect.width);
+      off.height = Math.round(rect.height);
+      const ctx = off.getContext("2d")!;
+      const stream = (off as HTMLCanvasElement).captureStream(30);
+      const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : "video/webm";
+      const recorder = new MediaRecorder(stream, { mimeType: mime });
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      const done = new Promise<Blob>((resolve) => {
+        recorder.onstop = () => resolve(new Blob(chunks, { type: mime }));
+      });
+      recorder.start();
+
+      const totalMs = 4000;
+      const start = performance.now();
+      while (performance.now() - start < totalMs) {
+        // eslint-disable-next-line no-await-in-loop
+        const snap = await html2canvas(node, {
+          backgroundColor: null,
+          logging: false,
+          scale: 1,
+        });
+        ctx.clearRect(0, 0, off.width, off.height);
+        ctx.drawImage(snap, 0, 0, off.width, off.height);
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      recorder.stop();
+      const blob = await done;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${project.title || "code-motion"}.webm`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Video exported");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setIsExporting(false);
+      setIsPlaying(false);
+    }
+  }
 
   useEffect(() => setScript(project.script ?? ""), [project.script]);
 
