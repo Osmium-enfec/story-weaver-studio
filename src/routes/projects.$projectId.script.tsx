@@ -110,6 +110,26 @@ function ScriptCanvas() {
     }
   }
 
+  useEffect(() => {
+    toolbarStore.set([
+      {
+        label: isPlaying ? "Stop" : "Play",
+        icon: isPlaying ? "stop" : "play",
+        variant: isPlaying ? "secondary" : "default",
+        disabled: isExporting,
+        onClick: () => setIsPlaying((p) => !p),
+      },
+      {
+        label: isExporting ? "Exporting…" : "Export",
+        icon: "download",
+        variant: "outline",
+        disabled: isExporting,
+        onClick: exportVideo,
+      },
+    ]);
+    return () => toolbarStore.clear();
+  }, [isPlaying, isExporting]);
+
   useEffect(() => setScript(project.script ?? ""), [project.script]);
 
   // Load animation library
