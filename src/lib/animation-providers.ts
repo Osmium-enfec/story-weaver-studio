@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+import { searchIconscout } from "@/server/iconscout.functions";
 
-export type AnimationProvider = "internal" | "lottie" | "upload";
+export type AnimationProvider = "internal" | "lottie" | "upload" | "iconscout";
 
 export interface AnimationResult {
   id: string;             // unique key (component id or url hash)
@@ -12,6 +13,10 @@ export interface AnimationResult {
   /** Visual source */
   lottie_url?: string | null;
   thumbnail_url?: string | null;
+  /** Iconscout preview (mp4) */
+  video_url?: string | null;
+  /** Iconscout asset metadata */
+  external_id?: string | null;
   /** For internal (non-Lottie) components */
   slug?: string;
   color_support: "fixed" | "theme" | "custom";
