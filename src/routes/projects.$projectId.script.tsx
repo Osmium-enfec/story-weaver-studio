@@ -136,6 +136,8 @@ function ScriptCanvas() {
     return () => toolbarStore.clear();
   }, [isPlaying, isExporting]);
 
+  useEffect(() => setScript(project.script ?? ""), [project.script]);
+
   // Ensure a canvas scene exists, then load placed elements
   useEffect(() => {
     (async () => {
