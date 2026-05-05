@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+import { searchIconscout } from "@/server/iconscout.functions";
 
-export type AnimationProvider = "internal" | "lottie" | "upload";
+export type AnimationProvider = "internal" | "lottie" | "upload" | "iconscout";
 
 export interface AnimationResult {
   id: string;             // unique key (component id or url hash)
@@ -12,6 +13,10 @@ export interface AnimationResult {
   /** Visual source */
   lottie_url?: string | null;
   thumbnail_url?: string | null;
+  /** Iconscout preview (mp4) */
+  video_url?: string | null;
+  /** Iconscout asset metadata */
+  external_id?: string | null;
   /** For internal (non-Lottie) components */
   slug?: string;
   color_support: "fixed" | "theme" | "custom";
@@ -97,13 +102,33 @@ async function searchUploads({ query, limit = 24 }: SearchOpts): Promise<Animati
     });
 }
 
+async function searchIconscoutResults({ query, limit = 20 }: SearchOpts): Promise<AnimationResult[]> {
+  const { items } = await searchIconscout({
+    data: { query: query.trim() || "animation", asset: "lottie", per_page: Math.min(limit, 30) },
+  });
+  return items
+    .filter((i) => !!i.preview_url)
+    .map((i) => ({
+      id: `iconscout:${i.uuid}`,
+      provider: "iconscout" as const,
+      name: i.name,
+      tags: [],
+      concepts: [],
+      external_id: String(i.id),
+      video_url: i.preview_url,
+      thumbnail_url: i.preview_url,
+      color_support: "fixed" as const,
+    }));
+}
+
 export async function searchAllAnimations(opts: SearchOpts): Promise<AnimationResult[]> {
-  const [a, b, c] = await Promise.all([
+  const [a, b, c, d] = await Promise.all([
     searchInternal(opts).catch(() => []),
     searchLottie(opts).catch(() => []),
     searchUploads(opts).catch(() => []),
+    searchIconscoutResults(opts).catch(() => []),
   ]);
-  return [...b, ...a, ...c];
+  return [...b, ...d, ...a, ...c];
 }
 
 export async function uploadLottieFile(file: File): Promise<AnimationResult> {

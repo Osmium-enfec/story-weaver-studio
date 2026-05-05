@@ -66,6 +66,7 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
 
   const counts = {
     lottie: results.filter((r) => r.provider === "lottie").length,
+    iconscout: results.filter((r) => r.provider === "iconscout").length,
     internal: results.filter((r) => r.provider === "internal").length,
     upload: results.filter((r) => r.provider === "upload").length,
   };
@@ -111,8 +112,10 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
             <LinkIcon className="h-3 w-3" />
           </Button>
         </div>
-        <div className="flex gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+        <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
           <span>Lottie {counts.lottie}</span>
+          <span>•</span>
+          <span>Iconscout {counts.iconscout}</span>
           <span>•</span>
           <span>Internal {counts.internal}</span>
           <span>•</span>
@@ -139,7 +142,16 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
               className="group flex flex-col items-stretch overflow-hidden rounded-lg border border-border bg-background text-left transition-all hover:border-primary hover:shadow-sm"
             >
               <div className="relative aspect-square bg-muted/40">
-                {r.provider !== "internal" && r.lottie_url ? (
+                {r.provider === "iconscout" && r.video_url ? (
+                  <video
+                    src={r.video_url}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                  />
+                ) : r.provider !== "internal" && r.lottie_url ? (
                   <DotLottieReact
                     src={r.lottie_url}
                     loop

@@ -187,6 +187,8 @@ function ScriptCanvas() {
       name: a.name,
       slug: a.slug,
       lottie_url: a.lottie_url ?? null,
+      video_url: a.video_url ?? null,
+      external_id: a.external_id ?? null,
       loop: true,
       autoplay: true,
       speed: 1,
@@ -199,7 +201,7 @@ function ScriptCanvas() {
       .from("scene_elements")
       .insert({
         scene_id: sceneId,
-        type: a.provider === "internal" ? "animation" : "lottie",
+        type: a.provider === "internal" ? "animation" : a.provider === "iconscout" ? "iconscout" : "lottie",
         content: content as unknown as never,
         position: { x, y, w, h },
         z_index: elements.length,

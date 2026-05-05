@@ -7,6 +7,8 @@ export interface AnimationBlockContent {
   name: string;
   slug?: string;
   lottie_url?: string | null;
+  video_url?: string | null;
+  external_id?: string | null;
   // playback
   loop?: boolean;
   autoplay?: boolean;
@@ -40,6 +42,21 @@ export function AnimationBlockRenderer({ content }: { content: AnimationBlockCon
           autoplay={content.autoplay ?? true}
           speed={content.speed ?? 1}
           style={{ width: "100%", height: "100%" }}
+        />
+      </div>
+    );
+  }
+
+  if (content.provider === "iconscout" && content.video_url) {
+    return (
+      <div style={wrapperStyle} className="pointer-events-none">
+        <video
+          src={content.video_url}
+          autoPlay={content.autoplay ?? true}
+          loop={content.loop ?? true}
+          muted
+          playsInline
+          style={{ width: "100%", height: "100%", objectFit: "contain" }}
         />
       </div>
     );
