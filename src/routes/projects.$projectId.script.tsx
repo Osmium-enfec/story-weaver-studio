@@ -222,32 +222,6 @@ function ScriptCanvas() {
     <div className="flex gap-4" style={{ height: "calc(100vh - 9rem)" }}>
       {/* MAIN CARD — 75% width */}
       <div className="flex h-full w-3/4 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        {/* Top toolbar */}
-        <div className="flex items-center justify-between border-b border-border px-4 py-2">
-          <div className="text-sm font-medium text-muted-foreground">Canvas</div>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant={isPlaying ? "secondary" : "default"}
-              onClick={() => setIsPlaying((p) => !p)}
-              disabled={isExporting}
-              className="gap-1"
-            >
-              {isPlaying ? <Square className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-              {isPlaying ? "Stop" : "Play"}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={exportVideo}
-              disabled={isExporting}
-              className="gap-1"
-            >
-              <Download className="h-3.5 w-3.5" />
-              {isExporting ? "Exporting…" : "Export"}
-            </Button>
-          </div>
-        </div>
         {/* Canvas — 75% height */}
         <div className="flex min-h-0 flex-[3] items-center justify-center bg-muted/30 p-4">
           <div
