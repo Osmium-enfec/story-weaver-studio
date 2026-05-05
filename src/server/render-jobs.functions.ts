@@ -1,0 +1,66 @@
+import { createServerFn } from "@tanstack/react-start";
+import { createClient } from "@supabase/supabase-js";
+
+function admin() {
+  return createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+}
+
+export const enqueueRenderJob = createServerFn({ method: "POST" })
+  .inputValidator(
+    (input: {
+      projectId: string;
+      settings?: Record<string, unknown>;
+      renderPlan?: unknown;
+    }) => input,
+  )
+  .handler(async ({ data }) => {
+    const sb = admin();
+    const { data: job, error } = await sb
+      .from("render_jobs")
+      .insert({
+        project_id: data.projectId,
+        status: "pending",
+        progress: 0,
+        settings: data.settings ?? {},
+        render_plan: data.renderPlan ?? null,
+      })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+
+    // Best-effort kick to the worker (if configured). Don't block enqueue on it.
+    const workerUrl = process.env.RENDER_WORKER_URL;
+    const workerSecret = process.env.RENDER_WORKER_SECRET;
+    if (workerUrl) {
+      try {
+        await fetch(`${workerUrl.replace(/\/$/, "")}/render`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(workerSecret ? { "x-worker-secret": workerSecret } : {}),
+          },
+          body: JSON.stringify({ jobId: job.id }),
+        });
+      } catch {
+        // Worker offline — job stays pending and can be picked up later.
+      }
+    }
+    return { job };
+  });
+
+export const listRenderJobs = createServerFn({ method: "GET" })
+  .inputValidator((input: { projectId: string }) => input)
+  .handler(async ({ data }) => {
+    const sb = admin();
+    const { data: jobs, error } = await sb
+      .from("render_jobs")
+      .select("*")
+      .eq("project_id", data.projectId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) throw new Error(error.message);
+    return { jobs: jobs ?? [] };
+  });
