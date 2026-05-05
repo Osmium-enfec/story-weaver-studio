@@ -15,6 +15,7 @@ import {
   type AnimationBlockContent,
 } from "@/components/AnimationBlock";
 import type { AnimationResult } from "@/lib/animation-providers";
+import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
 
 export const Route = createFileRoute("/projects/$projectId/script")({
   component: ScriptCanvas,
