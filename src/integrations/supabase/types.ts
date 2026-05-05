@@ -17,42 +17,54 @@ export type Database = {
       animation_components: {
         Row: {
           category: string
+          color_support: string
           concepts: string[]
           course_tags: string[]
           created_at: string
           default_props: Json
           description: string | null
           id: string
+          lottie_url: string | null
           name: string
           preview_url: string | null
+          provider: string
           slug: string
           tags: string[]
+          thumbnail_url: string | null
         }
         Insert: {
           category: string
+          color_support?: string
           concepts?: string[]
           course_tags?: string[]
           created_at?: string
           default_props?: Json
           description?: string | null
           id?: string
+          lottie_url?: string | null
           name: string
           preview_url?: string | null
+          provider?: string
           slug: string
           tags?: string[]
+          thumbnail_url?: string | null
         }
         Update: {
           category?: string
+          color_support?: string
           concepts?: string[]
           course_tags?: string[]
           created_at?: string
           default_props?: Json
           description?: string | null
           id?: string
+          lottie_url?: string | null
           name?: string
           preview_url?: string | null
+          provider?: string
           slug?: string
           tags?: string[]
+          thumbnail_url?: string | null
         }
         Relationships: []
       }
