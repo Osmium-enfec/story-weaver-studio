@@ -6,29 +6,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { useProject } from "@/components/project-context";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { detectConcepts } from "@/lib/scene-splitter";
 import { toast } from "sonner";
-import { Pencil, Save, Trash2, Sparkles } from "lucide-react";
+import { Pencil, Save, Trash2 } from "lucide-react";
 import { toolbarStore } from "@/components/toolbar-store";
+import { AnimationSearchPanel } from "@/components/AnimationSearchPanel";
+import {
+  AnimationBlockRenderer,
+  type AnimationBlockContent,
+} from "@/components/AnimationBlock";
+import type { AnimationResult } from "@/lib/animation-providers";
 
 export const Route = createFileRoute("/projects/$projectId/script")({
   component: ScriptCanvas,
 });
 
-interface AnimComponent {
-  id: string;
-  slug: string;
-  name: string;
-  category: string;
-  concepts: string[];
-  tags: string[];
-}
-
 interface PlacedElement {
   id: string;
   scene_id: string;
   type: string;
-  content: { slug: string; name: string };
+  content: AnimationBlockContent;
   position: { x: number; y: number; w: number; h: number };
   z_index: number;
 }
@@ -41,7 +37,7 @@ function ScriptCanvas() {
   const [script, setScript] = useState(project.script ?? "");
   const [editing, setEditing] = useState(!project.script);
   const [sceneId, setSceneId] = useState<string | null>(null);
-  const [components, setComponents] = useState<AnimComponent[]>([]);
+  // (animation library is now loaded inside AnimationSearchPanel)
   const [elements, setElements] = useState<PlacedElement[]>([]);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
@@ -132,17 +128,6 @@ function ScriptCanvas() {
 
   useEffect(() => setScript(project.script ?? ""), [project.script]);
 
-  // Load animation library
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from("animation_components")
-        .select("id,slug,name,category,concepts,tags")
-        .order("name");
-      setComponents((data ?? []) as AnimComponent[]);
-    })();
-  }, []);
-
   // Ensure a canvas scene exists, then load placed elements
   useEffect(() => {
     (async () => {
@@ -182,22 +167,6 @@ function ScriptCanvas() {
   const ratio = project.aspect_ratio;
   const aspect = ratio === "9:16" ? "9 / 16" : ratio === "1:1" ? "1 / 1" : "16 / 9";
 
-  // Word -> matching animations
-  const wordMatches = useMemo(() => {
-    if (!selectedWord) return [] as AnimComponent[];
-    const w = selectedWord.toLowerCase();
-    const concepts = detectConcepts(selectedWord).map((c) => c.toLowerCase());
-    const matched = components.filter((c) => {
-      const inTags = c.tags.some((t) => t.toLowerCase().includes(w) || w.includes(t.toLowerCase()));
-      const inConcepts = c.concepts.some((cc) =>
-        concepts.includes(cc.toLowerCase()) || cc.toLowerCase().includes(w),
-      );
-      const inName = c.name.toLowerCase().includes(w) || c.slug.includes(w);
-      return inTags || inConcepts || inName;
-    });
-    return matched.length ? matched : components;
-  }, [selectedWord, components]);
-
   async function saveScript() {
     const { error } = await supabase.from("projects").update({ script }).eq("id", projectId);
     if (error) return toast.error(error.message);
@@ -206,19 +175,32 @@ function ScriptCanvas() {
     reload();
   }
 
-  async function addAnimation(c: AnimComponent) {
+  async function addAnimation(a: AnimationResult) {
     if (!sceneId || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const w = Math.round(rect.width * 0.3);
     const h = Math.round(rect.height * 0.3);
     const x = Math.round((rect.width - w) / 2);
     const y = Math.round((rect.height - h) / 2);
+    const content: AnimationBlockContent = {
+      provider: a.provider,
+      name: a.name,
+      slug: a.slug,
+      lottie_url: a.lottie_url ?? null,
+      loop: true,
+      autoplay: true,
+      speed: 1,
+      opacity: 1,
+      rotation: 0,
+      color_support: a.color_support,
+      tint: null,
+    };
     const { data, error } = await supabase
       .from("scene_elements")
       .insert({
         scene_id: sceneId,
-        type: "animation",
-        content: { slug: c.slug, name: c.name },
+        type: a.provider === "internal" ? "animation" : "lottie",
+        content: content as unknown as never,
         position: { x, y, w, h },
         z_index: elements.length,
       })
@@ -281,18 +263,15 @@ function ScriptCanvas() {
                     : "border-transparent hover:border-primary/40"
                 }`}
               >
-                <div className={`relative flex h-full w-full items-center justify-center rounded-md bg-primary/10 text-center ${isPlaying ? "animate-pulse" : ""}`}>
-                  <div className={isPlaying ? "animate-fade-in" : ""}>
-                    <Sparkles className="mx-auto h-5 w-5 text-primary" />
-                    <p className="mt-1 text-xs font-medium text-primary">{el.content.name}</p>
-                  </div>
+                <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
+                  <AnimationBlockRenderer content={el.content} />
                   {selectedElementId === el.id && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         deleteElement(el.id);
                       }}
-                      className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow"
+                      className="absolute -right-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -349,42 +328,14 @@ function ScriptCanvas() {
 
       {/* RIGHT 25% — animations panel */}
       <aside className="flex h-full w-1/4 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        <div className="border-b border-border p-4">
+        <div className="border-b border-border px-4 py-3">
           <h3 className="text-sm font-semibold">Animations</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {selectedWord
-              ? `Suggestions for "${selectedWord}"`
-              : "Click a word in your script"}
+            {selectedWord ? `Searching "${selectedWord}"` : "Search, paste a URL, or upload"}
           </p>
         </div>
-        <div className="flex-1 overflow-y-auto p-3">
-          {selectedWord ? (
-            wordMatches.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No matches found.</p>
-            ) : (
-              <div className="space-y-2">
-                {wordMatches.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => addAnimation(c)}
-                    className="group flex w-full items-start gap-3 rounded-lg border border-border bg-background p-3 text-left transition-all hover:border-primary hover:shadow-sm"
-                  >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                      <Sparkles className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium">{c.name}</div>
-                      <div className="text-xs text-muted-foreground">{c.category}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )
-          ) : (
-            <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
-              Select any word to see relevant animations.
-            </div>
-          )}
+        <div className="min-h-0 flex-1">
+          <AnimationSearchPanel initialQuery={selectedWord ?? ""} onSelect={addAnimation} />
         </div>
       </aside>
     </div>

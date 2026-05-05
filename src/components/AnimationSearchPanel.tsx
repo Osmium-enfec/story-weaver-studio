@@ -1,0 +1,170 @@
+import { useEffect, useRef, useState } from "react";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+import { Search, Upload, Link as LinkIcon, Loader2, Sparkles } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import {
+  searchAllAnimations,
+  uploadLottieFile,
+  fromUrl,
+  type AnimationResult,
+} from "@/lib/animation-providers";
+
+interface Props {
+  initialQuery?: string;
+  onSelect: (a: AnimationResult) => void;
+}
+
+export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
+  const [query, setQuery] = useState(initialQuery);
+  const [results, setResults] = useState<AnimationResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setQuery(initialQuery);
+  }, [initialQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await searchAllAnimations({ query, limit: 30 });
+        if (!cancelled) setResults(r);
+      } catch (e) {
+        if (!cancelled) toast.error((e as Error).message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [query]);
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      const r = await uploadLottieFile(f);
+      toast.success("Uploaded");
+      onSelect(r);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  }
+
+  function handleUrlAdd() {
+    if (!urlInput.trim()) return;
+    onSelect(fromUrl(urlInput.trim()));
+    setUrlInput("");
+  }
+
+  const counts = {
+    lottie: results.filter((r) => r.provider === "lottie").length,
+    internal: results.filter((r) => r.provider === "internal").length,
+    upload: results.filter((r) => r.provider === "upload").length,
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="space-y-2 border-b border-border p-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search animations…"
+            className="h-8 pl-8 text-sm"
+          />
+        </div>
+        <div className="flex gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 flex-1 gap-1 text-xs"
+            onClick={() => fileRef.current?.click()}
+          >
+            <Upload className="h-3 w-3" /> Upload
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".json,.lottie,application/json"
+            className="hidden"
+            onChange={handleUpload}
+          />
+        </div>
+        <div className="flex gap-1">
+          <Input
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            placeholder="Paste Lottie .json URL"
+            className="h-7 text-xs"
+          />
+          <Button type="button" size="sm" className="h-7 px-2" onClick={handleUrlAdd}>
+            <LinkIcon className="h-3 w-3" />
+          </Button>
+        </div>
+        <div className="flex gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+          <span>Lottie {counts.lottie}</span>
+          <span>•</span>
+          <span>Internal {counts.internal}</span>
+          <span>•</span>
+          <span>Uploads {counts.upload}</span>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-2">
+        {loading && (
+          <div className="flex items-center justify-center py-6 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+          </div>
+        )}
+        {!loading && results.length === 0 && (
+          <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+            No matches. Try another keyword, paste a URL, or upload a file.
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-2">
+          {results.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => onSelect(r)}
+              className="group flex flex-col items-stretch overflow-hidden rounded-lg border border-border bg-background text-left transition-all hover:border-primary hover:shadow-sm"
+            >
+              <div className="relative aspect-square bg-muted/40">
+                {r.provider !== "internal" && r.lottie_url ? (
+                  <DotLottieReact
+                    src={r.lottie_url}
+                    loop
+                    autoplay
+                    style={{ width: "100%", height: "100%" }}
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                  </div>
+                )}
+                <span className="absolute left-1 top-1 rounded bg-background/80 px-1 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {r.provider}
+                </span>
+              </div>
+              <div className="px-2 py-1.5">
+                <div className="line-clamp-1 text-xs font-medium">{r.name}</div>
+                {r.category && (
+                  <div className="line-clamp-1 text-[10px] text-muted-foreground">{r.category}</div>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
