@@ -130,8 +130,6 @@ export async function searchAllAnimations(opts: SearchOpts): Promise<AnimationRe
   ]);
   return [...b, ...d, ...a, ...c];
 }
-  return [...b, ...a, ...c];
-}
 
 export async function uploadLottieFile(file: File): Promise<AnimationResult> {
   const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
