@@ -94,13 +94,16 @@ async function searchUploads({ query, limit = 24 }: SearchOpts): Promise<Animati
     .filter((f) => !term || f.name.toLowerCase().includes(term))
     .map((f) => {
       const { data: url } = supabase.storage.from("lottie-uploads").getPublicUrl(f.name);
+      const isImage = IMAGE_EXT_RE.test(f.name);
       return {
         id: `upload:${f.name}`,
-        provider: "upload" as const,
-        name: f.name.replace(/\.(json|lottie)$/i, ""),
+        provider: (isImage ? "image" : "upload") as AnimationProvider,
+        name: f.name.replace(/\.(json|lottie|gif|png|jpe?g|webp|avif|svg)$/i, ""),
         tags: [],
         concepts: [],
-        lottie_url: url.publicUrl,
+        lottie_url: isImage ? null : url.publicUrl,
+        thumbnail_url: isImage ? url.publicUrl : null,
+        video_url: isImage ? url.publicUrl : null,
         color_support: "theme" as const,
       };
     });
