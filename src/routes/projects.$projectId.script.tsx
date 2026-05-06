@@ -99,6 +99,7 @@ function ScriptCanvas() {
       // Inline all remote images to avoid tainted-canvas errors
       await inlineAllImages(node);
       setIsPlaying(true);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
       const totalMs = 4000;
       const start = performance.now();
