@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { AnimationBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
+import { AnimationBlockRenderer, TextBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
 import { BackgroundLayer, type SceneBackground } from "@/components/BackgroundPicker";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 export interface PlaybackElement {
   id: string;
+  type?: string;
   content: AnimationBlockContent;
   position: { x: number; y: number; w: number; h: number };
   z_index: number;
@@ -393,7 +394,11 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
                       transition: "opacity 350ms ease, transform 350ms ease",
                     }}
                   >
-                    <AnimationBlockRenderer content={el.content} />
+                    {el.type === "text" ? (
+                      <TextBlockRenderer content={el.content} />
+                    ) : (
+                      <AnimationBlockRenderer content={el.content} />
+                    )}
                   </div>
                 );
               })}
