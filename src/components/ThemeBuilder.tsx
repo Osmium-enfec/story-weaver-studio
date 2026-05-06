@@ -11,6 +11,7 @@ import { Upload, Trash2, Image as ImageIcon, Video, Sparkles, ChevronLeft, Plus,
 type MediaKind = "image" | "video" | "animation";
 
 interface MediaItem {
+  id: string;
   url: string;
   kind: MediaKind;
   name: string;
@@ -19,23 +20,56 @@ interface MediaItem {
 interface ThemeFont {
   family: string;
   url?: string;
+  size: number; // px
+  weight?: number;
+  lineHeight?: number;
 }
 
 export interface ThemeData {
   id: string;
   name: string;
-  background?: MediaItem;
+  backgrounds: MediaItem[];
   fonts: {
-    heading?: ThemeFont;
-    subheading?: ThemeFont;
-    paragraph?: ThemeFont;
+    heading: ThemeFont;
+    subheading: ThemeFont;
+    paragraph: ThemeFont;
   };
-  card?: MediaItem;
-  component?: MediaItem;
+  cards: MediaItem[];
+  components: MediaItem[];
 }
 
+const defaultFont = (size: number): ThemeFont => ({ family: "Inter", size, weight: 400, lineHeight: 1.4 });
+
 function newTheme(name = "Untitled theme"): ThemeData {
-  return { id: crypto.randomUUID(), name, fonts: {} };
+  return {
+    id: crypto.randomUUID(),
+    name,
+    backgrounds: [],
+    cards: [],
+    components: [],
+    fonts: {
+      heading: { ...defaultFont(48), weight: 700, lineHeight: 1.2 },
+      subheading: { ...defaultFont(24), weight: 600, lineHeight: 1.3 },
+      paragraph: defaultFont(16),
+    },
+  };
+}
+
+// Migrate legacy single-item shape to arrays
+function normalize(t: Partial<ThemeData> & { background?: MediaItem; card?: MediaItem; component?: MediaItem }): ThemeData {
+  const base = newTheme(t.name ?? "Untitled");
+  return {
+    id: t.id ?? base.id,
+    name: t.name ?? base.name,
+    backgrounds: t.backgrounds ?? (t.background ? [{ ...t.background, id: crypto.randomUUID() }] : []),
+    cards: t.cards ?? (t.card ? [{ ...t.card, id: crypto.randomUUID() }] : []),
+    components: t.components ?? (t.component ? [{ ...t.component, id: crypto.randomUUID() }] : []),
+    fonts: {
+      heading: { ...base.fonts.heading, ...(t.fonts?.heading ?? {}) },
+      subheading: { ...base.fonts.subheading, ...(t.fonts?.subheading ?? {}) },
+      paragraph: { ...base.fonts.paragraph, ...(t.fonts?.paragraph ?? {}) },
+    },
+  };
 }
 
 function detectKind(file: File): MediaKind {
@@ -44,81 +78,100 @@ function detectKind(file: File): MediaKind {
   return "image";
 }
 
-function MediaUploader({
+function MediaThumb({ item, onRemove }: { item: MediaItem; onRemove: () => void }) {
+  return (
+    <div className="relative overflow-hidden rounded-md border border-border bg-muted/30">
+      <div className="flex h-24 items-center justify-center">
+        {item.kind === "image" && <img src={item.url} alt={item.name} className="h-full w-full object-cover" />}
+        {item.kind === "video" && (
+          <video src={item.url} className="h-full w-full object-cover" muted loop autoPlay playsInline />
+        )}
+        {item.kind === "animation" && <DotLottieReact src={item.url} autoplay loop />}
+      </div>
+      <div className="flex items-center justify-between gap-2 border-t border-border px-2 py-1">
+        <span className="truncate text-[11px] text-muted-foreground">{item.name}</span>
+        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={onRemove}>
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function MediaGallery({
   label,
-  value,
+  items,
   onChange,
 }: {
   label: string;
-  value?: MediaItem;
-  onChange: (m: MediaItem | undefined) => void;
+  items: MediaItem[];
+  onChange: (items: MediaItem[]) => void;
 }) {
   const [busy, setBusy] = useState(false);
 
   const handleUpload = useCallback(
-    async (file: File) => {
+    async (files: FileList) => {
       setBusy(true);
       try {
-        const kind = detectKind(file);
-        const path = `themes/${Date.now()}-${file.name}`;
-        const { error } = await supabase.storage.from("scene-backgrounds").upload(path, file, {
-          cacheControl: "3600",
-          upsert: false,
-        });
-        if (error) throw error;
-        const { data } = supabase.storage.from("scene-backgrounds").getPublicUrl(path);
-        onChange({ url: data.publicUrl, kind, name: file.name });
-        toast.success(`${label} uploaded`);
+        const uploaded: MediaItem[] = [];
+        for (const file of Array.from(files)) {
+          const kind = detectKind(file);
+          const path = `themes/${Date.now()}-${file.name}`;
+          const { error } = await supabase.storage.from("scene-backgrounds").upload(path, file, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+          if (error) throw error;
+          const { data } = supabase.storage.from("scene-backgrounds").getPublicUrl(path);
+          uploaded.push({ id: crypto.randomUUID(), url: data.publicUrl, kind, name: file.name });
+        }
+        onChange([...items, ...uploaded]);
+        toast.success(`${uploaded.length} ${label.toLowerCase()} added`);
       } catch (e) {
         toast.error(`Upload failed: ${(e as Error).message}`);
       } finally {
         setBusy(false);
       }
     },
-    [label, onChange]
+    [label, items, onChange]
   );
 
   return (
     <div className="space-y-2">
-      <Label className="text-xs">{label}</Label>
-      {value ? (
-        <div className="relative overflow-hidden rounded-md border border-border bg-muted/30">
-          <div className="flex h-28 items-center justify-center">
-            {value.kind === "image" && <img src={value.url} alt={value.name} className="h-full w-full object-cover" />}
-            {value.kind === "video" && (
-              <video src={value.url} className="h-full w-full object-cover" muted loop autoPlay playsInline />
-            )}
-            {value.kind === "animation" && <DotLottieReact src={value.url} autoplay loop />}
-          </div>
-          <div className="flex items-center justify-between gap-2 border-t border-border px-2 py-1">
-            <span className="truncate text-xs text-muted-foreground">{value.name}</span>
-            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => onChange(undefined)}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+      <div className="flex items-center justify-between">
+        <Label className="text-xs">{label} ({items.length})</Label>
+      </div>
+      {items.length > 0 && (
+        <div className="grid grid-cols-2 gap-2">
+          {items.map((item) => (
+            <MediaThumb
+              key={item.id}
+              item={item}
+              onRemove={() => onChange(items.filter((i) => i.id !== item.id))}
+            />
+          ))}
         </div>
-      ) : (
-        <label className="flex h-28 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border bg-muted/20 text-xs text-muted-foreground hover:bg-muted/40">
-          <Upload className="h-4 w-4" />
-          <span>{busy ? "Uploading..." : "Upload image, video, or animation"}</span>
-          <div className="flex gap-2 opacity-60">
-            <ImageIcon className="h-3 w-3" />
-            <Video className="h-3 w-3" />
-            <Sparkles className="h-3 w-3" />
-          </div>
-          <input
-            type="file"
-            className="hidden"
-            accept="image/*,video/*,.lottie,.json,application/json"
-            disabled={busy}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void handleUpload(f);
-              e.currentTarget.value = "";
-            }}
-          />
-        </label>
       )}
+      <label className="flex h-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border bg-muted/20 text-xs text-muted-foreground hover:bg-muted/40">
+        <Upload className="h-4 w-4" />
+        <span>{busy ? "Uploading..." : `Add ${label.toLowerCase()} (multiple)`}</span>
+        <div className="flex gap-2 opacity-60">
+          <ImageIcon className="h-3 w-3" />
+          <Video className="h-3 w-3" />
+          <Sparkles className="h-3 w-3" />
+        </div>
+        <input
+          type="file"
+          multiple
+          className="hidden"
+          accept="image/*,video/*,.lottie,.json,application/json"
+          disabled={busy}
+          onChange={(e) => {
+            if (e.target.files?.length) void handleUpload(e.target.files);
+            e.currentTarget.value = "";
+          }}
+        />
+      </label>
     </div>
   );
 }
@@ -129,8 +182,8 @@ function FontField({
   onChange,
 }: {
   label: string;
-  value?: ThemeFont;
-  onChange: (f: ThemeFont | undefined) => void;
+  value: ThemeFont;
+  onChange: (f: ThemeFont) => void;
 }) {
   const [busy, setBusy] = useState(false);
 
@@ -146,7 +199,7 @@ function FontField({
         if (error) throw error;
         const { data } = supabase.storage.from("scene-backgrounds").getPublicUrl(path);
         const family = file.name.replace(/\.[^.]+$/, "");
-        onChange({ family, url: data.publicUrl });
+        onChange({ ...value, family, url: data.publicUrl });
         toast.success(`${label} font uploaded`);
       } catch (e) {
         toast.error(`Upload failed: ${(e as Error).message}`);
@@ -154,7 +207,7 @@ function FontField({
         setBusy(false);
       }
     },
-    [label, onChange]
+    [label, value, onChange]
   );
 
   return (
@@ -162,15 +215,50 @@ function FontField({
       <Label className="text-xs font-medium">{label}</Label>
       <Input
         placeholder="Font family (e.g. Inter)"
-        value={value?.family ?? ""}
-        onChange={(e) =>
-          onChange(e.target.value ? { family: e.target.value, url: value?.url } : undefined)
-        }
+        value={value.family}
+        onChange={(e) => onChange({ ...value, family: e.target.value })}
         className="h-8 text-xs"
       />
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Size (px)</Label>
+          <Input
+            type="number"
+            min={8}
+            max={200}
+            value={value.size}
+            onChange={(e) => onChange({ ...value, size: Number(e.target.value) || 16 })}
+            className="h-8 text-xs"
+          />
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Weight</Label>
+          <Input
+            type="number"
+            min={100}
+            max={900}
+            step={100}
+            value={value.weight ?? 400}
+            onChange={(e) => onChange({ ...value, weight: Number(e.target.value) || 400 })}
+            className="h-8 text-xs"
+          />
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Line ht</Label>
+          <Input
+            type="number"
+            min={0.8}
+            max={3}
+            step={0.1}
+            value={value.lineHeight ?? 1.4}
+            onChange={(e) => onChange({ ...value, lineHeight: Number(e.target.value) || 1.4 })}
+            className="h-8 text-xs"
+          />
+        </div>
+      </div>
       <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border px-2 py-2 text-xs text-muted-foreground hover:bg-muted/40">
         <Upload className="h-3.5 w-3.5" />
-        <span>{busy ? "Uploading..." : value?.url ? "Replace font file" : "Upload .ttf / .otf / .woff"}</span>
+        <span>{busy ? "Uploading..." : value.url ? "Replace font file" : "Upload .ttf / .otf / .woff"}</span>
         <input
           type="file"
           className="hidden"
@@ -183,8 +271,16 @@ function FontField({
           }}
         />
       </label>
-      {value?.family && (
-        <p className="truncate text-[11px] text-muted-foreground" style={{ fontFamily: value.family }}>
+      {value.family && (
+        <p
+          className="truncate text-muted-foreground"
+          style={{
+            fontFamily: value.family,
+            fontSize: Math.min(value.size, 22),
+            fontWeight: value.weight,
+            lineHeight: value.lineHeight,
+          }}
+        >
           Preview: {value.family}
         </p>
       )}
@@ -224,10 +320,10 @@ function ThemeEditor({
         </TabsList>
 
         <TabsContent value="background" className="mt-3">
-          <MediaUploader
-            label="Background"
-            value={theme.background}
-            onChange={(m) => onChange({ ...theme, background: m })}
+          <MediaGallery
+            label="Backgrounds"
+            items={theme.backgrounds}
+            onChange={(items) => onChange({ ...theme, backgrounds: items })}
           />
         </TabsContent>
 
@@ -250,18 +346,18 @@ function ThemeEditor({
         </TabsContent>
 
         <TabsContent value="cards" className="mt-3">
-          <MediaUploader
-            label="Card"
-            value={theme.card}
-            onChange={(m) => onChange({ ...theme, card: m })}
+          <MediaGallery
+            label="Cards"
+            items={theme.cards}
+            onChange={(items) => onChange({ ...theme, cards: items })}
           />
         </TabsContent>
 
         <TabsContent value="components" className="mt-3">
-          <MediaUploader
-            label="Component"
-            value={theme.component}
-            onChange={(m) => onChange({ ...theme, component: m })}
+          <MediaGallery
+            label="Components"
+            items={theme.components}
+            onChange={(items) => onChange({ ...theme, components: items })}
           />
         </TabsContent>
       </Tabs>
@@ -272,7 +368,7 @@ function ThemeEditor({
 export function ThemeBuilder() {
   const [themes, setThemes] = useState<ThemeData[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
     void (async () => {
@@ -282,12 +378,9 @@ export function ThemeBuilder() {
         .order("created_at", { ascending: true });
       if (!error && data) {
         setThemes(
-          data.map((r) => ({
-            id: r.id,
-            name: r.name,
-            ...((r.data as Partial<ThemeData>) ?? {}),
-            fonts: ((r.data as Partial<ThemeData>)?.fonts ?? {}) as ThemeData["fonts"],
-          }))
+          data.map((r) =>
+            normalize({ id: r.id, name: r.name, ...((r.data as Partial<ThemeData>) ?? {}) })
+          )
         );
       }
       setLoading(false);
@@ -320,13 +413,7 @@ export function ThemeBuilder() {
   };
 
   if (active) {
-    return (
-      <ThemeEditor
-        theme={active}
-        onChange={updateActive}
-        onBack={() => setActiveId(null)}
-      />
-    );
+    return <ThemeEditor theme={active} onChange={updateActive} onBack={() => setActiveId(null)} />;
   }
 
   return (
@@ -343,12 +430,12 @@ export function ThemeBuilder() {
               key={t.id}
               className="group flex items-center justify-between rounded-md border border-border px-3 py-2 text-xs hover:bg-muted/40"
             >
-              <button
-                className="flex flex-1 items-center gap-2 text-left"
-                onClick={() => setActiveId(t.id)}
-              >
+              <button className="flex flex-1 items-center gap-2 text-left" onClick={() => setActiveId(t.id)}>
                 <Palette className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="truncate">{t.name}</span>
+                <span className="ml-auto text-[10px] text-muted-foreground">
+                  {t.backgrounds.length}bg · {t.cards.length}c · {t.components.length}cmp
+                </span>
               </button>
               <Button
                 size="icon"
