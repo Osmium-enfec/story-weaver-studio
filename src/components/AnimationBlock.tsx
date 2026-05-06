@@ -22,6 +22,8 @@ export interface AnimationBlockContent {
   // word binding (for timed reveal during playback)
   word?: string | null;
   occurrence?: number | null;
+  // background removal (keeps original; just toggles rendering)
+  remove_background?: boolean;
 }
 
 export function AnimationBlockRenderer({
