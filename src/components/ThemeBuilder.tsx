@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import { Upload, Trash2, Image as ImageIcon, Video, Sparkles } from "lucide-react";
+import { Upload, Trash2, Image as ImageIcon, Video, Sparkles, ChevronLeft, Plus, Palette } from "lucide-react";
 
 type MediaKind = "image" | "video" | "animation";
 
@@ -22,6 +22,7 @@ interface ThemeFont {
 }
 
 export interface ThemeData {
+  id: string;
   name: string;
   background?: MediaItem;
   fonts: {
@@ -30,9 +31,12 @@ export interface ThemeData {
     paragraph?: ThemeFont;
   };
   card?: MediaItem;
+  component?: MediaItem;
 }
 
-const EMPTY_THEME: ThemeData = { name: "", fonts: {} };
+function newTheme(name = "Untitled theme"): ThemeData {
+  return { id: crypto.randomUUID(), name, fonts: {} };
+}
 
 function detectKind(file: File): MediaKind {
   if (file.type.startsWith("video/")) return "video";
@@ -188,44 +192,42 @@ function FontField({
   );
 }
 
-export function ThemeBuilder() {
-  const [theme, setTheme] = useState<ThemeData>(EMPTY_THEME);
-  const [savedThemes, setSavedThemes] = useState<ThemeData[]>([]);
-
-  const saveTheme = () => {
-    if (!theme.name.trim()) {
-      toast.error("Please give your theme a name");
-      return;
-    }
-    setSavedThemes((prev) => [...prev, theme]);
-    setTheme(EMPTY_THEME);
-    toast.success("Theme saved");
-  };
-
+function ThemeEditor({
+  theme,
+  onChange,
+  onBack,
+}: {
+  theme: ThemeData;
+  onChange: (t: ThemeData) => void;
+  onBack: () => void;
+}) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto p-3">
-      <div className="space-y-2">
-        <Label className="text-xs">Theme name</Label>
+      <div className="mb-3 flex items-center gap-2">
+        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onBack}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
         <Input
-          placeholder="My theme"
           value={theme.name}
-          onChange={(e) => setTheme((t) => ({ ...t, name: e.target.value }))}
+          onChange={(e) => onChange({ ...theme, name: e.target.value })}
           className="h-8 text-xs"
+          placeholder="Theme name"
         />
       </div>
 
-      <Tabs defaultValue="background" className="mt-4 flex flex-col">
-        <TabsList className="grid grid-cols-3">
-          <TabsTrigger value="background" className="text-xs">Background</TabsTrigger>
-          <TabsTrigger value="fonts" className="text-xs">Fonts</TabsTrigger>
-          <TabsTrigger value="cards" className="text-xs">Cards</TabsTrigger>
+      <Tabs defaultValue="background" className="flex flex-col">
+        <TabsList className="grid grid-cols-4">
+          <TabsTrigger value="background" className="text-[11px]">BG</TabsTrigger>
+          <TabsTrigger value="fonts" className="text-[11px]">Fonts</TabsTrigger>
+          <TabsTrigger value="cards" className="text-[11px]">Cards</TabsTrigger>
+          <TabsTrigger value="components" className="text-[11px]">Comps</TabsTrigger>
         </TabsList>
 
         <TabsContent value="background" className="mt-3">
           <MediaUploader
             label="Background"
             value={theme.background}
-            onChange={(m) => setTheme((t) => ({ ...t, background: m }))}
+            onChange={(m) => onChange({ ...theme, background: m })}
           />
         </TabsContent>
 
@@ -233,17 +235,17 @@ export function ThemeBuilder() {
           <FontField
             label="Heading"
             value={theme.fonts.heading}
-            onChange={(f) => setTheme((t) => ({ ...t, fonts: { ...t.fonts, heading: f } }))}
+            onChange={(f) => onChange({ ...theme, fonts: { ...theme.fonts, heading: f } })}
           />
           <FontField
             label="Sub-heading"
             value={theme.fonts.subheading}
-            onChange={(f) => setTheme((t) => ({ ...t, fonts: { ...t.fonts, subheading: f } }))}
+            onChange={(f) => onChange({ ...theme, fonts: { ...theme.fonts, subheading: f } })}
           />
           <FontField
             label="Paragraph"
             value={theme.fonts.paragraph}
-            onChange={(f) => setTheme((t) => ({ ...t, fonts: { ...t.fonts, paragraph: f } }))}
+            onChange={(f) => onChange({ ...theme, fonts: { ...theme.fonts, paragraph: f } })}
           />
         </TabsContent>
 
@@ -251,35 +253,90 @@ export function ThemeBuilder() {
           <MediaUploader
             label="Card"
             value={theme.card}
-            onChange={(m) => setTheme((t) => ({ ...t, card: m }))}
+            onChange={(m) => onChange({ ...theme, card: m })}
+          />
+        </TabsContent>
+
+        <TabsContent value="components" className="mt-3">
+          <MediaUploader
+            label="Component"
+            value={theme.component}
+            onChange={(m) => onChange({ ...theme, component: m })}
           />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
 
-      <Button size="sm" className="mt-4" onClick={saveTheme}>
-        Save theme
-      </Button>
+export function ThemeBuilder() {
+  const [themes, setThemes] = useState<ThemeData[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
-      {savedThemes.length > 0 && (
-        <div className="mt-6 space-y-2">
-          <Label className="text-xs">Your themes</Label>
-          <div className="space-y-2">
-            {savedThemes.map((t, i) => (
-              <div key={i} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-xs">
+  const active = themes.find((t) => t.id === activeId) ?? null;
+
+  const updateActive = (next: ThemeData) =>
+    setThemes((prev) => prev.map((t) => (t.id === next.id ? next : t)));
+
+  const addTheme = () => {
+    const t = newTheme(`Theme ${themes.length + 1}`);
+    setThemes((prev) => [...prev, t]);
+    setActiveId(t.id);
+  };
+
+  const removeTheme = (id: string) => {
+    setThemes((prev) => prev.filter((t) => t.id !== id));
+    if (activeId === id) setActiveId(null);
+  };
+
+  if (active) {
+    return (
+      <ThemeEditor
+        theme={active}
+        onChange={updateActive}
+        onBack={() => setActiveId(null)}
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto p-3">
+      <Label className="mb-2 text-xs">Saved themes</Label>
+      {themes.length === 0 ? (
+        <div className="rounded-md border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+          No themes yet. Create one below.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {themes.map((t) => (
+            <div
+              key={t.id}
+              className="group flex items-center justify-between rounded-md border border-border px-3 py-2 text-xs hover:bg-muted/40"
+            >
+              <button
+                className="flex flex-1 items-center gap-2 text-left"
+                onClick={() => setActiveId(t.id)}
+              >
+                <Palette className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="truncate">{t.name}</span>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-6 w-6"
-                  onClick={() => setSavedThemes((prev) => prev.filter((_, j) => j !== i))}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ))}
-          </div>
+              </button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                onClick={() => removeTheme(t.id)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
         </div>
       )}
+
+      <Button size="sm" variant="outline" className="mt-4 gap-2" onClick={addTheme}>
+        <Plus className="h-3.5 w-3.5" />
+        Add new theme
+      </Button>
     </div>
   );
 }
