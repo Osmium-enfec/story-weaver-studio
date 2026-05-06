@@ -58,9 +58,9 @@ function WhiteKeyFilterDef() {
           <feComposite in="whiteAlpha" in2="darkAlpha" operator="arithmetic"
             k1="1" k2="0" k3="0" k4="0" result="rawAlpha" />
 
-          {/* Sharpen so anti-aliased halos clean up */}
+          {/* Stronger sharpen + higher cutoff: kills the dark anti-aliased halo / border ring */}
           <feComponentTransfer in="rawAlpha" result="keyAlpha">
-            <feFuncA type="linear" slope="6" intercept="-0.4" />
+            <feFuncA type="linear" slope="10" intercept="-1.2" />
           </feComponentTransfer>
           <feComposite in="SourceGraphic" in2="keyAlpha" operator="in" />
         </filter>
@@ -125,7 +125,7 @@ export function AnimationBlockRenderer({
 
   if (content.provider === "iconscout" && content.video_url) {
     return (
-      <div style={wrapperStyle} className="pointer-events-none">
+      <div style={{ ...wrapperStyle, isolation: "isolate" }} className="pointer-events-none">
         {content.remove_background && <WhiteKeyFilterDef />}
         <video
           src={content.video_url}
@@ -138,8 +138,11 @@ export function AnimationBlockRenderer({
             width: "100%",
             height: "100%",
             objectFit: "contain",
+            opacity: 0,
+            animation: "anim-block-fade-in 180ms ease-out 80ms forwards",
           }}
         />
+        <style>{`@keyframes anim-block-fade-in { to { opacity: 1; } }`}</style>
       </div>
     );
   }
