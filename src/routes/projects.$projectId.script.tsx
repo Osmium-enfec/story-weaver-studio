@@ -11,6 +11,7 @@ import { Pencil, Save, Trash2 } from "lucide-react";
 import { toolbarStore } from "@/components/toolbar-store";
 import { AnimationSearchPanel } from "@/components/AnimationSearchPanel";
 import { AnimationBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
+import { BackgroundPicker, BackgroundLayer, type SceneBackground } from "@/components/BackgroundPicker";
 import { PlaybackDialog } from "@/components/PlaybackDialog";
 import type { AnimationResult } from "@/lib/animation-providers";
 import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
@@ -63,6 +64,14 @@ function ScriptCanvas() {
   const [isExporting, setIsExporting] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ w: 1280, h: 720 });
+  const [background, setBackground] = useState<SceneBackground>({ type: "color", value: "#ffffff" });
+
+  async function updateBackground(bg: SceneBackground) {
+    setBackground(bg);
+    if (sceneId) {
+      await supabase.from("scenes").update({ background: bg as unknown as never }).eq("id", sceneId);
+    }
+  }
 
   // Auto-stop play after a duration
   useEffect(() => {
@@ -170,11 +179,14 @@ function ScriptCanvas() {
     (async () => {
       const { data: existing } = await supabase
         .from("scenes")
-        .select("id")
+        .select("id, background")
         .eq("project_id", projectId)
         .order("order_index")
         .limit(1);
       let id = existing?.[0]?.id as string | undefined;
+      if (existing?.[0]?.background) {
+        setBackground(existing[0].background as unknown as SceneBackground);
+      }
       if (!id) {
         const { data: created, error } = await supabase
           .from("scenes")
@@ -299,20 +311,22 @@ function ScriptCanvas() {
     <div className="flex gap-4" style={{ height: "calc(100vh - 9rem)" }}>
       {/* MAIN CARD — 75% width */}
       <div className="flex h-full w-3/4 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        {/* Canvas toolbar */}
+        <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Canvas</span>
+          <BackgroundPicker value={background} onChange={updateBackground} />
+        </div>
         {/* Canvas — 75% height */}
         <div className="flex min-h-0 flex-[3] items-center justify-center bg-muted/30 p-4">
           <div
             ref={canvasRef}
             className="relative h-full max-h-full overflow-hidden rounded-xl bg-white shadow-md"
-            style={{
-              aspectRatio: aspect,
-              backgroundImage:
-                "linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%)",
-            }}
+            style={{ aspectRatio: aspect }}
             onMouseDown={(e) => {
               if (e.target === e.currentTarget) setSelectedElementId(null);
             }}
           >
+            <BackgroundLayer background={background} exportMode={isExporting} />
             {elements.map((el) => (
               <Rnd
                 key={el.id}
