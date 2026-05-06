@@ -691,6 +691,9 @@ function ScriptCanvas() {
                 </div>
               )}
             </TabsContent>
+            <TabsContent value="theme" className="m-0 min-h-0 flex-1 overflow-hidden border-t border-border">
+              <ThemeBuilder />
+            </TabsContent>
           </Tabs>
         </div>
       </aside>
