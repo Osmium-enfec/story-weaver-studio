@@ -272,21 +272,51 @@ function ThemeEditor({
 export function ThemeBuilder() {
   const [themes, setThemes] = useState<ThemeData[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    void (async () => {
+      const { data, error } = await supabase
+        .from("user_themes")
+        .select("id, name, data")
+        .order("created_at", { ascending: true });
+      if (!error && data) {
+        setThemes(
+          data.map((r) => ({
+            id: r.id,
+            name: r.name,
+            ...((r.data as Partial<ThemeData>) ?? {}),
+            fonts: ((r.data as Partial<ThemeData>)?.fonts ?? {}) as ThemeData["fonts"],
+          }))
+        );
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const persist = async (t: ThemeData) => {
+    const { id, name, ...rest } = t;
+    await supabase.from("user_themes").upsert({ id, name, data: rest });
+  };
 
   const active = themes.find((t) => t.id === activeId) ?? null;
 
-  const updateActive = (next: ThemeData) =>
+  const updateActive = (next: ThemeData) => {
     setThemes((prev) => prev.map((t) => (t.id === next.id ? next : t)));
+    void persist(next);
+  };
 
-  const addTheme = () => {
+  const addTheme = async () => {
     const t = newTheme(`Theme ${themes.length + 1}`);
     setThemes((prev) => [...prev, t]);
     setActiveId(t.id);
+    await persist(t);
   };
 
-  const removeTheme = (id: string) => {
+  const removeTheme = async (id: string) => {
     setThemes((prev) => prev.filter((t) => t.id !== id));
     if (activeId === id) setActiveId(null);
+    await supabase.from("user_themes").delete().eq("id", id);
   };
 
   if (active) {
