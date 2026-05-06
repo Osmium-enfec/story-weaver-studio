@@ -97,14 +97,20 @@ function ScriptCanvas() {
       });
       recorder.start();
 
+      // Inline all remote images to avoid tainted-canvas errors
+      await inlineAllImages(node);
+
       const totalMs = 4000;
       const start = performance.now();
       while (performance.now() - start < totalMs) {
         // eslint-disable-next-line no-await-in-loop
         const dataUrl = await toPng(node, {
-          cacheBust: true,
+          cacheBust: false,
           pixelRatio: 1,
           backgroundColor: "#ffffff",
+          skipFonts: true,
+          imagePlaceholder:
+            "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>",
         });
         // eslint-disable-next-line no-await-in-loop
         const img = await new Promise<HTMLImageElement>((resolve, reject) => {
