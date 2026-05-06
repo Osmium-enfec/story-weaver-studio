@@ -301,19 +301,15 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       const hasSpeech = narration.length > 0 && "speechSynthesis" in window;
 
       if (!hasSpeech) {
-        // Stagger reveals over fallback duration
-        const ids = scene.elements.map((e) => e.id);
-        ids.forEach((id, i) => {
-          const t = setTimeout(() => {
-            if (cancelRef.current) return;
-            setRevealedIds((prev) => new Set(prev).add(id));
-          }, ((i + 1) / (ids.length + 1)) * FALLBACK_SCENE_MS);
-          timersRef.current.push(t);
-        });
+        scheduleUnbound(FALLBACK_SCENE_MS);
         const t = setTimeout(finish, Math.max(MIN_REVEAL_MS, FALLBACK_SCENE_MS));
         timersRef.current.push(t);
         return;
       }
+
+      // Estimate narration duration to distribute unbound elements
+      const estimatedMs = Math.max(MIN_REVEAL_MS, narration.length * 60);
+      scheduleUnbound(estimatedMs);
 
       const u = new SpeechSynthesisUtterance(narration);
       u.rate = 1;
