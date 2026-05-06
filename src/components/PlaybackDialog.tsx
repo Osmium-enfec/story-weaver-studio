@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { AnimationBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
+import { BackgroundLayer, type SceneBackground } from "@/components/BackgroundPicker";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -18,11 +19,12 @@ interface Props {
   elements: PlaybackElement[];
   /** Original canvas pixel size when elements were placed */
   canvasSize: { w: number; h: number };
+  background?: SceneBackground;
 }
 
 const WORD_RE = /[A-Za-z][A-Za-z0-9_-]*/g;
 
-export function PlaybackDialog({ open, onOpenChange, script, elements, canvasSize }: Props) {
+export function PlaybackDialog({ open, onOpenChange, script, elements, canvasSize, background }: Props) {
   const wordIndexById = useMemo(() => {
     const map = new Map<string, number>();
     if (!script) return map;
@@ -130,10 +132,9 @@ export function PlaybackDialog({ open, onOpenChange, script, elements, canvasSiz
                 height: canvasSize.h,
                 transform: `scale(${scale})`,
                 transformOrigin: "center center",
-                backgroundImage:
-                  "linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%)",
               }}
             >
+              {background && <BackgroundLayer background={background} />}
               {elements.map((el) => {
                 const visible = visibleIds.has(el.id);
                 return (
