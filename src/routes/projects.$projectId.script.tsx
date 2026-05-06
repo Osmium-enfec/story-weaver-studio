@@ -654,6 +654,14 @@ function ScriptCanvas() {
                     data-canvas-element="true"
                   >
                     <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
+                      <span
+                        className={`pointer-events-none absolute -left-2 -top-2 z-20 flex h-5 min-w-[1.25rem] items-center gap-0.5 rounded-full px-1 text-[10px] font-semibold shadow ${
+                          el.content.word ? "bg-accent text-accent-foreground" : "bg-primary text-primary-foreground"
+                        }`}
+                      >
+                        {elIdx + 1}
+                        {el.content.word && <span aria-hidden>🔗</span>}
+                      </span>
                       {el.type === "text" ? (
                         <TextBlockRenderer
                           content={el.content}
