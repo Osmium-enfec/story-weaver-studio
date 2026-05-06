@@ -98,6 +98,26 @@ function ScriptCanvas() {
     return () => clearTimeout(t);
   }, [isPlaying]);
 
+  // Delete/Backspace removes selected element on canvas
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!selectedElementId) return;
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement | null)?.isContentEditable) return;
+      e.preventDefault();
+      for (const s of scenes) {
+        if (s.elements.some((el) => el.id === selectedElementId)) {
+          void deleteElement(s.id, selectedElementId);
+          setSelectedElementId(null);
+          break;
+        }
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedElementId, scenes]);
+
   async function exportVideo() {
     const node = canvasRefs.current[activeScene?.id ?? ""];
     if (!node) return;
@@ -464,6 +484,7 @@ function ScriptCanvas() {
                   <ClickableScript
                     text={s.narration}
                     selected={idx === activeIdx ? selectedWord : null}
+                    boundWords={new Set(s.elements.map((e) => (e.content.word ?? "").toLowerCase()).filter(Boolean))}
                     onWordClick={(w) => { setActiveIdx(idx); setSelectedWord(w); }}
                   />
                 </div>
@@ -494,7 +515,7 @@ function ScriptCanvas() {
                 <p className="text-xs text-muted-foreground">Adds to Canvas {activeIdx + 1}</p>
               </div>
               <div className="min-h-0 flex-1">
-                <AnimationSearchPanel initialQuery="" onSelect={addAnimation} />
+                <AnimationSearchPanel initialQuery={selectedWord ?? ""} onSelect={addAnimation} />
               </div>
             </TabsContent>
             <TabsContent value="background" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
@@ -549,10 +570,12 @@ const WORD_RE = /[A-Za-z][A-Za-z0-9_-]*/g;
 function ClickableScript({
   text,
   selected,
+  boundWords,
   onWordClick,
 }: {
   text: string;
   selected: string | null;
+  boundWords?: Set<string>;
   onWordClick: (w: string) => void;
 }) {
   const tokens: { word: boolean; text: string }[] = [];
@@ -566,23 +589,27 @@ function ClickableScript({
   if (last < text.length) tokens.push({ word: false, text: text.slice(last) });
   return (
     <p className="whitespace-pre-wrap">
-      {tokens.map((t, i) =>
-        t.word ? (
+      {tokens.map((t, i) => {
+        if (!t.word) return <span key={i}>{t.text}</span>;
+        const lower = t.text.toLowerCase();
+        const isSelected = selected?.toLowerCase() === lower;
+        const isBound = boundWords?.has(lower);
+        return (
           <button
             key={i}
             onClick={(e) => { e.stopPropagation(); onWordClick(t.text); }}
             className={`rounded px-0.5 transition ${
-              selected?.toLowerCase() === t.text.toLowerCase()
+              isSelected
                 ? "bg-primary/20 text-primary font-semibold"
-                : "hover:bg-muted"
+                : isBound
+                  ? "bg-accent/40 text-accent-foreground underline decoration-dotted underline-offset-4"
+                  : "hover:bg-muted"
             }`}
           >
             {t.text}
           </button>
-        ) : (
-          <span key={i}>{t.text}</span>
-        ),
-      )}
+        );
+      })}
     </p>
   );
 }
