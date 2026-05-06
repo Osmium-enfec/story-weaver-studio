@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import { Image as ImageIcon, Sparkles, Link as LinkIcon, Palette, Loader2, X, Search } from "lucide-react";
+import { Image as ImageIcon, Sparkles, Link as LinkIcon, Palette, Loader2, X, Search, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
