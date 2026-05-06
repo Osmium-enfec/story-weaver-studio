@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Trash2, Plus, Eraser } from "lucide-react";
+import { Trash2, Plus, Eraser, Grid3x3 } from "lucide-react";
 import { toolbarStore } from "@/components/toolbar-store";
 import { AnimationSearchPanel } from "@/components/AnimationSearchPanel";
 import { AnimationBlockRenderer, TextBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
@@ -85,6 +85,7 @@ function ScriptCanvas() {
   const [isExporting, setIsExporting] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ w: 1280, h: 720 });
+  const [gridCanvases, setGridCanvases] = useState<Record<string, boolean>>({});
 
   const activeScene = scenes[activeIdx];
 
@@ -570,16 +571,27 @@ function ScriptCanvas() {
               <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Canvas {idx + 1}
               </span>
-              {scenes.length > 1 && (
+              <div className="flex items-center gap-1">
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 gap-1 text-xs text-destructive"
-                  onClick={(e) => { e.stopPropagation(); void deleteCanvas(idx); }}
+                  className={`h-7 gap-1 text-xs ${gridCanvases[s.id] ? "text-primary" : ""}`}
+                  onClick={(e) => { e.stopPropagation(); setGridCanvases((p) => ({ ...p, [s.id]: !p[s.id] })); }}
+                  title="Toggle 3×3 grid"
                 >
-                  <Trash2 className="h-3 w-3" /> Remove
+                  <Grid3x3 className="h-3 w-3" />
                 </Button>
-              )}
+                {scenes.length > 1 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 gap-1 text-xs text-destructive"
+                    onClick={(e) => { e.stopPropagation(); void deleteCanvas(idx); }}
+                  >
+                    <Trash2 className="h-3 w-3" /> Remove
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="flex justify-center bg-muted/30 p-4">
               <div
@@ -591,6 +603,13 @@ function ScriptCanvas() {
                 }}
               >
                 <BackgroundLayer background={s.background} exportMode={isExporting} />
+                {gridCanvases[s.id] && (
+                  <div className="pointer-events-none absolute inset-0 z-10 grid grid-cols-3 grid-rows-3">
+                    {Array.from({ length: 9 }).map((_, i) => (
+                      <div key={i} className="border border-primary/40" />
+                    ))}
+                  </div>
+                )}
                 {s.elements.map((el) => (
                   <Rnd
                     key={el.id}
