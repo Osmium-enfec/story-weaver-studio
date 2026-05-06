@@ -54,6 +54,10 @@ interface SceneRow {
   background: SceneBackground;
   narration: string;
   elements: PlacedElement[];
+  voice_url: string | null;
+  voice_start_ms: number | null;
+  voice_end_ms: number | null;
+  word_timings: { text: string; start_ms: number; end_ms: number }[];
 }
 
 const DEFAULT_BG: SceneBackground = { type: "color", value: "#ffffff" };
