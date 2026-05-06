@@ -1,6 +1,6 @@
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Download, Loader2, RefreshCw } from "lucide-react";
+import { Download, Loader2, RefreshCw, Film } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -8,6 +8,9 @@ import {
   enqueueRenderJob,
   listRenderJobs,
 } from "@/server/render-jobs.functions";
+import { supabase } from "@/integrations/supabase/client";
+import type { Scene } from "@/lib/db-types";
+import { renderInBrowser } from "@/lib/browser-render";
 
 export const Route = createFileRoute("/projects/$projectId/export")({
   component: ExportPage,
