@@ -550,10 +550,12 @@ const WORD_RE = /[A-Za-z][A-Za-z0-9_-]*/g;
 function ClickableScript({
   text,
   selected,
+  boundWords,
   onWordClick,
 }: {
   text: string;
   selected: string | null;
+  boundWords?: Set<string>;
   onWordClick: (w: string) => void;
 }) {
   const tokens: { word: boolean; text: string }[] = [];
@@ -567,23 +569,27 @@ function ClickableScript({
   if (last < text.length) tokens.push({ word: false, text: text.slice(last) });
   return (
     <p className="whitespace-pre-wrap">
-      {tokens.map((t, i) =>
-        t.word ? (
+      {tokens.map((t, i) => {
+        if (!t.word) return <span key={i}>{t.text}</span>;
+        const lower = t.text.toLowerCase();
+        const isSelected = selected?.toLowerCase() === lower;
+        const isBound = boundWords?.has(lower);
+        return (
           <button
             key={i}
             onClick={(e) => { e.stopPropagation(); onWordClick(t.text); }}
             className={`rounded px-0.5 transition ${
-              selected?.toLowerCase() === t.text.toLowerCase()
+              isSelected
                 ? "bg-primary/20 text-primary font-semibold"
-                : "hover:bg-muted"
+                : isBound
+                  ? "bg-accent/40 text-accent-foreground underline decoration-dotted underline-offset-4"
+                  : "hover:bg-muted"
             }`}
           >
             {t.text}
           </button>
-        ) : (
-          <span key={i}>{t.text}</span>
-        ),
-      )}
+        );
+      })}
     </p>
   );
 }
