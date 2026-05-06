@@ -637,19 +637,19 @@ function ScriptCanvas() {
       {/* RIGHT — animations + background tabs (sticky) */}
       <aside className="w-1/4">
         <div
-          className="sticky top-4 flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
-          style={{ height: "calc(100vh - 9rem)" }}
+          className="sticky flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+          style={{ top: "4.5rem", height: "calc(100vh - 5.5rem)" }}
         >
-          <Tabs defaultValue="animations" className="flex h-full flex-col">
-            <TabsList className="m-3 grid grid-cols-2">
+          <Tabs defaultValue="animations" className="flex h-full min-h-0 flex-col">
+            <TabsList className="m-3 grid shrink-0 grid-cols-2">
               <TabsTrigger value="animations">Animations</TabsTrigger>
               <TabsTrigger value="background">Background</TabsTrigger>
             </TabsList>
-            <TabsContent value="animations" className="m-0 min-h-0 flex-1 overflow-hidden border-t border-border">
-              <div className="border-b border-border px-4 py-2">
+            <TabsContent value="animations" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
+              <div className="shrink-0 border-b border-border px-4 py-2">
                 <p className="text-xs text-muted-foreground">Adds to Canvas {activeIdx + 1}</p>
               </div>
-              <div className="min-h-0 flex-1">
+              <div className="min-h-0 flex-1 overflow-hidden">
                 <AnimationSearchPanel initialQuery={selectedWord ?? ""} onSelect={addAnimation} />
               </div>
             </TabsContent>
