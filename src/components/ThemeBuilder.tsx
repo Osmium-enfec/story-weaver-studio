@@ -6,7 +6,10 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import { Upload, Trash2, Image as ImageIcon, Video, Sparkles, ChevronLeft, Plus, Palette } from "lucide-react";
+import { Upload, Trash2, Image as ImageIcon, Video, Sparkles, ChevronLeft, Plus, Palette, Type } from "lucide-react";
+import type { SceneBackground } from "@/components/BackgroundPicker";
+import type { TextRole, TextRoleStyle } from "@/components/TextPanel";
+import { TextRoleEditor } from "@/components/TextPanel";
 
 type MediaKind = "image" | "video" | "animation";
 
