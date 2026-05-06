@@ -281,7 +281,13 @@ function ThemeEditor({
 }
 
 
-export function ThemeBuilder() {
+export function ThemeBuilder({
+  onApplyBackground,
+  onInsertText,
+}: {
+  onApplyBackground?: (bg: SceneBackground) => void;
+  onInsertText?: (role: TextRole, style: TextRoleStyle) => void;
+} = {}) {
   const [themes, setThemes] = useState<ThemeData[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [, setLoading] = useState(true);
