@@ -125,7 +125,7 @@ export function AnimationBlockRenderer({
 
   if (content.provider === "iconscout" && content.video_url) {
     return (
-      <div style={wrapperStyle} className="pointer-events-none">
+      <div style={{ ...wrapperStyle, isolation: "isolate" }} className="pointer-events-none">
         {content.remove_background && <WhiteKeyFilterDef />}
         <video
           src={content.video_url}
@@ -138,8 +138,11 @@ export function AnimationBlockRenderer({
             width: "100%",
             height: "100%",
             objectFit: "contain",
+            opacity: 0,
+            animation: "anim-block-fade-in 180ms ease-out 80ms forwards",
           }}
         />
+        <style>{`@keyframes anim-block-fade-in { to { opacity: 1; } }`}</style>
       </div>
     );
   }
