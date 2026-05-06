@@ -96,23 +96,19 @@ function ScriptCanvas() {
       // Inline all remote images to avoid tainted-canvas errors
       await inlineAllImages(node);
       setIsPlaying(true);
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => resolve()),
-      );
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
       const totalMs = 4000;
       const start = performance.now();
       while (performance.now() - start < totalMs) {
-        // eslint-disable-next-line no-await-in-loop
         const dataUrl = await toPng(node, {
           cacheBust: false,
           pixelRatio: 1,
           backgroundColor: "#ffffff",
           skipFonts: true,
-          imagePlaceholder:
-            "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>",
+          imagePlaceholder: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>",
         });
-        // eslint-disable-next-line no-await-in-loop
+
         const img = await new Promise<HTMLImageElement>((resolve, reject) => {
           const i = new Image();
           i.onload = () => resolve(i);
@@ -121,7 +117,7 @@ function ScriptCanvas() {
         });
         ctx.clearRect(0, 0, off.width, off.height);
         ctx.drawImage(img, 0, 0, off.width, off.height);
-        // eslint-disable-next-line no-await-in-loop
+
         await new Promise((r) => setTimeout(r, 100));
       }
       recorder.stop();
@@ -247,9 +243,8 @@ function ScriptCanvas() {
     // Determine occurrence: count existing elements already bound to the same word
     const boundWord = selectedWord ?? null;
     const occurrence = boundWord
-      ? elements.filter(
-          (e) => (e.content.word ?? "").toLowerCase() === boundWord.toLowerCase(),
-        ).length + 1
+      ? elements.filter((e) => (e.content.word ?? "").toLowerCase() === boundWord.toLowerCase())
+          .length + 1
       : null;
 
     const content: AnimationBlockContent = {
@@ -273,7 +268,12 @@ function ScriptCanvas() {
       .from("scene_elements")
       .insert({
         scene_id: sceneId,
-        type: a.provider === "internal" ? "animation" : a.provider === "iconscout" ? "iconscout" : "lottie",
+        type:
+          a.provider === "internal"
+            ? "animation"
+            : a.provider === "iconscout"
+              ? "iconscout"
+              : "lottie",
         content: content as unknown as never,
         position: { x, y, w, h },
         z_index: elements.length,
