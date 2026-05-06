@@ -779,7 +779,6 @@ function ScriptCanvas() {
               />
             </TabsContent>
           </Tabs>
-          </Tabs>
         </div>
       </aside>
 
