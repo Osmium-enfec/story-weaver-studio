@@ -39,7 +39,10 @@ export function AnimationBlockRenderer({
     height: "100%",
     opacity: content.opacity ?? 1,
     transform: `rotate(${content.rotation ?? 0}deg)`,
-    filter: content.tint && content.color_support !== "fixed" ? `drop-shadow(0 0 0 ${content.tint})` : undefined,
+    filter:
+      content.tint && content.color_support !== "fixed"
+        ? `drop-shadow(0 0 0 ${content.tint})`
+        : undefined,
   };
 
   if (exportMode && (isLottie || (content.provider === "iconscout" && content.video_url))) {
