@@ -64,6 +64,14 @@ function ScriptCanvas() {
   const [isExporting, setIsExporting] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ w: 1280, h: 720 });
+  const [background, setBackground] = useState<SceneBackground>({ type: "color", value: "#ffffff" });
+
+  async function updateBackground(bg: SceneBackground) {
+    setBackground(bg);
+    if (sceneId) {
+      await supabase.from("scenes").update({ background: bg as unknown as never }).eq("id", sceneId);
+    }
+  }
 
   // Auto-stop play after a duration
   useEffect(() => {
