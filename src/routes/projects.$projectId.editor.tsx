@@ -23,7 +23,7 @@ function Editor() {
         .eq("project_id", projectId)
         .order("order_index");
       if (error) toast.error(error.message);
-      const list = (data ?? []) as Scene[];
+      const list = (data ?? []) as unknown as Scene[];
       setScenes(list);
       setSelectedId(list[0]?.id ?? null);
     })();
