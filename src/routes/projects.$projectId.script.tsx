@@ -490,6 +490,7 @@ function ScriptCanvas() {
                   className="h-6 px-2 text-xs"
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (editingScript[s.id]) void flushNarration(s.id, s.narration);
                     setEditingScript((m) => ({ ...m, [s.id]: !m[s.id] }));
                   }}
                 >
