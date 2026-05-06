@@ -379,6 +379,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
               {current && <BackgroundLayer background={current.background} />}
               {current?.elements.map((el) => {
                 const visible = revealedIds.has(el.id);
+                const isText = el.type === "text" || typeof el.content.text === "string" || !!el.content.role;
                 return (
                   <div
                     key={el.id}
@@ -394,7 +395,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
                       transition: "opacity 350ms ease, transform 350ms ease",
                     }}
                   >
-                    {el.type === "text" ? (
+                    {isText ? (
                       <TextBlockRenderer content={el.content} />
                     ) : (
                       <AnimationBlockRenderer content={el.content} />

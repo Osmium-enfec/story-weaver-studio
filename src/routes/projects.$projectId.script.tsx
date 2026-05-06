@@ -821,6 +821,7 @@ function ScriptCanvas() {
           voice_fade_out_ms: s.voice_fade_out_ms,
           elements: s.elements.map((e) => ({
             id: e.id,
+            type: e.type,
             content: e.content,
             position: e.position,
             z_index: e.z_index,
