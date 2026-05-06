@@ -85,7 +85,12 @@ export function AnimationBlockRenderer({
           loop={content.loop ?? true}
           muted
           playsInline
-          style={{ width: "100%", height: "100%", objectFit: "contain" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            mixBlendMode: content.remove_background ? "multiply" : undefined,
+          }}
         />
       </div>
     );
