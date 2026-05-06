@@ -296,7 +296,7 @@ export function ThemeBuilder() {
 
   const persist = async (t: ThemeData) => {
     const { id, name, ...rest } = t;
-    await supabase.from("user_themes").upsert({ id, name, data: rest });
+    await supabase.from("user_themes").upsert({ id, name, data: rest as never });
   };
 
   const active = themes.find((t) => t.id === activeId) ?? null;
