@@ -318,7 +318,17 @@ function ScriptCanvas() {
     const r = data as { id: string; order_index: number; background: SceneBackground | null; narration: string | null };
     setScenes((prev) => [
       ...prev,
-      { id: r.id, order_index: r.order_index, background: r.background ?? DEFAULT_BG, narration: r.narration ?? "", elements: [] },
+      {
+        id: r.id,
+        order_index: r.order_index,
+        background: r.background ?? DEFAULT_BG,
+        narration: r.narration ?? "",
+        elements: [],
+        voice_url: null,
+        voice_start_ms: null,
+        voice_end_ms: null,
+        word_timings: [],
+      },
     ]);
     setActiveIdx(scenes.length);
   }
