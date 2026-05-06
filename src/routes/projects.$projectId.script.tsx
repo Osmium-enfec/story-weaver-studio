@@ -535,12 +535,26 @@ function ScriptCanvas() {
                     <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
                       <AnimationBlockRenderer content={el.content} exportMode={isExporting} />
                       {selectedElementId === el.id && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); deleteElement(s.id, el.id); }}
-                          className="absolute -right-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); void toggleElementBackground(s.id, el.id); }}
+                            title={el.content.remove_background ? "Restore background" : "Remove background"}
+                            className={`absolute -right-10 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full shadow ${
+                              el.content.remove_background
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-card text-foreground border border-border"
+                            }`}
+                          >
+                            <Eraser className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteElement(s.id, el.id); }}
+                            title="Delete"
+                            className="absolute -right-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </>
                       )}
                     </div>
                   </Rnd>
