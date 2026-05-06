@@ -34,28 +34,33 @@ function WhiteKeyFilterDef() {
     <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
       <defs>
         <filter id={WHITE_KEY_FILTER_ID} colorInterpolationFilters="sRGB">
-          {/* Build alpha = max(1-R, 1-G, 1-B) so ONLY pure white (R=G=B=1) becomes transparent.
-              Coloured pixels (any channel low) keep full alpha. */}
+          {/* whiteAlpha = max(1-R, 1-G, 1-B) → white becomes 0, everything else 1 */}
           <feColorMatrix in="SourceGraphic" type="matrix"
-            values="0 0 0 0 0
-                    0 0 0 0 0
-                    0 0 0 0 0
-                    -1 0 0 0 1" result="aR" />
+            values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -1 0 0 0 1" result="wR" />
           <feColorMatrix in="SourceGraphic" type="matrix"
-            values="0 0 0 0 0
-                    0 0 0 0 0
-                    0 0 0 0 0
-                    0 -1 0 0 1" result="aG" />
+            values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 -1 0 0 1" result="wG" />
           <feColorMatrix in="SourceGraphic" type="matrix"
-            values="0 0 0 0 0
-                    0 0 0 0 0
-                    0 0 0 0 0
-                    0 0 -1 0 1" result="aB" />
-          <feBlend in="aR" in2="aG" mode="lighten" result="aRG" />
-          <feBlend in="aRG" in2="aB" mode="lighten" result="aMax" />
-          {/* Sharpen alpha so near-white halos go transparent and everything else stays solid */}
-          <feComponentTransfer in="aMax" result="keyAlpha">
-            <feFuncA type="linear" slope="8" intercept="-0.2" />
+            values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 -1 0 1" result="wB" />
+          <feBlend in="wR" in2="wG" mode="lighten" result="wRG" />
+          <feBlend in="wRG" in2="wB" mode="lighten" result="whiteAlpha" />
+
+          {/* darkAlpha = max(R, G, B) → black becomes 0, everything else 1 */}
+          <feColorMatrix in="SourceGraphic" type="matrix"
+            values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1 0 0 0 0" result="dR" />
+          <feColorMatrix in="SourceGraphic" type="matrix"
+            values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 1 0 0 0" result="dG" />
+          <feColorMatrix in="SourceGraphic" type="matrix"
+            values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 1 0 0" result="dB" />
+          <feBlend in="dR" in2="dG" mode="lighten" result="dRG" />
+          <feBlend in="dRG" in2="dB" mode="lighten" result="darkAlpha" />
+
+          {/* combined = whiteAlpha * darkAlpha → both white AND near-black become transparent */}
+          <feComposite in="whiteAlpha" in2="darkAlpha" operator="arithmetic"
+            k1="1" k2="0" k3="0" k4="0" result="rawAlpha" />
+
+          {/* Sharpen so anti-aliased halos clean up */}
+          <feComponentTransfer in="rawAlpha" result="keyAlpha">
+            <feFuncA type="linear" slope="6" intercept="-0.4" />
           </feComponentTransfer>
           <feComposite in="SourceGraphic" in2="keyAlpha" operator="in" />
         </filter>
