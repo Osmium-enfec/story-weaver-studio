@@ -153,6 +153,19 @@ function ScriptCanvas() {
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedElementId, scenes]);
 
+  // Click anywhere outside a selected element to deselect it
+  useEffect(() => {
+    if (!selectedElementId) return;
+    function onDocMouseDown(e: MouseEvent) {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest("[data-canvas-element]")) return;
+      setSelectedElementId(null);
+    }
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [selectedElementId]);
+
   async function exportVideo() {
     const node = canvasRefs.current[activeScene?.id ?? ""];
     if (!node) return;
@@ -532,6 +545,7 @@ function ScriptCanvas() {
                     className={`group/el rounded-lg border-2 ${
                       selectedElementId === el.id ? "border-primary" : "border-transparent hover:border-primary/40"
                     }`}
+                    data-canvas-element="true"
                   >
                     <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
                       <AnimationBlockRenderer content={el.content} exportMode={isExporting} />
