@@ -17,6 +17,7 @@ import { PlaybackDialog } from "@/components/PlaybackDialog";
 import type { AnimationResult } from "@/lib/animation-providers";
 import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
 import { proxyImageAsDataUrl } from "@/server/proxy-image.functions";
+import { CanvasAudioEditor } from "@/components/CanvasAudioEditor";
 
 async function inlineAllImages(root: HTMLElement) {
   const imgs = Array.from(root.querySelectorAll("img"));
@@ -58,6 +59,12 @@ interface SceneRow {
   voice_start_ms: number | null;
   voice_end_ms: number | null;
   word_timings: { text: string; start_ms: number; end_ms: number }[];
+  voice_trim_start_ms: number;
+  voice_trim_end_ms: number | null;
+  voice_cuts: { start_ms: number; end_ms: number }[];
+  voice_volume: number;
+  voice_fade_in_ms: number;
+  voice_fade_out_ms: number;
 }
 
 const DEFAULT_BG: SceneBackground = { type: "color", value: "#ffffff" };
