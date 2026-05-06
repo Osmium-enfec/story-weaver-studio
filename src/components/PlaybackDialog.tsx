@@ -19,6 +19,7 @@ interface Props {
   elements: PlaybackElement[];
   /** Original canvas pixel size when elements were placed */
   canvasSize: { w: number; h: number };
+  background?: SceneBackground;
 }
 
 const WORD_RE = /[A-Za-z][A-Za-z0-9_-]*/g;
