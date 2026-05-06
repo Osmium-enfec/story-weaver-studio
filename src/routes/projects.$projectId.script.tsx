@@ -464,6 +464,7 @@ function ScriptCanvas() {
                   <ClickableScript
                     text={s.narration}
                     selected={idx === activeIdx ? selectedWord : null}
+                    boundWords={new Set(s.elements.map((e) => (e.content.word ?? "").toLowerCase()).filter(Boolean))}
                     onWordClick={(w) => { setActiveIdx(idx); setSelectedWord(w); }}
                   />
                 </div>
