@@ -605,6 +605,10 @@ function ScriptCanvas() {
           id: s.id,
           background: s.background,
           narration: s.narration,
+          voice_url: s.voice_url,
+          voice_start_ms: s.voice_start_ms,
+          voice_end_ms: s.voice_end_ms,
+          word_timings: s.word_timings,
           elements: s.elements.map((e) => ({
             id: e.id,
             content: e.content,
