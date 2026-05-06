@@ -51,12 +51,24 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
   const [transitioning, setTransitioning] = useState(false);
   const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
   const stageRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [scale, setScale] = useState(1);
   const cancelRef = useRef(false);
+
+  function clearTimers() {
+    for (const t of timersRef.current) clearTimeout(t);
+    timersRef.current = [];
+  }
 
   useEffect(() => {
     if (!open) {
       window.speechSynthesis?.cancel();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      clearTimers();
       cancelRef.current = true;
       setPlaying(false);
       setCurrentIdx(0);
