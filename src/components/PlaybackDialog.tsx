@@ -127,6 +127,30 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       // Nothing visible at start; reveals are scheduled below.
       setRevealedIds(new Set());
 
+      // Items become "available" from either their timed slot or linked word.
+      // We only reveal the next contiguous run in sequence order, so #3 can
+      // never appear before #2 even if #3's linked word happens earlier.
+      const availableIds = new Set<string>();
+      let nextSequenceIndex = 0;
+
+      const markAvailable = (ids: string | string[]) => {
+        const incoming = Array.isArray(ids) ? ids : [ids];
+        incoming.forEach((id) => availableIds.add(id));
+        const newlyVisible: string[] = [];
+        while (nextSequenceIndex < scene.elements.length) {
+          const nextId = scene.elements[nextSequenceIndex].id;
+          if (!availableIds.has(nextId)) break;
+          newlyVisible.push(nextId);
+          nextSequenceIndex += 1;
+        }
+        if (newlyVisible.length === 0) return;
+        setRevealedIds((prev) => {
+          const next = new Set(prev);
+          newlyVisible.forEach((id) => next.add(id));
+          return next;
+        });
+      };
+
       // Schedule unbound elements evenly across `totalMs` in sequence order.
       const scheduleUnbound = (totalMs: number) => {
         if (unboundIdsBySeq.length === 0) return;
@@ -134,7 +158,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
           const at = ((i + 1) / (unboundIdsBySeq.length + 1)) * totalMs;
           const t = setTimeout(() => {
             if (cancelRef.current) return;
-            setRevealedIds((prev) => new Set(prev).add(id));
+            markAvailable(id);
           }, Math.max(0, at));
           timersRef.current.push(t);
         });
