@@ -153,6 +153,19 @@ function ScriptCanvas() {
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedElementId, scenes]);
 
+  // Click anywhere outside a selected element to deselect it
+  useEffect(() => {
+    if (!selectedElementId) return;
+    function onDocMouseDown(e: MouseEvent) {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest("[data-canvas-element]")) return;
+      setSelectedElementId(null);
+    }
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [selectedElementId]);
+
   async function exportVideo() {
     const node = canvasRefs.current[activeScene?.id ?? ""];
     if (!node) return;
