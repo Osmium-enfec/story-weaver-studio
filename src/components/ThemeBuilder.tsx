@@ -160,6 +160,7 @@ function MediaGallery({
               key={item.id}
               item={item}
               onRemove={() => onChange(items.filter((i) => i.id !== item.id))}
+              onSelect={onSelect ? () => onSelect(item) : undefined}
             />
           ))}
         </div>
