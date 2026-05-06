@@ -245,7 +245,7 @@ function ScriptCanvas() {
     (async () => {
       const { data: rows } = await supabase
         .from("scenes")
-        .select("id, order_index, background, narration, voice_url, voice_start_ms, voice_end_ms, word_timings")
+        .select("id, order_index, background, narration, voice_url, voice_start_ms, voice_end_ms, word_timings, voice_trim_start_ms, voice_trim_end_ms, voice_cuts, voice_volume, voice_fade_in_ms, voice_fade_out_ms")
         .eq("project_id", projectId)
         .order("order_index");
       let sceneRows = (rows ?? []) as {
@@ -257,6 +257,12 @@ function ScriptCanvas() {
         voice_start_ms: number | null;
         voice_end_ms: number | null;
         word_timings: { text: string; start_ms: number; end_ms: number }[] | null;
+        voice_trim_start_ms: number | null;
+        voice_trim_end_ms: number | null;
+        voice_cuts: { start_ms: number; end_ms: number }[] | null;
+        voice_volume: number | null;
+        voice_fade_in_ms: number | null;
+        voice_fade_out_ms: number | null;
       }[];
 
       if (sceneRows.length === 0) {
@@ -270,7 +276,7 @@ function ScriptCanvas() {
             detected_concepts: [],
             duration_ms: 8000,
           })
-          .select("id, order_index, background, narration, voice_url, voice_start_ms, voice_end_ms, word_timings")
+          .select("id, order_index, background, narration, voice_url, voice_start_ms, voice_end_ms, word_timings, voice_trim_start_ms, voice_trim_end_ms, voice_cuts, voice_volume, voice_fade_in_ms, voice_fade_out_ms")
           .single();
         if (error) return toast.error(error.message);
         sceneRows = [created as never];
@@ -298,6 +304,12 @@ function ScriptCanvas() {
           voice_start_ms: s.voice_start_ms,
           voice_end_ms: s.voice_end_ms,
           word_timings: s.word_timings ?? [],
+          voice_trim_start_ms: s.voice_trim_start_ms ?? 0,
+          voice_trim_end_ms: s.voice_trim_end_ms,
+          voice_cuts: s.voice_cuts ?? [],
+          voice_volume: s.voice_volume ?? 1,
+          voice_fade_in_ms: s.voice_fade_in_ms ?? 0,
+          voice_fade_out_ms: s.voice_fade_out_ms ?? 0,
         })),
       );
       setActiveIdx(0);
@@ -335,6 +347,12 @@ function ScriptCanvas() {
         voice_start_ms: null,
         voice_end_ms: null,
         word_timings: [],
+        voice_trim_start_ms: 0,
+        voice_trim_end_ms: null,
+        voice_cuts: [],
+        voice_volume: 1,
+        voice_fade_in_ms: 0,
+        voice_fade_out_ms: 0,
       },
     ]);
     setActiveIdx(scenes.length);
