@@ -151,13 +151,45 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         scene.voice_end_ms != null;
 
       if (hasVoice) {
-        const startMs = scene.voice_start_ms ?? 0;
-        const endMs = scene.voice_end_ms ?? startMs;
-        const sceneDur = Math.max(500, endMs - startMs);
+        const segStart = scene.voice_start_ms ?? 0;
+        const segEnd = scene.voice_end_ms ?? segStart;
+        const trimStart = Math.max(0, scene.voice_trim_start_ms ?? 0);
+        const trimEnd = scene.voice_trim_end_ms ?? (segEnd - segStart);
+        const volume = scene.voice_volume ?? 1;
+        const fadeIn = (scene.voice_fade_in_ms ?? 0) / 1000;
+        const fadeOut = (scene.voice_fade_out_ms ?? 0) / 1000;
+        const cuts = (scene.voice_cuts ?? []).filter((c) => c.end_ms > trimStart && c.start_ms < trimEnd);
 
-        // Schedule word-based reveals using word_timings (relative to scene start)
+        // Build playback ranges (segment-relative ms) honoring trim + cuts
+        const ranges: { start: number; end: number }[] = [];
+        let cursor = trimStart;
+        for (const c of cuts.sort((a, b) => a.start_ms - b.start_ms)) {
+          const a = Math.max(c.start_ms, trimStart);
+          const b = Math.min(c.end_ms, trimEnd);
+          if (a > cursor) ranges.push({ start: cursor, end: a });
+          cursor = Math.max(cursor, b);
+        }
+        if (cursor < trimEnd) ranges.push({ start: cursor, end: trimEnd });
+
+        const totalAudibleMs = ranges.reduce((sum, r) => sum + (r.end - r.start), 0);
+
+        // Schedule word-based reveals using AUDIBLE elapsed time
+        // (skip words inside cuts; squeeze remaining timeline)
         const timings = scene.word_timings ?? [];
         for (const wt of timings) {
+          if (wt.start_ms < trimStart || wt.end_ms > trimEnd) continue;
+          // Skip words inside any cut
+          if (cuts.some((c) => wt.start_ms >= c.start_ms && wt.end_ms <= c.end_ms)) continue;
+          // Compute audible elapsed at wt.start_ms
+          let elapsed = 0;
+          for (const r of ranges) {
+            if (wt.start_ms >= r.end) {
+              elapsed += r.end - r.start;
+            } else if (wt.start_ms >= r.start) {
+              elapsed += wt.start_ms - r.start;
+              break;
+            } else break;
+          }
           const word = normalize(wt.text);
           if (!word) continue;
           const t = setTimeout(() => {
@@ -172,27 +204,79 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
               ids.forEach((id) => next.add(id));
               return next;
             });
-          }, Math.max(0, wt.start_ms));
+          }, Math.max(0, elapsed));
           timersRef.current.push(t);
         }
 
-        // Play the audio segment
+        // Audio element + WebAudio gain for volume/fades
         const audio = new Audio(scene.voice_url!);
+        audio.crossOrigin = "anonymous";
         audioRef.current = audio;
-        audio.currentTime = startMs / 1000;
-        audio.play().catch(() => {
-          /* autoplay rejection: still advance via timer */
-        });
 
-        const stopTimer = setTimeout(() => {
-          try {
-            audio.pause();
-          } catch {
-            /* ignore */
+        let AC: AudioContext | null = null;
+        let gain: GainNode | null = null;
+        try {
+          const Ctx = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
+          AC = new Ctx();
+          const src = AC.createMediaElementSource(audio);
+          gain = AC.createGain();
+          gain.gain.value = volume;
+          src.connect(gain).connect(AC.destination);
+        } catch {
+          audio.volume = Math.min(1, Math.max(0, volume));
+        }
+
+        // Play through ranges sequentially. Whisper times are already
+        // segment-relative (start_ms is ~0). Audio file is the canvas's clip
+        // OR a master file — handle both: if voice_start_ms > 0, the audio is
+        // the master file and we offset accordingly.
+        const fileOffsetSec = (segStart) / 1000;
+        let rangeIdx = 0;
+        let stopped = false;
+
+        const playRange = () => {
+          if (stopped || cancelRef.current) return;
+          const r = ranges[rangeIdx];
+          if (!r) {
+            try { audio.pause(); } catch { /* */ }
+            try { void AC?.close(); } catch { /* */ }
+            finish();
+            return;
           }
-          finish();
-        }, sceneDur);
-        timersRef.current.push(stopTimer);
+          audio.currentTime = fileOffsetSec + r.start / 1000;
+          const dur = (r.end - r.start) / 1000;
+          // Fades: only on first/last range
+          if (gain && AC) {
+            const now = AC.currentTime;
+            gain.gain.cancelScheduledValues(now);
+            if (rangeIdx === 0 && fadeIn > 0) {
+              gain.gain.setValueAtTime(0, now);
+              gain.gain.linearRampToValueAtTime(volume, now + Math.min(fadeIn, dur));
+            } else {
+              gain.gain.setValueAtTime(volume, now);
+            }
+            if (rangeIdx === ranges.length - 1 && fadeOut > 0) {
+              gain.gain.setValueAtTime(volume, now + Math.max(0, dur - fadeOut));
+              gain.gain.linearRampToValueAtTime(0, now + dur);
+            }
+          }
+          audio.play().catch(() => { /* autoplay rejection */ });
+          const t = setTimeout(() => {
+            rangeIdx += 1;
+            playRange();
+          }, dur * 1000);
+          timersRef.current.push(t);
+        };
+
+        // Safety stop after total audible duration
+        const guard = setTimeout(() => {
+          stopped = true;
+          try { audio.pause(); } catch { /* */ }
+          try { void AC?.close(); } catch { /* */ }
+        }, totalAudibleMs + 500);
+        timersRef.current.push(guard);
+
+        playRange();
         return;
       }
 
