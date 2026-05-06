@@ -149,7 +149,7 @@ function ScriptCanvas() {
   useEffect(() => {
     toolbarStore.set([
       {
-        label: "Play",
+        label: "Preview",
         icon: "play",
         variant: "default",
         disabled: isExporting,
