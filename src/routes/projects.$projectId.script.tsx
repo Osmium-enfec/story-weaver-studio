@@ -577,6 +577,7 @@ function ScriptCanvas() {
         scenes={scenes.map((s) => ({
           id: s.id,
           background: s.background,
+          narration: s.narration,
           elements: s.elements.map((e) => ({
             id: e.id,
             content: e.content,
