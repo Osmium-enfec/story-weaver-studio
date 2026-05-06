@@ -22,6 +22,8 @@ export interface AnimationBlockContent {
   // word binding (for timed reveal during playback)
   word?: string | null;
   occurrence?: number | null;
+  // background removal (keeps original; just toggles rendering)
+  remove_background?: boolean;
 }
 
 export function AnimationBlockRenderer({
@@ -83,7 +85,12 @@ export function AnimationBlockRenderer({
           loop={content.loop ?? true}
           muted
           playsInline
-          style={{ width: "100%", height: "100%", objectFit: "contain" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            mixBlendMode: content.remove_background ? "multiply" : undefined,
+          }}
         />
       </div>
     );

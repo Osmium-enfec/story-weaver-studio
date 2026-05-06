@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, Eraser } from "lucide-react";
 import { toolbarStore } from "@/components/toolbar-store";
 import { AnimationSearchPanel } from "@/components/AnimationSearchPanel";
 import { AnimationBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
@@ -448,6 +448,31 @@ function ScriptCanvas() {
     await supabase.from("scene_elements").delete().eq("id", id);
   }
 
+  async function toggleElementBackground(sceneId: string, id: string) {
+    let nextContent: AnimationBlockContent | null = null;
+    setScenes((prev) =>
+      prev.map((s) =>
+        s.id === sceneId
+          ? {
+              ...s,
+              elements: s.elements.map((e) => {
+                if (e.id !== id) return e;
+                const updated = { ...e.content, remove_background: !e.content.remove_background };
+                nextContent = updated;
+                return { ...e, content: updated };
+              }),
+            }
+          : s,
+      ),
+    );
+    if (nextContent) {
+      await supabase
+        .from("scene_elements")
+        .update({ content: nextContent as unknown as never })
+        .eq("id", id);
+    }
+  }
+
   return (
     <div className="flex gap-4">
       {/* MAIN — scrollable list of canvases each with its own script */}
@@ -510,12 +535,26 @@ function ScriptCanvas() {
                     <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
                       <AnimationBlockRenderer content={el.content} exportMode={isExporting} />
                       {selectedElementId === el.id && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); deleteElement(s.id, el.id); }}
-                          className="absolute -right-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); void toggleElementBackground(s.id, el.id); }}
+                            title={el.content.remove_background ? "Restore background" : "Remove background"}
+                            className={`absolute -right-10 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full shadow ${
+                              el.content.remove_background
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-card text-foreground border border-border"
+                            }`}
+                          >
+                            <Eraser className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteElement(s.id, el.id); }}
+                            title="Delete"
+                            className="absolute -right-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </>
                       )}
                     </div>
                   </Rnd>
