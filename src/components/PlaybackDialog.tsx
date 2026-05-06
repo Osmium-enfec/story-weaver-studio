@@ -97,6 +97,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       const scene = scenes[idx];
       if (!scene) return resolve();
       setCurrentIdx(idx);
+      clearTimers();
 
       // Build word→elements map for this scene, tracking occurrence
       const occurrenceCounter: Record<string, number> = {};
@@ -118,11 +119,9 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       // Start with unbound elements visible immediately
       setRevealedIds(new Set(unboundIds));
 
-      const narration = (scene.narration ?? "").trim();
-      const hasSpeech = narration.length > 0 && "speechSynthesis" in window;
-
       const finish = () => {
         if (cancelRef.current) return resolve();
+        clearTimers();
         // Reveal everything at the end before transitioning
         setRevealedIds(new Set(scene.elements.map((e) => e.id)));
         setTimeout(() => {
@@ -139,16 +138,74 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         }, 400);
       };
 
+      // ─── Path A: real voice with word timings ────────────────────────────
+      const hasVoice =
+        !!scene.voice_url &&
+        scene.voice_start_ms != null &&
+        scene.voice_end_ms != null;
+
+      if (hasVoice) {
+        const startMs = scene.voice_start_ms ?? 0;
+        const endMs = scene.voice_end_ms ?? startMs;
+        const sceneDur = Math.max(500, endMs - startMs);
+
+        // Schedule word-based reveals using word_timings (relative to scene start)
+        const timings = scene.word_timings ?? [];
+        for (const wt of timings) {
+          const word = normalize(wt.text);
+          if (!word) continue;
+          const t = setTimeout(() => {
+            if (cancelRef.current) return;
+            occurrenceCounter[word] = (occurrenceCounter[word] ?? 0) + 1;
+            const occ = occurrenceCounter[word];
+            const ids =
+              wordMap.get(`${word}|${occ}`) ?? wordMap.get(`${word}|1`) ?? [];
+            if (ids.length === 0) return;
+            setRevealedIds((prev) => {
+              const next = new Set(prev);
+              ids.forEach((id) => next.add(id));
+              return next;
+            });
+          }, Math.max(0, wt.start_ms));
+          timersRef.current.push(t);
+        }
+
+        // Play the audio segment
+        const audio = new Audio(scene.voice_url!);
+        audioRef.current = audio;
+        audio.currentTime = startMs / 1000;
+        audio.play().catch(() => {
+          /* autoplay rejection: still advance via timer */
+        });
+
+        const stopTimer = setTimeout(() => {
+          try {
+            audio.pause();
+          } catch {
+            /* ignore */
+          }
+          finish();
+        }, sceneDur);
+        timersRef.current.push(stopTimer);
+        return;
+      }
+
+      // ─── Path B: TTS or stagger fallback ─────────────────────────────────
+      const narration = (scene.narration ?? "").trim();
+      const hasSpeech = narration.length > 0 && "speechSynthesis" in window;
+
       if (!hasSpeech) {
         // Stagger reveals over fallback duration
         const ids = scene.elements.map((e) => e.id);
         ids.forEach((id, i) => {
-          setTimeout(() => {
+          const t = setTimeout(() => {
             if (cancelRef.current) return;
             setRevealedIds((prev) => new Set(prev).add(id));
           }, ((i + 1) / (ids.length + 1)) * FALLBACK_SCENE_MS);
+          timersRef.current.push(t);
         });
-        setTimeout(finish, Math.max(MIN_REVEAL_MS, FALLBACK_SCENE_MS));
+        const t = setTimeout(finish, Math.max(MIN_REVEAL_MS, FALLBACK_SCENE_MS));
+        timersRef.current.push(t);
         return;
       }
 
@@ -156,7 +213,6 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       u.rate = 1;
       u.onboundary = (ev: SpeechSynthesisEvent) => {
         if (ev.name && ev.name !== "word") return;
-        // Extract spoken word at charIndex
         const tail = narration.slice(ev.charIndex);
         const m = tail.match(/[A-Za-z][A-Za-z0-9_-]*/);
         if (!m) return;
