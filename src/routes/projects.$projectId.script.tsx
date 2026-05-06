@@ -796,10 +796,11 @@ function ScriptCanvas() {
                 onApplyBackground={(bg) => void updateBackground(bg, true)}
                 onInsertText={(role, style) => void addTextBlock(role, style)}
                 onInsertMedia={(item) => {
-                  const isLottie = /\.(lottie|json)$/i.test(item.name) || item.kind === "animation";
+                  const isLottie = item.kind === "animation" || /\.(lottie|json)$/i.test(item.name);
+                  const isVideo = item.kind === "video";
                   void addAnimation({
                     id: `theme:${item.url}`,
-                    provider: isLottie ? "lottie" : item.kind === "video" ? "image" : "image",
+                    provider: isLottie ? "lottie" : isVideo ? "iconscout" : "image",
                     name: item.name,
                     tags: [],
                     concepts: [],
