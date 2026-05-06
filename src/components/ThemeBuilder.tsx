@@ -82,16 +82,22 @@ function detectKind(file: File): MediaKind {
   return "image";
 }
 
-function MediaThumb({ item, onRemove }: { item: MediaItem; onRemove: () => void }) {
+function MediaThumb({ item, onRemove, onSelect }: { item: MediaItem; onRemove: () => void; onSelect?: () => void }) {
   return (
-    <div className="relative overflow-hidden rounded-md border border-border bg-muted/30">
-      <div className="flex h-24 items-center justify-center">
+    <div className="group/thumb relative overflow-hidden rounded-md border border-border bg-muted/30">
+      <button
+        type="button"
+        onClick={onSelect}
+        disabled={!onSelect}
+        className="flex h-24 w-full items-center justify-center overflow-hidden hover:ring-2 hover:ring-primary disabled:cursor-default"
+        title={onSelect ? "Apply to all canvases" : undefined}
+      >
         {item.kind === "image" && <img src={item.url} alt={item.name} className="h-full w-full object-cover" />}
         {item.kind === "video" && (
           <video src={item.url} className="h-full w-full object-cover" muted loop autoPlay playsInline />
         )}
         {item.kind === "animation" && <DotLottieReact src={item.url} autoplay loop />}
-      </div>
+      </button>
       <div className="flex items-center justify-between gap-2 border-t border-border px-2 py-1">
         <span className="truncate text-[11px] text-muted-foreground">{item.name}</span>
         <Button size="icon" variant="ghost" className="h-6 w-6" onClick={onRemove}>
