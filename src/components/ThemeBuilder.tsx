@@ -285,12 +285,20 @@ function ThemeEditor({
 }
 
 
+export interface ThemeMediaInsert {
+  url: string;
+  kind: MediaKind;
+  name: string;
+}
+
 export function ThemeBuilder({
   onApplyBackground,
   onInsertText,
+  onInsertMedia,
 }: {
   onApplyBackground?: (bg: SceneBackground) => void;
   onInsertText?: (role: TextRole, style: TextRoleStyle) => void;
+  onInsertMedia?: (item: ThemeMediaInsert) => void;
 } = {}) {
   const [themes, setThemes] = useState<ThemeData[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -346,6 +354,11 @@ export function ThemeBuilder({
         onBack={() => setActiveId(null)}
         onApplyBackground={onApplyBackground}
         onInsertText={onInsertText}
+        onInsertMedia={
+          onInsertMedia
+            ? (item) => onInsertMedia({ url: item.url, kind: item.kind, name: item.name })
+            : undefined
+        }
       />
     );
   }
