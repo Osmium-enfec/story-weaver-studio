@@ -545,6 +545,7 @@ function ScriptCanvas() {
                     className={`group/el rounded-lg border-2 ${
                       selectedElementId === el.id ? "border-primary" : "border-transparent hover:border-primary/40"
                     }`}
+                    data-canvas-element="true"
                   >
                     <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
                       <AnimationBlockRenderer content={el.content} exportMode={isExporting} />
