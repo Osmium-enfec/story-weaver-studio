@@ -136,6 +136,7 @@ function PickerBody({
       const { data } = supabase.storage.from("scene-backgrounds").getPublicUrl(path);
       onChange({ type: kind, value: data.publicUrl });
       toast.success("Background updated");
+      void loadUploads();
       close();
     } catch (e) {
       toast.error((e as Error).message);
