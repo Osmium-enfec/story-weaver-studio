@@ -45,6 +45,7 @@ export function AnimationBlockRenderer({
       content.tint && content.color_support !== "fixed"
         ? `drop-shadow(0 0 0 ${content.tint})`
         : undefined,
+    mixBlendMode: content.remove_background ? "darken" : undefined,
   };
 
   if (exportMode && (isLottie || (content.provider === "iconscout" && content.video_url))) {
