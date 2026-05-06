@@ -96,7 +96,7 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
           <input
             ref={fileRef}
             type="file"
-            accept=".json,.lottie,application/json"
+            accept=".json,.lottie,application/json,.gif,.png,.jpg,.jpeg,.webp,.avif,.svg,image/*"
             className="hidden"
             onChange={handleUpload}
           />
