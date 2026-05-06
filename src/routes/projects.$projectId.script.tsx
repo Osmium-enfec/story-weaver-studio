@@ -431,15 +431,43 @@ function ScriptCanvas() {
             </div>
             {/* Per-canvas script */}
             <div className="border-t border-border p-3">
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Script for Canvas {idx + 1}
-              </label>
-              <Textarea
-                value={s.narration}
-                onChange={(e) => updateNarration(s.id, e.target.value)}
-                placeholder="What is narrated while this canvas plays…"
-                className="min-h-[80px] resize-y text-sm"
-              />
+              <div className="mb-1 flex items-center justify-between">
+                <label className="block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Script for Canvas {idx + 1}
+                  {idx === activeIdx && selectedWord && (
+                    <span className="ml-2 normal-case text-primary">· {selectedWord}</span>
+                  )}
+                </label>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingScript((m) => ({ ...m, [s.id]: !m[s.id] }));
+                  }}
+                >
+                  {editingScript[s.id] ? "Done" : "Edit"}
+                </Button>
+              </div>
+              {editingScript[s.id] ? (
+                <Textarea
+                  value={s.narration}
+                  onChange={(e) => updateNarration(s.id, e.target.value)}
+                  placeholder="What is narrated while this canvas plays…"
+                  className="min-h-[80px] resize-y text-sm"
+                />
+              ) : s.narration ? (
+                <div className="rounded-md bg-muted/30 p-2 text-sm leading-7">
+                  <ClickableScript
+                    text={s.narration}
+                    selected={idx === activeIdx ? selectedWord : null}
+                    onWordClick={(w) => { setActiveIdx(idx); setSelectedWord(w); }}
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">No script yet. Click Edit to add one.</p>
+              )}
             </div>
           </div>
         ))}
