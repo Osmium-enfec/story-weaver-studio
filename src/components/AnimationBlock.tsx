@@ -150,6 +150,20 @@ export function AnimationBlockRenderer({
     );
   }
 
+  if (content.provider === "image" && (content.video_url || content.lottie_url)) {
+    const src = content.video_url || content.lottie_url!;
+    return (
+      <div style={wrapperStyle} className="pointer-events-none">
+        {content.remove_background && <WhiteKeyFilterDef />}
+        <img
+          src={src}
+          alt={content.name}
+          style={{ width: "100%", height: "100%", objectFit: "contain" }}
+        />
+      </div>
+    );
+  }
+
   if (isLottie) {
     return (
       <div style={wrapperStyle} className="pointer-events-none">

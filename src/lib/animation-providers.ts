@@ -1,7 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import { searchIconscout } from "@/server/iconscout.functions";
 
-export type AnimationProvider = "internal" | "lottie" | "upload" | "iconscout";
+export type AnimationProvider = "internal" | "lottie" | "upload" | "iconscout" | "image";
+
+const IMAGE_EXT_RE = /\.(gif|png|jpe?g|webp|avif|svg)$/i;
 
 export interface AnimationResult {
   id: string;             // unique key (component id or url hash)
@@ -92,13 +94,16 @@ async function searchUploads({ query, limit = 24 }: SearchOpts): Promise<Animati
     .filter((f) => !term || f.name.toLowerCase().includes(term))
     .map((f) => {
       const { data: url } = supabase.storage.from("lottie-uploads").getPublicUrl(f.name);
+      const isImage = IMAGE_EXT_RE.test(f.name);
       return {
         id: `upload:${f.name}`,
-        provider: "upload" as const,
-        name: f.name.replace(/\.(json|lottie)$/i, ""),
+        provider: (isImage ? "image" : "upload") as AnimationProvider,
+        name: f.name.replace(/\.(json|lottie|gif|png|jpe?g|webp|avif|svg)$/i, ""),
         tags: [],
         concepts: [],
-        lottie_url: url.publicUrl,
+        lottie_url: isImage ? null : url.publicUrl,
+        thumbnail_url: isImage ? url.publicUrl : null,
+        video_url: isImage ? url.publicUrl : null,
         color_support: "theme" as const,
       };
     });
@@ -136,18 +141,21 @@ export async function searchAllAnimations(opts: SearchOpts): Promise<AnimationRe
 export async function uploadLottieFile(file: File): Promise<AnimationResult> {
   const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const path = `${Date.now()}-${safe}`;
+  const isImage = IMAGE_EXT_RE.test(file.name);
   const { error } = await supabase.storage
     .from("lottie-uploads")
-    .upload(path, file, { contentType: file.type || "application/json", upsert: false });
+    .upload(path, file, { contentType: file.type || (isImage ? "image/*" : "application/json"), upsert: false });
   if (error) throw error;
   const { data } = supabase.storage.from("lottie-uploads").getPublicUrl(path);
   return {
     id: `upload:${path}`,
-    provider: "upload",
-    name: file.name.replace(/\.(json|lottie)$/i, ""),
+    provider: isImage ? "image" : "upload",
+    name: file.name.replace(/\.(json|lottie|gif|png|jpe?g|webp|avif|svg)$/i, ""),
     tags: [],
     concepts: [],
-    lottie_url: data.publicUrl,
+    lottie_url: isImage ? null : data.publicUrl,
+    thumbnail_url: isImage ? data.publicUrl : null,
+    video_url: isImage ? data.publicUrl : null,
     color_support: "theme",
   };
 }
