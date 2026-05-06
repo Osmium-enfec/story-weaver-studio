@@ -54,6 +54,10 @@ interface SceneRow {
   background: SceneBackground;
   narration: string;
   elements: PlacedElement[];
+  voice_url: string | null;
+  voice_start_ms: number | null;
+  voice_end_ms: number | null;
+  word_timings: { text: string; start_ms: number; end_ms: number }[];
 }
 
 const DEFAULT_BG: SceneBackground = { type: "color", value: "#ffffff" };
@@ -234,10 +238,19 @@ function ScriptCanvas() {
     (async () => {
       const { data: rows } = await supabase
         .from("scenes")
-        .select("id, order_index, background, narration")
+        .select("id, order_index, background, narration, voice_url, voice_start_ms, voice_end_ms, word_timings")
         .eq("project_id", projectId)
         .order("order_index");
-      let sceneRows = (rows ?? []) as { id: string; order_index: number; background: SceneBackground | null; narration: string | null }[];
+      let sceneRows = (rows ?? []) as {
+        id: string;
+        order_index: number;
+        background: SceneBackground | null;
+        narration: string | null;
+        voice_url: string | null;
+        voice_start_ms: number | null;
+        voice_end_ms: number | null;
+        word_timings: { text: string; start_ms: number; end_ms: number }[] | null;
+      }[];
 
       if (sceneRows.length === 0) {
         const { data: created, error } = await supabase
@@ -250,7 +263,7 @@ function ScriptCanvas() {
             detected_concepts: [],
             duration_ms: 8000,
           })
-          .select("id, order_index, background, narration")
+          .select("id, order_index, background, narration, voice_url, voice_start_ms, voice_end_ms, word_timings")
           .single();
         if (error) return toast.error(error.message);
         sceneRows = [created as never];
@@ -274,6 +287,10 @@ function ScriptCanvas() {
           background: (s.background ?? DEFAULT_BG) as SceneBackground,
           narration: s.narration ?? "",
           elements: byScene.get(s.id) ?? [],
+          voice_url: s.voice_url,
+          voice_start_ms: s.voice_start_ms,
+          voice_end_ms: s.voice_end_ms,
+          word_timings: s.word_timings ?? [],
         })),
       );
       setActiveIdx(0);
@@ -301,7 +318,17 @@ function ScriptCanvas() {
     const r = data as { id: string; order_index: number; background: SceneBackground | null; narration: string | null };
     setScenes((prev) => [
       ...prev,
-      { id: r.id, order_index: r.order_index, background: r.background ?? DEFAULT_BG, narration: r.narration ?? "", elements: [] },
+      {
+        id: r.id,
+        order_index: r.order_index,
+        background: r.background ?? DEFAULT_BG,
+        narration: r.narration ?? "",
+        elements: [],
+        voice_url: null,
+        voice_start_ms: null,
+        voice_end_ms: null,
+        word_timings: [],
+      },
     ]);
     setActiveIdx(scenes.length);
   }
@@ -578,6 +605,10 @@ function ScriptCanvas() {
           id: s.id,
           background: s.background,
           narration: s.narration,
+          voice_url: s.voice_url,
+          voice_start_ms: s.voice_start_ms,
+          voice_end_ms: s.voice_end_ms,
+          word_timings: s.word_timings,
           elements: s.elements.map((e) => ({
             id: e.id,
             content: e.content,
