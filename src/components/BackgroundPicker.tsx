@@ -162,23 +162,71 @@ export function BackgroundPicker({ value, onChange }: Props) {
             </div>
           </TabsContent>
 
-          <TabsContent value="animated" className="mt-3">
-            <div className="grid grid-cols-3 gap-2">
-              {ANIMATED_BGS.map((bg) => (
-                <button
-                  key={bg.url}
-                  onClick={() => { onChange({ type: "lottie", value: bg.url }); setOpen(false); }}
-                  className="overflow-hidden rounded-md border border-border bg-muted/30 transition hover:ring-2 hover:ring-primary"
-                >
-                  <div className="aspect-video">
-                    <DotLottieReact src={bg.url} loop autoplay style={{ width: "100%", height: "100%" }} />
-                  </div>
-                  <div className="px-1 py-0.5 text-[10px] text-muted-foreground">{bg.name}</div>
-                </button>
-              ))}
+          <TabsContent value="animated" className="mt-3 space-y-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={bgQuery}
+                onChange={(e) => setBgQuery(e.target.value)}
+                placeholder="Search mirrored animations…"
+                className="h-7 pl-7 text-xs"
+              />
             </div>
-            <p className="mt-2 text-[10px] text-muted-foreground">
-              Animated backgrounds are mirrored at render time.
+            <div className="max-h-[320px] overflow-y-auto pr-1">
+              {loadingMirrored ? (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : mirrored.length === 0 ? (
+                <div className="rounded-md border border-dashed border-border p-4 text-center text-[11px] text-muted-foreground">
+                  No mirrored animations yet. Mirror some from the Assets page.
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {mirrored.map((bg) => {
+                    const url = bg.lottie_url || bg.video_url;
+                    if (!url) return null;
+                    const isVideo = !bg.lottie_url && !!bg.video_url;
+                    return (
+                      <button
+                        key={bg.id}
+                        onClick={() => {
+                          onChange({ type: isVideo ? "video" : "lottie", value: url });
+                          setOpen(false);
+                        }}
+                        className="overflow-hidden rounded-md border border-border bg-muted/30 transition hover:ring-2 hover:ring-primary"
+                        title={bg.name}
+                      >
+                        <div className="aspect-video">
+                          {isVideo ? (
+                            <video
+                              src={url}
+                              autoPlay
+                              loop
+                              muted
+                              playsInline
+                              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                            />
+                          ) : (
+                            <DotLottieReact
+                              src={url}
+                              loop
+                              autoplay
+                              style={{ width: "100%", height: "100%" }}
+                            />
+                          )}
+                        </div>
+                        <div className="line-clamp-1 px-1 py-0.5 text-[10px] text-muted-foreground">
+                          {bg.name}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              {mirrored.length} mirrored asset{mirrored.length === 1 ? "" : "s"} available.
             </p>
           </TabsContent>
 
