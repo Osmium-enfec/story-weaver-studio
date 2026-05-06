@@ -24,7 +24,7 @@ interface Props {
 
 const WORD_RE = /[A-Za-z][A-Za-z0-9_-]*/g;
 
-export function PlaybackDialog({ open, onOpenChange, script, elements, canvasSize }: Props) {
+export function PlaybackDialog({ open, onOpenChange, script, elements, canvasSize, background }: Props) {
   const wordIndexById = useMemo(() => {
     const map = new Map<string, number>();
     if (!script) return map;
