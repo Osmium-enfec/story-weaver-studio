@@ -24,7 +24,13 @@ export interface AnimationBlockContent {
   occurrence?: number | null;
 }
 
-export function AnimationBlockRenderer({ content }: { content: AnimationBlockContent }) {
+export function AnimationBlockRenderer({
+  content,
+  exportMode = false,
+}: {
+  content: AnimationBlockContent;
+  exportMode?: boolean;
+}) {
   const isLottie =
     (content.provider === "lottie" || content.provider === "upload") && !!content.lottie_url;
 
@@ -35,6 +41,20 @@ export function AnimationBlockRenderer({ content }: { content: AnimationBlockCon
     transform: `rotate(${content.rotation ?? 0}deg)`,
     filter: content.tint && content.color_support !== "fixed" ? `drop-shadow(0 0 0 ${content.tint})` : undefined,
   };
+
+  if (exportMode && (isLottie || (content.provider === "iconscout" && content.video_url))) {
+    return (
+      <div
+        style={wrapperStyle}
+        className="flex h-full w-full items-center justify-center rounded-md bg-primary/10 text-center"
+      >
+        <div>
+          <Sparkles className="mx-auto h-5 w-5 text-primary" />
+          <p className="mt-1 text-xs font-medium text-primary">{content.name}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLottie) {
     return (
@@ -55,6 +75,7 @@ export function AnimationBlockRenderer({ content }: { content: AnimationBlockCon
       <div style={wrapperStyle} className="pointer-events-none">
         <video
           src={content.video_url}
+          crossOrigin="anonymous"
           autoPlay={content.autoplay ?? true}
           loop={content.loop ?? true}
           muted
