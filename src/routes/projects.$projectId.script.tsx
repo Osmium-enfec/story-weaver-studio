@@ -610,6 +610,7 @@ function ScriptCanvas() {
                     ))}
                   </div>
                 )}
+                {s.elements.map((el) => (
                   <Rnd
                     key={el.id}
                     bounds="parent"
