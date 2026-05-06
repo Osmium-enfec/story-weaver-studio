@@ -1,7 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import { searchIconscout } from "@/server/iconscout.functions";
 
-export type AnimationProvider = "internal" | "lottie" | "upload" | "iconscout";
+export type AnimationProvider = "internal" | "lottie" | "upload" | "iconscout" | "image";
+
+const IMAGE_EXT_RE = /\.(gif|png|jpe?g|webp|avif|svg)$/i;
 
 export interface AnimationResult {
   id: string;             // unique key (component id or url hash)
