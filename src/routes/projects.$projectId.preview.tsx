@@ -24,7 +24,7 @@ function PreviewPage() {
         .select("*")
         .eq("project_id", projectId)
         .order("order_index");
-      setScenes((data ?? []) as Scene[]);
+      setScenes((data ?? []) as unknown as Scene[]);
     })();
   }, [projectId]);
 

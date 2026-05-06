@@ -52,7 +52,7 @@ function ExportPage() {
         .eq("project_id", projectId)
         .order("order_index");
       if (error) throw error;
-      const scenes = (data ?? []) as Scene[];
+      const scenes = (data ?? []) as unknown as Scene[];
       if (!scenes.length) throw new Error("No scenes to render");
 
       const blob = await renderInBrowser({
