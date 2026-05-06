@@ -311,20 +311,22 @@ function ScriptCanvas() {
     <div className="flex gap-4" style={{ height: "calc(100vh - 9rem)" }}>
       {/* MAIN CARD — 75% width */}
       <div className="flex h-full w-3/4 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+        {/* Canvas toolbar */}
+        <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Canvas</span>
+          <BackgroundPicker value={background} onChange={updateBackground} />
+        </div>
         {/* Canvas — 75% height */}
         <div className="flex min-h-0 flex-[3] items-center justify-center bg-muted/30 p-4">
           <div
             ref={canvasRef}
             className="relative h-full max-h-full overflow-hidden rounded-xl bg-white shadow-md"
-            style={{
-              aspectRatio: aspect,
-              backgroundImage:
-                "linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%)",
-            }}
+            style={{ aspectRatio: aspect }}
             onMouseDown={(e) => {
               if (e.target === e.currentTarget) setSelectedElementId(null);
             }}
           >
+            <BackgroundLayer background={background} exportMode={isExporting} />
             {elements.map((el) => (
               <Rnd
                 key={el.id}
