@@ -12,11 +12,21 @@ export interface PlaybackElement {
   z_index: number;
 }
 
+export interface WordTiming {
+  text: string;
+  start_ms: number;
+  end_ms: number;
+}
+
 export interface PlaybackScene {
   id: string;
   background: SceneBackground;
   elements: PlaybackElement[];
   narration?: string;
+  voice_url?: string | null;
+  voice_start_ms?: number | null;
+  voice_end_ms?: number | null;
+  word_timings?: WordTiming[];
 }
 
 interface Props {
