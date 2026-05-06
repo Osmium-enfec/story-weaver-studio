@@ -655,9 +655,10 @@ function ScriptCanvas() {
           style={{ top: "4.5rem", height: "calc(100vh - 5.5rem)" }}
         >
           <Tabs defaultValue="animations" className="flex h-full min-h-0 flex-col">
-            <TabsList className="m-3 grid shrink-0 grid-cols-2">
+            <TabsList className="m-3 grid shrink-0 grid-cols-3">
               <TabsTrigger value="animations">Animations</TabsTrigger>
               <TabsTrigger value="background">Background</TabsTrigger>
+              <TabsTrigger value="theme">Theme</TabsTrigger>
             </TabsList>
             <TabsContent value="animations" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
               <div className="shrink-0 border-b border-border px-4 py-2">
