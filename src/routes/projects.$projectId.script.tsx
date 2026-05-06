@@ -85,6 +85,7 @@ function ScriptCanvas() {
   const [isExporting, setIsExporting] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ w: 1280, h: 720 });
+  const [gridCanvases, setGridCanvases] = useState<Record<string, boolean>>({});
 
   const activeScene = scenes[activeIdx];
 
