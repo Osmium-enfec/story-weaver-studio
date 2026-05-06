@@ -201,12 +201,14 @@ function ThemeEditor({
   onBack,
   onApplyBackground,
   onInsertText,
+  onInsertMedia,
 }: {
   theme: ThemeData;
   onChange: (t: ThemeData) => void;
   onBack: () => void;
   onApplyBackground?: (bg: SceneBackground) => void;
   onInsertText?: (role: TextRole, style: TextRoleStyle) => void;
+  onInsertMedia?: (item: MediaItem) => void;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto p-3">
@@ -265,6 +267,7 @@ function ThemeEditor({
             label="Cards"
             items={theme.cards}
             onChange={(items) => onChange({ ...theme, cards: items })}
+            onSelect={onInsertMedia}
           />
         </TabsContent>
 
@@ -273,6 +276,7 @@ function ThemeEditor({
             label="Components"
             items={theme.components}
             onChange={(items) => onChange({ ...theme, components: items })}
+            onSelect={onInsertMedia}
           />
         </TabsContent>
       </Tabs>
@@ -281,12 +285,20 @@ function ThemeEditor({
 }
 
 
+export interface ThemeMediaInsert {
+  url: string;
+  kind: MediaKind;
+  name: string;
+}
+
 export function ThemeBuilder({
   onApplyBackground,
   onInsertText,
+  onInsertMedia,
 }: {
   onApplyBackground?: (bg: SceneBackground) => void;
   onInsertText?: (role: TextRole, style: TextRoleStyle) => void;
+  onInsertMedia?: (item: ThemeMediaInsert) => void;
 } = {}) {
   const [themes, setThemes] = useState<ThemeData[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -342,6 +354,11 @@ export function ThemeBuilder({
         onBack={() => setActiveId(null)}
         onApplyBackground={onApplyBackground}
         onInsertText={onInsertText}
+        onInsertMedia={
+          onInsertMedia
+            ? (item) => onInsertMedia({ url: item.url, kind: item.kind, name: item.name })
+            : undefined
+        }
       />
     );
   }

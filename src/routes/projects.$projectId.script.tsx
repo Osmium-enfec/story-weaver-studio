@@ -795,6 +795,21 @@ function ScriptCanvas() {
               <ThemeBuilder
                 onApplyBackground={(bg) => void updateBackground(bg, true)}
                 onInsertText={(role, style) => void addTextBlock(role, style)}
+                onInsertMedia={(item) => {
+                  const isLottie = item.kind === "animation" || /\.(lottie|json)$/i.test(item.name);
+                  const isVideo = item.kind === "video";
+                  void addAnimation({
+                    id: `theme:${item.url}`,
+                    provider: isLottie ? "lottie" : isVideo ? "iconscout" : "image",
+                    name: item.name,
+                    tags: [],
+                    concepts: [],
+                    lottie_url: isLottie ? item.url : null,
+                    thumbnail_url: !isLottie ? item.url : null,
+                    video_url: !isLottie ? item.url : null,
+                    color_support: "theme",
+                  });
+                }}
               />
             </TabsContent>
           </Tabs>
