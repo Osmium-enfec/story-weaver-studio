@@ -494,7 +494,7 @@ function ScriptCanvas() {
                 <p className="text-xs text-muted-foreground">Adds to Canvas {activeIdx + 1}</p>
               </div>
               <div className="min-h-0 flex-1">
-                <AnimationSearchPanel initialQuery="" onSelect={addAnimation} />
+                <AnimationSearchPanel initialQuery={selectedWord ?? ""} onSelect={addAnimation} />
               </div>
             </TabsContent>
             <TabsContent value="background" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
