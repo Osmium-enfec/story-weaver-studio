@@ -201,12 +201,14 @@ function ThemeEditor({
   onBack,
   onApplyBackground,
   onInsertText,
+  onInsertMedia,
 }: {
   theme: ThemeData;
   onChange: (t: ThemeData) => void;
   onBack: () => void;
   onApplyBackground?: (bg: SceneBackground) => void;
   onInsertText?: (role: TextRole, style: TextRoleStyle) => void;
+  onInsertMedia?: (item: MediaItem) => void;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto p-3">
