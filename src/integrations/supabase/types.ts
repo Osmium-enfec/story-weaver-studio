@@ -386,6 +386,10 @@ export type Database = {
           transition: string
           updated_at: string
           visual_brief: string
+          voice_end_ms: number | null
+          voice_start_ms: number | null
+          voice_url: string | null
+          word_timings: Json
           workspace_id: string
         }
         Insert: {
@@ -402,6 +406,10 @@ export type Database = {
           transition?: string
           updated_at?: string
           visual_brief?: string
+          voice_end_ms?: number | null
+          voice_start_ms?: number | null
+          voice_url?: string | null
+          word_timings?: Json
           workspace_id?: string
         }
         Update: {
@@ -418,6 +426,10 @@ export type Database = {
           transition?: string
           updated_at?: string
           visual_brief?: string
+          voice_end_ms?: number | null
+          voice_start_ms?: number | null
+          voice_url?: string | null
+          word_timings?: Json
           workspace_id?: string
         }
         Relationships: [
