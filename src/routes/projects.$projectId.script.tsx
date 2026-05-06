@@ -6,8 +6,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useProject } from "@/components/project-context";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Pencil, Save, Trash2 } from "lucide-react";
+import { Pencil, Save, Trash2, Plus } from "lucide-react";
 import { toolbarStore } from "@/components/toolbar-store";
 import { AnimationSearchPanel } from "@/components/AnimationSearchPanel";
 import { AnimationBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
@@ -28,7 +29,7 @@ async function inlineAllImages(root: HTMLElement) {
         img.setAttribute("src", dataUrl);
         img.setAttribute("crossorigin", "anonymous");
       } catch {
-        // leave original src; toPng will skip with imagePlaceholder
+        // ignore
       }
     }),
   );
@@ -47,33 +48,44 @@ interface PlacedElement {
   z_index: number;
 }
 
+interface SceneRow {
+  id: string;
+  order_index: number;
+  background: SceneBackground;
+  elements: PlacedElement[];
+}
+
 const WORD_RE = /[A-Za-z][A-Za-z0-9_-]*/g;
+const DEFAULT_BG: SceneBackground = { type: "color", value: "#ffffff" };
 
 function ScriptCanvas() {
   const { projectId } = useParams({ from: "/projects/$projectId/script" });
   const { project, reload } = useProject();
   const [script, setScript] = useState(project.script ?? "");
   const [editing, setEditing] = useState(!project.script);
-  const [sceneId, setSceneId] = useState<string | null>(null);
-  // (animation library is now loaded inside AnimationSearchPanel)
-  const [elements, setElements] = useState<PlacedElement[]>([]);
+  const [scenes, setScenes] = useState<SceneRow[]>([]);
+  const [activeIdx, setActiveIdx] = useState(0);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
-  const canvasRef = useRef<HTMLDivElement>(null);
+  const canvasRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [isPlaying, setIsPlaying] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ w: 1280, h: 720 });
-  const [background, setBackground] = useState<SceneBackground>({ type: "color", value: "#ffffff" });
 
-  async function updateBackground(bg: SceneBackground) {
-    setBackground(bg);
-    if (sceneId) {
-      await supabase.from("scenes").update({ background: bg as unknown as never }).eq("id", sceneId);
-    }
+  const activeScene = scenes[activeIdx];
+
+  async function updateBackground(bg: SceneBackground, applyAll: boolean) {
+    if (!scenes.length) return;
+    const targets = applyAll ? scenes : [activeScene];
+    setScenes((prev) => prev.map((s) => (applyAll || s.id === activeScene.id ? { ...s, background: bg } : s)));
+    await Promise.all(
+      targets.map((s) =>
+        supabase.from("scenes").update({ background: bg as unknown as never }).eq("id", s.id),
+      ),
+    );
   }
 
-  // Auto-stop play after a duration
   useEffect(() => {
     if (!isPlaying) return;
     const t = setTimeout(() => setIsPlaying(false), 4000);
@@ -81,10 +93,10 @@ function ScriptCanvas() {
   }, [isPlaying]);
 
   async function exportVideo() {
-    if (!canvasRef.current) return;
+    const node = canvasRefs.current[activeScene?.id ?? ""];
+    if (!node) return;
     setIsExporting(true);
     try {
-      const node = canvasRef.current;
       const rect = node.getBoundingClientRect();
       const off = document.createElement("canvas");
       off.width = Math.round(rect.width);
@@ -101,8 +113,6 @@ function ScriptCanvas() {
         recorder.onstop = () => resolve(new Blob(chunks, { type: mime }));
       });
       recorder.start();
-
-      // Inline all remote images to avoid tainted-canvas errors
       await inlineAllImages(node);
       setIsPlaying(true);
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -117,7 +127,6 @@ function ScriptCanvas() {
           skipFonts: true,
           imagePlaceholder: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>",
         });
-
         const img = await new Promise<HTMLImageElement>((resolve, reject) => {
           const i = new Image();
           i.onload = () => resolve(i);
@@ -126,7 +135,6 @@ function ScriptCanvas() {
         });
         ctx.clearRect(0, 0, off.width, off.height);
         ctx.drawImage(img, 0, 0, off.width, off.height);
-
         await new Promise((r) => setTimeout(r, 100));
       }
       recorder.stop();
@@ -154,8 +162,9 @@ function ScriptCanvas() {
         variant: "default",
         disabled: isExporting,
         onClick: () => {
-          if (canvasRef.current) {
-            const r = canvasRef.current.getBoundingClientRect();
+          const node = canvasRefs.current[activeScene?.id ?? ""];
+          if (node) {
+            const r = node.getBoundingClientRect();
             setCanvasSize({ w: Math.round(r.width), h: Math.round(r.height) });
           }
           setPlayOpen(true);
@@ -170,24 +179,21 @@ function ScriptCanvas() {
       },
     ]);
     return () => toolbarStore.clear();
-  }, [isPlaying, isExporting]);
+  }, [isPlaying, isExporting, activeScene?.id]);
 
   useEffect(() => setScript(project.script ?? ""), [project.script]);
 
-  // Ensure a canvas scene exists, then load placed elements
+  // Load all scenes + their elements
   useEffect(() => {
     (async () => {
-      const { data: existing } = await supabase
+      const { data: rows } = await supabase
         .from("scenes")
-        .select("id, background")
+        .select("id, order_index, background")
         .eq("project_id", projectId)
-        .order("order_index")
-        .limit(1);
-      let id = existing?.[0]?.id as string | undefined;
-      if (existing?.[0]?.background) {
-        setBackground(existing[0].background as unknown as SceneBackground);
-      }
-      if (!id) {
+        .order("order_index");
+      let sceneRows = (rows ?? []) as { id: string; order_index: number; background: SceneBackground | null }[];
+
+      if (sceneRows.length === 0) {
         const { data: created, error } = await supabase
           .from("scenes")
           .insert({
@@ -198,18 +204,32 @@ function ScriptCanvas() {
             detected_concepts: [],
             duration_ms: 8000,
           })
-          .select("id")
+          .select("id, order_index, background")
           .single();
         if (error) return toast.error(error.message);
-        id = created!.id as string;
+        sceneRows = [created as never];
       }
-      setSceneId(id!);
+
+      const ids = sceneRows.map((s) => s.id);
       const { data: els } = await supabase
         .from("scene_elements")
         .select("*")
-        .eq("scene_id", id!)
+        .in("scene_id", ids)
         .order("z_index");
-      setElements((els ?? []) as unknown as PlacedElement[]);
+      const byScene = new Map<string, PlacedElement[]>();
+      for (const id of ids) byScene.set(id, []);
+      for (const e of (els ?? []) as unknown as PlacedElement[]) {
+        byScene.get(e.scene_id)?.push(e);
+      }
+      setScenes(
+        sceneRows.map((s) => ({
+          id: s.id,
+          order_index: s.order_index,
+          background: (s.background ?? DEFAULT_BG) as SceneBackground,
+          elements: byScene.get(s.id) ?? [],
+        })),
+      );
+      setActiveIdx(0);
     })();
   }, [projectId]);
 
@@ -224,10 +244,39 @@ function ScriptCanvas() {
     reload();
   }
 
-  async function addAnimation(a: AnimationResult) {
-    if (!sceneId || !canvasRef.current) return;
+  async function addCanvas() {
+    const order_index = scenes.length;
+    const { data, error } = await supabase
+      .from("scenes")
+      .insert({
+        project_id: projectId,
+        order_index,
+        narration: "",
+        visual_brief: "",
+        detected_concepts: [],
+        duration_ms: 8000,
+      })
+      .select("id, order_index, background")
+      .single();
+    if (error) return toast.error(error.message);
+    const r = data as { id: string; order_index: number; background: SceneBackground | null };
+    setScenes((prev) => [...prev, { id: r.id, order_index: r.order_index, background: (r.background ?? DEFAULT_BG), elements: [] }]);
+    setActiveIdx(scenes.length);
+  }
 
-    // Mirror Iconscout assets to our own storage on first use, then use local URL
+  async function deleteCanvas(idx: number) {
+    if (scenes.length <= 1) return toast.error("At least one canvas required");
+    const s = scenes[idx];
+    await supabase.from("scenes").delete().eq("id", s.id);
+    setScenes((prev) => prev.filter((_, i) => i !== idx));
+    setActiveIdx((cur) => Math.max(0, Math.min(cur, scenes.length - 2)));
+  }
+
+  async function addAnimation(a: AnimationResult) {
+    if (!activeScene) return;
+    const node = canvasRefs.current[activeScene.id];
+    if (!node) return;
+
     let localVideoUrl = a.video_url ?? null;
     if (a.provider === "iconscout" && a.external_id && a.video_url) {
       try {
@@ -247,16 +296,14 @@ function ScriptCanvas() {
       }
     }
 
-    const rect = canvasRef.current.getBoundingClientRect();
+    const rect = node.getBoundingClientRect();
     const w = Math.round(rect.width * 0.3);
     const h = Math.round(rect.height * 0.3);
     const x = Math.round((rect.width - w) / 2);
     const y = Math.round((rect.height - h) / 2);
-    // Determine occurrence: count existing elements already bound to the same word
     const boundWord = selectedWord ?? null;
     const occurrence = boundWord
-      ? elements.filter((e) => (e.content.word ?? "").toLowerCase() === boundWord.toLowerCase())
-          .length + 1
+      ? activeScene.elements.filter((e) => (e.content.word ?? "").toLowerCase() === boundWord.toLowerCase()).length + 1
       : null;
 
     const content: AnimationBlockContent = {
@@ -279,104 +326,129 @@ function ScriptCanvas() {
     const { data, error } = await supabase
       .from("scene_elements")
       .insert({
-        scene_id: sceneId,
-        type:
-          a.provider === "internal"
-            ? "animation"
-            : a.provider === "iconscout"
-              ? "iconscout"
-              : "lottie",
+        scene_id: activeScene.id,
+        type: a.provider === "internal" ? "animation" : a.provider === "iconscout" ? "iconscout" : "lottie",
         content: content as unknown as never,
         position: { x, y, w, h },
-        z_index: elements.length,
+        z_index: activeScene.elements.length,
       })
       .select("*")
       .single();
     if (error) return toast.error(error.message);
-    setElements((prev) => [...prev, data as unknown as PlacedElement]);
-    setSelectedElementId((data as unknown as PlacedElement).id);
+    const newEl = data as unknown as PlacedElement;
+    setScenes((prev) =>
+      prev.map((s) => (s.id === activeScene.id ? { ...s, elements: [...s.elements, newEl] } : s)),
+    );
+    setSelectedElementId(newEl.id);
   }
 
-  async function updateElement(id: string, position: PlacedElement["position"]) {
-    setElements((prev) => prev.map((e) => (e.id === id ? { ...e, position } : e)));
+  async function updateElement(sceneId: string, id: string, position: PlacedElement["position"]) {
+    setScenes((prev) =>
+      prev.map((s) =>
+        s.id === sceneId ? { ...s, elements: s.elements.map((e) => (e.id === id ? { ...e, position } : e)) } : s,
+      ),
+    );
     await supabase.from("scene_elements").update({ position }).eq("id", id);
   }
 
-  async function deleteElement(id: string) {
-    setElements((prev) => prev.filter((e) => e.id !== id));
+  async function deleteElement(sceneId: string, id: string) {
+    setScenes((prev) =>
+      prev.map((s) => (s.id === sceneId ? { ...s, elements: s.elements.filter((e) => e.id !== id) } : s)),
+    );
     await supabase.from("scene_elements").delete().eq("id", id);
   }
 
   return (
     <div className="flex gap-4" style={{ height: "calc(100vh - 9rem)" }}>
-      {/* MAIN CARD — 75% width */}
-      <div className="flex h-full w-3/4 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        {/* Canvas toolbar */}
-        <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2">
-          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Canvas</span>
-          <BackgroundPicker value={background} onChange={updateBackground} />
-        </div>
-        {/* Canvas — 75% height */}
-        <div className="flex min-h-0 flex-[3] items-center justify-center bg-muted/30 p-4">
-          <div
-            ref={canvasRef}
-            className="relative h-full max-h-full overflow-hidden rounded-xl bg-white shadow-md"
-            style={{ aspectRatio: aspect }}
-            onMouseDown={(e) => {
-              if (e.target === e.currentTarget) setSelectedElementId(null);
-            }}
-          >
-            <BackgroundLayer background={background} exportMode={isExporting} />
-            {elements.map((el) => (
-              <Rnd
-                key={el.id}
-                bounds="parent"
-                size={{ width: el.position.w, height: el.position.h }}
-                position={{ x: el.position.x, y: el.position.y }}
-                onDragStop={(_, d) => {
-                  void updateElement(el.id, { ...el.position, x: d.x, y: d.y });
-                }}
-                onResizeStop={(_, __, ref, ____, pos) => {
-                  void updateElement(el.id, {
-                    x: pos.x,
-                    y: pos.y,
-                    w: parseInt(ref.style.width),
-                    h: parseInt(ref.style.height),
-                  });
-                }}
-                onMouseDown={() => setSelectedElementId(el.id)}
-                className={`group/el rounded-lg border-2 ${
-                  selectedElementId === el.id
-                    ? "border-primary"
-                    : "border-transparent hover:border-primary/40"
-                }`}
-              >
-                <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
-                  <AnimationBlockRenderer content={el.content} exportMode={isExporting} />
-                  {selectedElementId === el.id && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteElement(el.id);
+      {/* MAIN — canvases + script */}
+      <div className="flex h-full w-3/4 flex-col gap-3 overflow-hidden">
+        <div className="flex min-h-0 flex-[3] flex-col gap-3 overflow-y-auto pr-1">
+          {scenes.map((s, idx) => (
+            <div
+              key={s.id}
+              className={`flex flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition ${
+                idx === activeIdx ? "border-primary" : "border-border"
+              }`}
+              onMouseDown={() => setActiveIdx(idx)}
+            >
+              <div className="flex items-center justify-between border-b border-border px-4 py-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Canvas {idx + 1}
+                </span>
+                {scenes.length > 1 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 gap-1 text-xs text-destructive"
+                    onClick={(e) => { e.stopPropagation(); void deleteCanvas(idx); }}
+                  >
+                    <Trash2 className="h-3 w-3" /> Remove
+                  </Button>
+                )}
+              </div>
+              <div className="flex items-center justify-center bg-muted/30 p-4">
+                <div
+                  ref={(el) => { canvasRefs.current[s.id] = el; }}
+                  className="relative w-full max-w-full overflow-hidden rounded-xl bg-white shadow-md"
+                  style={{ aspectRatio: aspect }}
+                  onMouseDown={(e) => {
+                    if (e.target === e.currentTarget) setSelectedElementId(null);
+                  }}
+                >
+                  <BackgroundLayer background={s.background} exportMode={isExporting} />
+                  {s.elements.map((el) => (
+                    <Rnd
+                      key={el.id}
+                      bounds="parent"
+                      size={{ width: el.position.w, height: el.position.h }}
+                      position={{ x: el.position.x, y: el.position.y }}
+                      onDragStop={(_, d) => {
+                        void updateElement(s.id, el.id, { ...el.position, x: d.x, y: d.y });
                       }}
-                      className="absolute -right-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow"
+                      onResizeStop={(_, __, ref, ____, pos) => {
+                        void updateElement(s.id, el.id, {
+                          x: pos.x,
+                          y: pos.y,
+                          w: parseInt(ref.style.width),
+                          h: parseInt(ref.style.height),
+                        });
+                      }}
+                      onMouseDown={() => { setActiveIdx(idx); setSelectedElementId(el.id); }}
+                      className={`group/el rounded-lg border-2 ${
+                        selectedElementId === el.id
+                          ? "border-primary"
+                          : "border-transparent hover:border-primary/40"
+                      }`}
                     >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                      <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
+                        <AnimationBlockRenderer content={el.content} exportMode={isExporting} />
+                        {selectedElementId === el.id && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteElement(s.id, el.id); }}
+                            className="absolute -right-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                    </Rnd>
+                  ))}
+                  {s.elements.length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                      Click a word below, then pick an animation →
+                    </div>
                   )}
                 </div>
-              </Rnd>
-            ))}
-            {elements.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                Click a word below, then pick an animation →
               </div>
-            )}
-          </div>
+            </div>
+          ))}
+          <Button variant="outline" className="w-full gap-1.5" onClick={addCanvas}>
+            <Plus className="h-4 w-4" /> Add canvas
+          </Button>
         </div>
 
-        {/* Script — 25% height */}
-        <div className="flex min-h-0 flex-1 flex-col gap-2 border-t border-border bg-card p-4">
+        {/* Script */}
+        <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-2xl border border-border bg-card p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Script {selectedWord && <span className="ml-2 text-primary">· {selectedWord}</span>}
@@ -414,31 +486,62 @@ function ScriptCanvas() {
         </div>
       </div>
 
-      {/* RIGHT 25% — animations panel */}
+      {/* RIGHT — animations + background tabs */}
       <aside className="flex h-full w-1/4 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        <div className="border-b border-border px-4 py-3">
-          <h3 className="text-sm font-semibold">Animations</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {selectedWord ? `Searching "${selectedWord}"` : "Search, paste a URL, or upload"}
-          </p>
-        </div>
-        <div className="min-h-0 flex-1">
-          <AnimationSearchPanel initialQuery={selectedWord ?? ""} onSelect={addAnimation} />
-        </div>
+        <Tabs defaultValue="animations" className="flex h-full flex-col">
+          <TabsList className="m-3 grid grid-cols-2">
+            <TabsTrigger value="animations">Animations</TabsTrigger>
+            <TabsTrigger value="background">Background</TabsTrigger>
+          </TabsList>
+          <TabsContent value="animations" className="m-0 min-h-0 flex-1 overflow-hidden border-t border-border">
+            <div className="border-b border-border px-4 py-2">
+              <p className="text-xs text-muted-foreground">
+                {selectedWord ? `Searching "${selectedWord}"` : "Search, paste a URL, or upload"} · adds to Canvas {activeIdx + 1}
+              </p>
+            </div>
+            <div className="min-h-0 flex-1">
+              <AnimationSearchPanel initialQuery={selectedWord ?? ""} onSelect={addAnimation} />
+            </div>
+          </TabsContent>
+          <TabsContent value="background" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
+            {activeScene && (
+              <BackgroundPicker
+                inline
+                value={activeScene.background}
+                onChange={(bg) => updateBackground(bg, false)}
+                applyToAll={false}
+                onApplyToAllChange={(v) => { if (v) void updateBackground(activeScene.background, true); }}
+              />
+            )}
+            <div className="border-t border-border p-3">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="w-full"
+                onClick={() => void updateBackground(activeScene.background, true)}
+              >
+                Apply current background to all pages
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
       </aside>
 
       <PlaybackDialog
         open={playOpen}
         onOpenChange={setPlayOpen}
         script={script}
-        elements={elements.map((e) => ({
-          id: e.id,
-          content: e.content,
-          position: e.position,
-          z_index: e.z_index,
+        scenes={scenes.map((s) => ({
+          id: s.id,
+          background: s.background,
+          elements: s.elements.map((e) => ({
+            id: e.id,
+            content: e.content,
+            position: e.position,
+            z_index: e.z_index,
+          })),
         }))}
         canvasSize={canvasSize}
-        background={background}
       />
     </div>
   );
@@ -453,7 +556,6 @@ function ClickableScript({
   selected: string | null;
   onWordClick: (w: string) => void;
 }) {
-  // Tokenize preserving whitespace and punctuation
   const tokens = useMemo(() => {
     const out: { word: boolean; text: string }[] = [];
     let last = 0;
@@ -474,10 +576,10 @@ function ClickableScript({
           <button
             key={i}
             onClick={() => onWordClick(t.text)}
-            className={`rounded px-0.5 transition-colors hover:bg-primary/15 ${
+            className={`rounded px-0.5 transition ${
               selected?.toLowerCase() === t.text.toLowerCase()
-                ? "bg-primary/20 font-semibold text-primary"
-                : ""
+                ? "bg-primary/20 text-primary font-semibold"
+                : "hover:bg-muted"
             }`}
           >
             {t.text}
