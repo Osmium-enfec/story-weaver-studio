@@ -448,6 +448,71 @@ function ScriptCanvas() {
     setSelectedElementId(newEl.id);
   }
 
+  async function addTextBlock(role: TextRole, style: TextRoleStyle) {
+    if (!activeScene) return;
+    const node = canvasRefs.current[activeScene.id];
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const w = Math.round(rect.width * (role === "heading" ? 0.7 : role === "subheading" ? 0.55 : 0.5));
+    const h = Math.round((style.size ?? 24) * (style.lineHeight ?? 1.4) * 1.6);
+    const x = Math.round((rect.width - w) / 2);
+    const y = Math.round((rect.height - h) / 2);
+    const placeholder = role === "heading" ? "Heading" : role === "subheading" ? "Sub-heading" : "Paragraph text";
+    const content: AnimationBlockContent = {
+      provider: "internal",
+      name: role,
+      role,
+      text: selectedWord ?? placeholder,
+      font_family: style.family,
+      font_size: style.size,
+      font_weight: style.weight,
+      line_height: style.lineHeight,
+      color: style.color,
+      opacity: 1,
+      rotation: 0,
+      word: selectedWord,
+      occurrence: selectedWord
+        ? activeScene.elements.filter((e) => (e.content.word ?? "").toLowerCase() === selectedWord.toLowerCase()).length + 1
+        : null,
+    };
+    const { data, error } = await supabase
+      .from("scene_elements")
+      .insert({
+        scene_id: activeScene.id,
+        type: "text",
+        content: content as unknown as never,
+        position: { x, y, w, h },
+        z_index: activeScene.elements.length,
+      })
+      .select("*")
+      .single();
+    if (error) return toast.error(error.message);
+    const newEl = data as unknown as PlacedElement;
+    setScenes((prev) => prev.map((s) => (s.id === activeScene.id ? { ...s, elements: [...s.elements, newEl] } : s)));
+    setSelectedElementId(newEl.id);
+  }
+
+  async function updateElementText(sceneId: string, id: string, text: string) {
+    let nextContent: AnimationBlockContent | null = null;
+    setScenes((prev) =>
+      prev.map((s) =>
+        s.id === sceneId
+          ? {
+              ...s,
+              elements: s.elements.map((e) => {
+                if (e.id !== id) return e;
+                nextContent = { ...e.content, text };
+                return { ...e, content: nextContent };
+              }),
+            }
+          : s,
+      ),
+    );
+    if (nextContent) {
+      await supabase.from("scene_elements").update({ content: nextContent as unknown as never }).eq("id", id);
+    }
+  }
+
   async function updateElement(sceneId: string, id: string, position: PlacedElement["position"]) {
     setScenes((prev) =>
       prev.map((s) =>
