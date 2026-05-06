@@ -1,5 +1,5 @@
 import { createFileRoute, useParams } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Rnd } from "react-rnd";
 import { toPng } from "html-to-image";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Pencil, Save, Trash2, Plus } from "lucide-react";
+import { Trash2, Plus } from "lucide-react";
 import { toolbarStore } from "@/components/toolbar-store";
 import { AnimationSearchPanel } from "@/components/AnimationSearchPanel";
 import { AnimationBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
@@ -52,22 +52,20 @@ interface SceneRow {
   id: string;
   order_index: number;
   background: SceneBackground;
+  narration: string;
   elements: PlacedElement[];
 }
 
-const WORD_RE = /[A-Za-z][A-Za-z0-9_-]*/g;
 const DEFAULT_BG: SceneBackground = { type: "color", value: "#ffffff" };
 
 function ScriptCanvas() {
   const { projectId } = useParams({ from: "/projects/$projectId/script" });
-  const { project, reload } = useProject();
-  const [script, setScript] = useState(project.script ?? "");
-  const [editing, setEditing] = useState(!project.script);
+  const { project } = useProject();
   const [scenes, setScenes] = useState<SceneRow[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
-  const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const canvasRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const narrationTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [isPlaying, setIsPlaying] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
@@ -76,14 +74,20 @@ function ScriptCanvas() {
   const activeScene = scenes[activeIdx];
 
   async function updateBackground(bg: SceneBackground, applyAll: boolean) {
-    if (!scenes.length) return;
+    if (!scenes.length || !activeScene) return;
     const targets = applyAll ? scenes : [activeScene];
     setScenes((prev) => prev.map((s) => (applyAll || s.id === activeScene.id ? { ...s, background: bg } : s)));
     await Promise.all(
-      targets.map((s) =>
-        supabase.from("scenes").update({ background: bg as unknown as never }).eq("id", s.id),
-      ),
+      targets.map((s) => supabase.from("scenes").update({ background: bg as unknown as never }).eq("id", s.id)),
     );
+  }
+
+  function updateNarration(sceneId: string, narration: string) {
+    setScenes((prev) => prev.map((s) => (s.id === sceneId ? { ...s, narration } : s)));
+    if (narrationTimers.current[sceneId]) clearTimeout(narrationTimers.current[sceneId]);
+    narrationTimers.current[sceneId] = setTimeout(() => {
+      void supabase.from("scenes").update({ narration }).eq("id", sceneId);
+    }, 500);
   }
 
   useEffect(() => {
@@ -103,9 +107,7 @@ function ScriptCanvas() {
       off.height = Math.round(rect.height);
       const ctx = off.getContext("2d")!;
       const stream = (off as HTMLCanvasElement).captureStream(30);
-      const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-        ? "video/webm;codecs=vp9"
-        : "video/webm";
+      const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm";
       const recorder = new MediaRecorder(stream, { mimeType: mime });
       const chunks: Blob[] = [];
       recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
@@ -181,17 +183,15 @@ function ScriptCanvas() {
     return () => toolbarStore.clear();
   }, [isPlaying, isExporting, activeScene?.id]);
 
-  useEffect(() => setScript(project.script ?? ""), [project.script]);
-
   // Load all scenes + their elements
   useEffect(() => {
     (async () => {
       const { data: rows } = await supabase
         .from("scenes")
-        .select("id, order_index, background")
+        .select("id, order_index, background, narration")
         .eq("project_id", projectId)
         .order("order_index");
-      let sceneRows = (rows ?? []) as { id: string; order_index: number; background: SceneBackground | null }[];
+      let sceneRows = (rows ?? []) as { id: string; order_index: number; background: SceneBackground | null; narration: string | null }[];
 
       if (sceneRows.length === 0) {
         const { data: created, error } = await supabase
@@ -204,7 +204,7 @@ function ScriptCanvas() {
             detected_concepts: [],
             duration_ms: 8000,
           })
-          .select("id, order_index, background")
+          .select("id, order_index, background, narration")
           .single();
         if (error) return toast.error(error.message);
         sceneRows = [created as never];
@@ -226,6 +226,7 @@ function ScriptCanvas() {
           id: s.id,
           order_index: s.order_index,
           background: (s.background ?? DEFAULT_BG) as SceneBackground,
+          narration: s.narration ?? "",
           elements: byScene.get(s.id) ?? [],
         })),
       );
@@ -235,14 +236,6 @@ function ScriptCanvas() {
 
   const ratio = project.aspect_ratio;
   const aspect = ratio === "9:16" ? "9 / 16" : ratio === "1:1" ? "1 / 1" : "16 / 9";
-
-  async function saveScript() {
-    const { error } = await supabase.from("projects").update({ script }).eq("id", projectId);
-    if (error) return toast.error(error.message);
-    toast.success("Script saved");
-    setEditing(false);
-    reload();
-  }
 
   async function addCanvas() {
     const order_index = scenes.length;
@@ -256,11 +249,14 @@ function ScriptCanvas() {
         detected_concepts: [],
         duration_ms: 8000,
       })
-      .select("id, order_index, background")
+      .select("id, order_index, background, narration")
       .single();
     if (error) return toast.error(error.message);
-    const r = data as { id: string; order_index: number; background: SceneBackground | null };
-    setScenes((prev) => [...prev, { id: r.id, order_index: r.order_index, background: (r.background ?? DEFAULT_BG), elements: [] }]);
+    const r = data as { id: string; order_index: number; background: SceneBackground | null; narration: string | null };
+    setScenes((prev) => [
+      ...prev,
+      { id: r.id, order_index: r.order_index, background: r.background ?? DEFAULT_BG, narration: r.narration ?? "", elements: [] },
+    ]);
     setActiveIdx(scenes.length);
   }
 
@@ -301,10 +297,6 @@ function ScriptCanvas() {
     const h = Math.round(rect.height * 0.3);
     const x = Math.round((rect.width - w) / 2);
     const y = Math.round((rect.height - h) / 2);
-    const boundWord = selectedWord ?? null;
-    const occurrence = boundWord
-      ? activeScene.elements.filter((e) => (e.content.word ?? "").toLowerCase() === boundWord.toLowerCase()).length + 1
-      : null;
 
     const content: AnimationBlockContent = {
       provider: a.provider,
@@ -320,8 +312,8 @@ function ScriptCanvas() {
       rotation: 0,
       color_support: a.color_support,
       tint: null,
-      word: boundWord,
-      occurrence,
+      word: null,
+      occurrence: null,
     };
     const { data, error } = await supabase
       .from("scene_elements")
@@ -336,9 +328,7 @@ function ScriptCanvas() {
       .single();
     if (error) return toast.error(error.message);
     const newEl = data as unknown as PlacedElement;
-    setScenes((prev) =>
-      prev.map((s) => (s.id === activeScene.id ? { ...s, elements: [...s.elements, newEl] } : s)),
-    );
+    setScenes((prev) => prev.map((s) => (s.id === activeScene.id ? { ...s, elements: [...s.elements, newEl] } : s)));
     setSelectedElementId(newEl.id);
   }
 
@@ -359,178 +349,153 @@ function ScriptCanvas() {
   }
 
   return (
-    <div className="flex gap-4" style={{ height: "calc(100vh - 9rem)" }}>
-      {/* MAIN — canvases + script */}
-      <div className="flex h-full w-3/4 flex-col gap-3 overflow-hidden">
-        <div className="flex min-h-0 flex-[3] flex-col gap-3 overflow-y-auto pr-1">
-          {scenes.map((s, idx) => (
-            <div
-              key={s.id}
-              className={`flex flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition ${
-                idx === activeIdx ? "border-primary" : "border-border"
-              }`}
-              onMouseDown={() => setActiveIdx(idx)}
-            >
-              <div className="flex items-center justify-between border-b border-border px-4 py-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Canvas {idx + 1}
-                </span>
-                {scenes.length > 1 && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 gap-1 text-xs text-destructive"
-                    onClick={(e) => { e.stopPropagation(); void deleteCanvas(idx); }}
-                  >
-                    <Trash2 className="h-3 w-3" /> Remove
-                  </Button>
-                )}
-              </div>
-              <div className="flex items-center justify-center bg-muted/30 p-4">
-                <div
-                  ref={(el) => { canvasRefs.current[s.id] = el; }}
-                  className="relative w-full max-w-full overflow-hidden rounded-xl bg-white shadow-md"
-                  style={{ aspectRatio: aspect }}
-                  onMouseDown={(e) => {
-                    if (e.target === e.currentTarget) setSelectedElementId(null);
-                  }}
+    <div className="flex gap-4">
+      {/* MAIN — scrollable list of canvases each with its own script */}
+      <div className="flex w-3/4 flex-col gap-4">
+        {scenes.map((s, idx) => (
+          <div
+            key={s.id}
+            className={`flex flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition ${
+              idx === activeIdx ? "border-primary" : "border-border"
+            }`}
+            onMouseDown={() => setActiveIdx(idx)}
+          >
+            <div className="flex items-center justify-between border-b border-border px-4 py-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Canvas {idx + 1}
+              </span>
+              {scenes.length > 1 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 gap-1 text-xs text-destructive"
+                  onClick={(e) => { e.stopPropagation(); void deleteCanvas(idx); }}
                 >
-                  <BackgroundLayer background={s.background} exportMode={isExporting} />
-                  {s.elements.map((el) => (
-                    <Rnd
-                      key={el.id}
-                      bounds="parent"
-                      size={{ width: el.position.w, height: el.position.h }}
-                      position={{ x: el.position.x, y: el.position.y }}
-                      onDragStop={(_, d) => {
-                        void updateElement(s.id, el.id, { ...el.position, x: d.x, y: d.y });
-                      }}
-                      onResizeStop={(_, __, ref, ____, pos) => {
-                        void updateElement(s.id, el.id, {
-                          x: pos.x,
-                          y: pos.y,
-                          w: parseInt(ref.style.width),
-                          h: parseInt(ref.style.height),
-                        });
-                      }}
-                      onMouseDown={() => { setActiveIdx(idx); setSelectedElementId(el.id); }}
-                      className={`group/el rounded-lg border-2 ${
-                        selectedElementId === el.id
-                          ? "border-primary"
-                          : "border-transparent hover:border-primary/40"
-                      }`}
-                    >
-                      <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
-                        <AnimationBlockRenderer content={el.content} exportMode={isExporting} />
-                        {selectedElementId === el.id && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); deleteElement(s.id, el.id); }}
-                            className="absolute -right-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        )}
-                      </div>
-                    </Rnd>
-                  ))}
-                  {s.elements.length === 0 && (
-                    <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                      Click a word below, then pick an animation →
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-          <Button variant="outline" className="w-full gap-1.5" onClick={addCanvas}>
-            <Plus className="h-4 w-4" /> Add canvas
-          </Button>
-        </div>
-
-        {/* Script */}
-        <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-2xl border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Script {selectedWord && <span className="ml-2 text-primary">· {selectedWord}</span>}
-            </h3>
-            {editing ? (
-              <Button size="sm" onClick={saveScript} className="gap-1">
-                <Save className="h-3.5 w-3.5" /> Save
-              </Button>
-            ) : (
-              <Button size="sm" variant="ghost" onClick={() => setEditing(true)} className="gap-1">
-                <Pencil className="h-3.5 w-3.5" /> Edit
-              </Button>
-            )}
-          </div>
-          {editing ? (
-            <Textarea
-              value={script}
-              onChange={(e) => setScript(e.target.value)}
-              placeholder="Type your lesson script…"
-              className="min-h-0 flex-1 resize-none font-mono text-sm"
-            />
-          ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto rounded-md bg-muted/30 p-3 text-sm leading-7">
-              {script ? (
-                <ClickableScript
-                  text={script}
-                  selected={selectedWord}
-                  onWordClick={(w) => setSelectedWord(w)}
-                />
-              ) : (
-                <p className="text-muted-foreground">No script yet. Click Edit to add one.</p>
+                  <Trash2 className="h-3 w-3" /> Remove
+                </Button>
               )}
             </div>
-          )}
-        </div>
+            <div className="flex justify-center bg-muted/30 p-4">
+              <div
+                ref={(el) => { canvasRefs.current[s.id] = el; }}
+                className="relative w-full overflow-hidden rounded-xl bg-white shadow-md"
+                style={{ aspectRatio: aspect }}
+                onMouseDown={(e) => {
+                  if (e.target === e.currentTarget) setSelectedElementId(null);
+                }}
+              >
+                <BackgroundLayer background={s.background} exportMode={isExporting} />
+                {s.elements.map((el) => (
+                  <Rnd
+                    key={el.id}
+                    bounds="parent"
+                    size={{ width: el.position.w, height: el.position.h }}
+                    position={{ x: el.position.x, y: el.position.y }}
+                    onDragStop={(_, d) => {
+                      void updateElement(s.id, el.id, { ...el.position, x: d.x, y: d.y });
+                    }}
+                    onResizeStop={(_, __, ref, ____, pos) => {
+                      void updateElement(s.id, el.id, {
+                        x: pos.x,
+                        y: pos.y,
+                        w: parseInt(ref.style.width),
+                        h: parseInt(ref.style.height),
+                      });
+                    }}
+                    onMouseDown={() => { setActiveIdx(idx); setSelectedElementId(el.id); }}
+                    className={`group/el rounded-lg border-2 ${
+                      selectedElementId === el.id ? "border-primary" : "border-transparent hover:border-primary/40"
+                    }`}
+                  >
+                    <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
+                      <AnimationBlockRenderer content={el.content} exportMode={isExporting} />
+                      {selectedElementId === el.id && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteElement(s.id, el.id); }}
+                          className="absolute -right-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  </Rnd>
+                ))}
+                {s.elements.length === 0 && (
+                  <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                    Add an animation from the right panel →
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Per-canvas script */}
+            <div className="border-t border-border p-3">
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Script for Canvas {idx + 1}
+              </label>
+              <Textarea
+                value={s.narration}
+                onChange={(e) => updateNarration(s.id, e.target.value)}
+                placeholder="What is narrated while this canvas plays…"
+                className="min-h-[80px] resize-y text-sm"
+              />
+            </div>
+          </div>
+        ))}
+        <Button variant="outline" className="w-full gap-1.5" onClick={addCanvas}>
+          <Plus className="h-4 w-4" /> Add canvas
+        </Button>
       </div>
 
-      {/* RIGHT — animations + background tabs */}
-      <aside className="flex h-full w-1/4 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        <Tabs defaultValue="animations" className="flex h-full flex-col">
-          <TabsList className="m-3 grid grid-cols-2">
-            <TabsTrigger value="animations">Animations</TabsTrigger>
-            <TabsTrigger value="background">Background</TabsTrigger>
-          </TabsList>
-          <TabsContent value="animations" className="m-0 min-h-0 flex-1 overflow-hidden border-t border-border">
-            <div className="border-b border-border px-4 py-2">
-              <p className="text-xs text-muted-foreground">
-                {selectedWord ? `Searching "${selectedWord}"` : "Search, paste a URL, or upload"} · adds to Canvas {activeIdx + 1}
-              </p>
-            </div>
-            <div className="min-h-0 flex-1">
-              <AnimationSearchPanel initialQuery={selectedWord ?? ""} onSelect={addAnimation} />
-            </div>
-          </TabsContent>
-          <TabsContent value="background" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
-            {activeScene && (
-              <BackgroundPicker
-                inline
-                value={activeScene.background}
-                onChange={(bg) => updateBackground(bg, false)}
-                applyToAll={false}
-                onApplyToAllChange={(v) => { if (v) void updateBackground(activeScene.background, true); }}
-              />
-            )}
-            <div className="border-t border-border p-3">
-              <Button
-                size="sm"
-                variant="secondary"
-                className="w-full"
-                onClick={() => void updateBackground(activeScene.background, true)}
-              >
-                Apply current background to all pages
-              </Button>
-            </div>
-          </TabsContent>
-        </Tabs>
+      {/* RIGHT — animations + background tabs (sticky) */}
+      <aside className="w-1/4">
+        <div
+          className="sticky top-4 flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+          style={{ height: "calc(100vh - 9rem)" }}
+        >
+          <Tabs defaultValue="animations" className="flex h-full flex-col">
+            <TabsList className="m-3 grid grid-cols-2">
+              <TabsTrigger value="animations">Animations</TabsTrigger>
+              <TabsTrigger value="background">Background</TabsTrigger>
+            </TabsList>
+            <TabsContent value="animations" className="m-0 min-h-0 flex-1 overflow-hidden border-t border-border">
+              <div className="border-b border-border px-4 py-2">
+                <p className="text-xs text-muted-foreground">Adds to Canvas {activeIdx + 1}</p>
+              </div>
+              <div className="min-h-0 flex-1">
+                <AnimationSearchPanel initialQuery="" onSelect={addAnimation} />
+              </div>
+            </TabsContent>
+            <TabsContent value="background" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
+              {activeScene && (
+                <BackgroundPicker
+                  inline
+                  value={activeScene.background}
+                  onChange={(bg) => updateBackground(bg, false)}
+                  applyToAll={false}
+                  onApplyToAllChange={(v) => { if (v) void updateBackground(activeScene.background, true); }}
+                />
+              )}
+              {activeScene && (
+                <div className="border-t border-border p-3">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="w-full"
+                    onClick={() => void updateBackground(activeScene.background, true)}
+                  >
+                    Apply current background to all pages
+                  </Button>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
       </aside>
 
       <PlaybackDialog
         open={playOpen}
         onOpenChange={setPlayOpen}
-        script={script}
+        script={scenes.map((s) => s.narration).filter(Boolean).join("\n\n")}
         scenes={scenes.map((s) => ({
           id: s.id,
           background: s.background,
@@ -544,50 +509,5 @@ function ScriptCanvas() {
         canvasSize={canvasSize}
       />
     </div>
-  );
-}
-
-function ClickableScript({
-  text,
-  selected,
-  onWordClick,
-}: {
-  text: string;
-  selected: string | null;
-  onWordClick: (w: string) => void;
-}) {
-  const tokens = useMemo(() => {
-    const out: { word: boolean; text: string }[] = [];
-    let last = 0;
-    for (const m of text.matchAll(WORD_RE)) {
-      const idx = m.index ?? 0;
-      if (idx > last) out.push({ word: false, text: text.slice(last, idx) });
-      out.push({ word: true, text: m[0] });
-      last = idx + m[0].length;
-    }
-    if (last < text.length) out.push({ word: false, text: text.slice(last) });
-    return out;
-  }, [text]);
-
-  return (
-    <p className="whitespace-pre-wrap">
-      {tokens.map((t, i) =>
-        t.word ? (
-          <button
-            key={i}
-            onClick={() => onWordClick(t.text)}
-            className={`rounded px-0.5 transition ${
-              selected?.toLowerCase() === t.text.toLowerCase()
-                ? "bg-primary/20 text-primary font-semibold"
-                : "hover:bg-muted"
-            }`}
-          >
-            {t.text}
-          </button>
-        ) : (
-          <span key={i}>{t.text}</span>
-        ),
-      )}
-    </p>
   );
 }
