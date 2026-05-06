@@ -448,6 +448,31 @@ function ScriptCanvas() {
     await supabase.from("scene_elements").delete().eq("id", id);
   }
 
+  async function toggleElementBackground(sceneId: string, id: string) {
+    let nextContent: AnimationBlockContent | null = null;
+    setScenes((prev) =>
+      prev.map((s) =>
+        s.id === sceneId
+          ? {
+              ...s,
+              elements: s.elements.map((e) => {
+                if (e.id !== id) return e;
+                const updated = { ...e.content, remove_background: !e.content.remove_background };
+                nextContent = updated;
+                return { ...e, content: updated };
+              }),
+            }
+          : s,
+      ),
+    );
+    if (nextContent) {
+      await supabase
+        .from("scene_elements")
+        .update({ content: nextContent as unknown as never })
+        .eq("id", id);
+    }
+  }
+
   return (
     <div className="flex gap-4">
       {/* MAIN — scrollable list of canvases each with its own script */}
