@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { AnimationBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
+import { BackgroundLayer, type SceneBackground } from "@/components/BackgroundPicker";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
