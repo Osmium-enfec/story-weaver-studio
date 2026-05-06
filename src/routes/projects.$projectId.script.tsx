@@ -77,7 +77,6 @@ function ScriptCanvas() {
   async function exportVideo() {
     if (!canvasRef.current) return;
     setIsExporting(true);
-    setIsPlaying(true);
     try {
       const node = canvasRef.current;
       const rect = node.getBoundingClientRect();
@@ -99,6 +98,7 @@ function ScriptCanvas() {
 
       // Inline all remote images to avoid tainted-canvas errors
       await inlineAllImages(node);
+      setIsPlaying(true);
 
       const totalMs = 4000;
       const start = performance.now();
@@ -338,7 +338,7 @@ function ScriptCanvas() {
                 }`}
               >
                 <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
-                  <AnimationBlockRenderer content={el.content} />
+                  <AnimationBlockRenderer content={el.content} exportMode={isExporting} />
                   {selectedElementId === el.id && (
                     <button
                       onClick={(e) => {
