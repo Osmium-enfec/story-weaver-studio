@@ -187,6 +187,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         if (cursor < trimEnd) ranges.push({ start: cursor, end: trimEnd });
 
         const totalAudibleMs = ranges.reduce((sum, r) => sum + (r.end - r.start), 0);
+        scheduleUnbound(totalAudibleMs);
 
         // Schedule word-based reveals using AUDIBLE elapsed time
         // (skip words inside cuts; squeeze remaining timeline)
