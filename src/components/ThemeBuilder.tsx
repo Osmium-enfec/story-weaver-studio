@@ -26,6 +26,7 @@ interface ThemeFont {
   size: number; // px
   weight?: number;
   lineHeight?: number;
+  color?: string;
 }
 
 export interface ThemeData {
