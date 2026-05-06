@@ -12,57 +12,43 @@ export interface PlaybackElement {
   z_index: number;
 }
 
+export interface PlaybackScene {
+  id: string;
+  background: SceneBackground;
+  elements: PlaybackElement[];
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   script: string;
-  elements: PlaybackElement[];
+  scenes: PlaybackScene[];
   /** Original canvas pixel size when elements were placed */
   canvasSize: { w: number; h: number };
-  background?: SceneBackground;
 }
 
-const WORD_RE = /[A-Za-z][A-Za-z0-9_-]*/g;
+const SCENE_DURATION_MS = 3500;
+const TRANSITION_MS = 600;
 
-export function PlaybackDialog({ open, onOpenChange, script, elements, canvasSize, background }: Props) {
-  const wordIndexById = useMemo(() => {
-    const map = new Map<string, number>();
-    if (!script) return map;
-    const tokens: string[] = [];
-    for (const m of script.matchAll(WORD_RE)) tokens.push(m[0].toLowerCase());
-    for (const el of elements) {
-      const w = el.content.word?.toLowerCase();
-      if (!w) continue;
-      const occ = el.content.occurrence ?? 1;
-      let seen = 0;
-      for (let i = 0; i < tokens.length; i++) {
-        if (tokens[i] === w) {
-          seen++;
-          if (seen === occ) {
-            map.set(el.id, i);
-            break;
-          }
-        }
-      }
-    }
-    return map;
-  }, [script, elements]);
-
-  const [revealedWordIdx, setRevealedWordIdx] = useState(-1);
+export function PlaybackDialog({ open, onOpenChange, script, scenes, canvasSize }: Props) {
   const [playing, setPlaying] = useState(false);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [transitioning, setTransitioning] = useState(false);
   const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [scale, setScale] = useState(1);
 
   useEffect(() => {
     if (!open) {
       window.speechSynthesis?.cancel();
       setPlaying(false);
-      setRevealedWordIdx(-1);
+      setCurrentIdx(0);
+      setTransitioning(false);
+      if (timerRef.current) clearTimeout(timerRef.current);
     }
   }, [open]);
 
-  // Compute scale so the original canvas fits the dialog stage
   useEffect(() => {
     if (!open) return;
     function update() {
@@ -77,48 +63,48 @@ export function PlaybackDialog({ open, onOpenChange, script, elements, canvasSiz
     return () => window.removeEventListener("resize", update);
   }, [open, canvasSize.w, canvasSize.h]);
 
-  function start() {
-    if (!script.trim()) return toast.error("Add a script first");
-    if (!("speechSynthesis" in window)) return toast.error("Browser TTS not supported");
-    setRevealedWordIdx(-1);
-    const u = new SpeechSynthesisUtterance(script);
-    u.rate = 1;
-    u.onboundary = (e: SpeechSynthesisEvent) => {
-      if (e.name !== "word") return;
-      const upto = script.slice(0, e.charIndex);
-      const count = (upto.match(WORD_RE) || []).length;
-      setRevealedWordIdx(count);
-    };
-    u.onend = () => {
+  function advance(from: number) {
+    if (from + 1 >= scenes.length) {
       setPlaying(false);
-      setRevealedWordIdx(Number.MAX_SAFE_INTEGER);
-    };
-    u.onerror = () => setPlaying(false);
-    utterRef.current = u;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
+      return;
+    }
+    setTransitioning(true);
+    timerRef.current = setTimeout(() => {
+      setCurrentIdx(from + 1);
+      setTransitioning(false);
+      timerRef.current = setTimeout(() => advance(from + 1), SCENE_DURATION_MS);
+    }, TRANSITION_MS);
+  }
+
+  function start() {
+    if (scenes.length === 0) return toast.error("Add a canvas first");
+    setCurrentIdx(0);
+    setTransitioning(false);
     setPlaying(true);
+    if (script.trim() && "speechSynthesis" in window) {
+      const u = new SpeechSynthesisUtterance(script);
+      u.rate = 1;
+      utterRef.current = u;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    }
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => advance(0), SCENE_DURATION_MS);
   }
 
   function stop() {
     window.speechSynthesis?.cancel();
+    if (timerRef.current) clearTimeout(timerRef.current);
     setPlaying(false);
+    setTransitioning(false);
   }
 
-  const visibleIds = new Set(
-    elements
-      .filter((el) => {
-        const wIdx = wordIndexById.get(el.id);
-        if (wIdx === undefined) return true;
-        return wIdx <= revealedWordIdx;
-      })
-      .map((e) => e.id),
-  );
+  const current = scenes[currentIdx];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl">
-        <DialogTitle className="sr-only">Playback</DialogTitle>
+        <DialogTitle className="sr-only">Preview</DialogTitle>
         <div className="flex flex-col gap-3">
           <div
             ref={stageRef}
@@ -126,7 +112,10 @@ export function PlaybackDialog({ open, onOpenChange, script, elements, canvasSiz
             style={{ height: "60vh" }}
           >
             <div
-              className="relative bg-white shadow-md rounded-xl overflow-hidden"
+              key={current?.id}
+              className={`relative bg-white shadow-md rounded-xl overflow-hidden transition-opacity duration-500 ${
+                transitioning ? "opacity-0" : "opacity-100 animate-fade-in"
+              }`}
               style={{
                 width: canvasSize.w,
                 height: canvasSize.h,
@@ -134,77 +123,36 @@ export function PlaybackDialog({ open, onOpenChange, script, elements, canvasSiz
                 transformOrigin: "center center",
               }}
             >
-              {background && <BackgroundLayer background={background} />}
-              {elements.map((el) => {
-                const visible = visibleIds.has(el.id);
-                return (
-                  <div
-                    key={el.id}
-                    style={{
-                      position: "absolute",
-                      left: el.position.x,
-                      top: el.position.y,
-                      width: el.position.w,
-                      height: el.position.h,
-                      opacity: visible ? 1 : 0,
-                      transition: "opacity 300ms ease",
-                      zIndex: el.z_index,
-                    }}
-                  >
-                    <AnimationBlockRenderer content={el.content} />
-                  </div>
-                );
-              })}
+              {current && <BackgroundLayer background={current.background} />}
+              {current?.elements.map((el) => (
+                <div
+                  key={el.id}
+                  style={{
+                    position: "absolute",
+                    left: el.position.x,
+                    top: el.position.y,
+                    width: el.position.w,
+                    height: el.position.h,
+                    zIndex: el.z_index,
+                  }}
+                >
+                  <AnimationBlockRenderer content={el.content} />
+                </div>
+              ))}
             </div>
           </div>
-          <div className="rounded-md bg-muted/30 p-3 text-sm leading-7 max-h-32 overflow-y-auto">
-            <ScriptHighlight text={script} revealedIdx={revealedWordIdx} />
-          </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground">
+              Canvas {Math.min(currentIdx + 1, scenes.length)} / {scenes.length}
+            </span>
             {playing ? (
               <Button variant="secondary" onClick={stop}>Stop</Button>
             ) : (
-              <Button onClick={start}>Play with voice</Button>
+              <Button onClick={start}>Play</Button>
             )}
           </div>
         </div>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function ScriptHighlight({ text, revealedIdx }: { text: string; revealedIdx: number }) {
-  const parts = useMemo(() => {
-    const out: { word: boolean; text: string; idx?: number }[] = [];
-    let last = 0;
-    let i = 0;
-    for (const m of text.matchAll(WORD_RE)) {
-      const at = m.index ?? 0;
-      if (at > last) out.push({ word: false, text: text.slice(last, at) });
-      out.push({ word: true, text: m[0], idx: i++ });
-      last = at + m[0].length;
-    }
-    if (last < text.length) out.push({ word: false, text: text.slice(last) });
-    return out;
-  }, [text]);
-  return (
-    <p className="whitespace-pre-wrap">
-      {parts.map((p, i) =>
-        p.word ? (
-          <span
-            key={i}
-            className={
-              p.idx !== undefined && p.idx <= revealedIdx
-                ? "bg-primary/20 text-primary font-semibold rounded px-0.5"
-                : "text-muted-foreground"
-            }
-          >
-            {p.text}
-          </span>
-        ) : (
-          <span key={i}>{p.text}</span>
-        ),
-      )}
-    </p>
   );
 }
