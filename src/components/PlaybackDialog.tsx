@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 export interface PlaybackElement {
   id: string;
+  type?: string;
   content: AnimationBlockContent;
   position: { x: number; y: number; w: number; h: number };
   z_index: number;
