@@ -24,6 +24,48 @@ export interface AnimationBlockContent {
   occurrence?: number | null;
   // background removal (keeps original; just toggles rendering)
   remove_background?: boolean;
+  // text block
+  text?: string;
+  role?: "heading" | "subheading" | "paragraph";
+  font_family?: string;
+  font_size?: number;
+  font_weight?: number;
+  line_height?: number;
+  color?: string;
+}
+
+export function TextBlockRenderer({
+  content,
+  editable,
+  onChange,
+}: {
+  content: AnimationBlockContent;
+  editable?: boolean;
+  onChange?: (text: string) => void;
+}) {
+  return (
+    <div
+      contentEditable={editable}
+      suppressContentEditableWarning
+      onBlur={(e) => onChange?.(e.currentTarget.innerText)}
+      onMouseDown={(e) => { if (editable) e.stopPropagation(); }}
+      className="h-full w-full outline-none"
+      style={{
+        fontFamily: content.font_family || "Inter",
+        fontSize: (content.font_size ?? 24) + "px",
+        fontWeight: content.font_weight ?? 400,
+        lineHeight: content.line_height ?? 1.4,
+        color: content.color || "#0f172a",
+        opacity: content.opacity ?? 1,
+        transform: `rotate(${content.rotation ?? 0}deg)`,
+        cursor: editable ? "text" : "default",
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
+      }}
+    >
+      {content.text ?? ""}
+    </div>
+  );
 }
 
 // SVG filter: keys out near-white pixels to transparent.

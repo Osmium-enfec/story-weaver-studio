@@ -7,6 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { Upload, Trash2, Image as ImageIcon, Video, Sparkles, ChevronLeft, Plus, Palette } from "lucide-react";
+import type { SceneBackground } from "@/components/BackgroundPicker";
+import type { TextRole, TextRoleStyle } from "@/components/TextPanel";
+import { TextRoleEditor } from "@/components/TextPanel";
 
 type MediaKind = "image" | "video" | "animation";
 
@@ -23,6 +26,7 @@ interface ThemeFont {
   size: number; // px
   weight?: number;
   lineHeight?: number;
+  color?: string;
 }
 
 export interface ThemeData {
@@ -78,16 +82,22 @@ function detectKind(file: File): MediaKind {
   return "image";
 }
 
-function MediaThumb({ item, onRemove }: { item: MediaItem; onRemove: () => void }) {
+function MediaThumb({ item, onRemove, onSelect }: { item: MediaItem; onRemove: () => void; onSelect?: () => void }) {
   return (
-    <div className="relative overflow-hidden rounded-md border border-border bg-muted/30">
-      <div className="flex h-24 items-center justify-center">
+    <div className="group/thumb relative overflow-hidden rounded-md border border-border bg-muted/30">
+      <button
+        type="button"
+        onClick={onSelect}
+        disabled={!onSelect}
+        className="flex h-24 w-full items-center justify-center overflow-hidden hover:ring-2 hover:ring-primary disabled:cursor-default"
+        title={onSelect ? "Apply to all canvases" : undefined}
+      >
         {item.kind === "image" && <img src={item.url} alt={item.name} className="h-full w-full object-cover" />}
         {item.kind === "video" && (
           <video src={item.url} className="h-full w-full object-cover" muted loop autoPlay playsInline />
         )}
         {item.kind === "animation" && <DotLottieReact src={item.url} autoplay loop />}
-      </div>
+      </button>
       <div className="flex items-center justify-between gap-2 border-t border-border px-2 py-1">
         <span className="truncate text-[11px] text-muted-foreground">{item.name}</span>
         <Button size="icon" variant="ghost" className="h-6 w-6" onClick={onRemove}>
@@ -102,10 +112,12 @@ function MediaGallery({
   label,
   items,
   onChange,
+  onSelect,
 }: {
   label: string;
   items: MediaItem[];
   onChange: (items: MediaItem[]) => void;
+  onSelect?: (item: MediaItem) => void;
 }) {
   const [busy, setBusy] = useState(false);
 
@@ -148,6 +160,7 @@ function MediaGallery({
               key={item.id}
               item={item}
               onRemove={() => onChange(items.filter((i) => i.id !== item.id))}
+              onSelect={onSelect ? () => onSelect(item) : undefined}
             />
           ))}
         </div>
@@ -176,126 +189,24 @@ function MediaGallery({
   );
 }
 
-function FontField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: ThemeFont;
-  onChange: (f: ThemeFont) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-
-  const handleUpload = useCallback(
-    async (file: File) => {
-      setBusy(true);
-      try {
-        const path = `themes/fonts/${Date.now()}-${file.name}`;
-        const { error } = await supabase.storage.from("scene-backgrounds").upload(path, file, {
-          cacheControl: "3600",
-          upsert: false,
-        });
-        if (error) throw error;
-        const { data } = supabase.storage.from("scene-backgrounds").getPublicUrl(path);
-        const family = file.name.replace(/\.[^.]+$/, "");
-        onChange({ ...value, family, url: data.publicUrl });
-        toast.success(`${label} font uploaded`);
-      } catch (e) {
-        toast.error(`Upload failed: ${(e as Error).message}`);
-      } finally {
-        setBusy(false);
-      }
-    },
-    [label, value, onChange]
-  );
-
-  return (
-    <div className="space-y-2 rounded-md border border-border p-3">
-      <Label className="text-xs font-medium">{label}</Label>
-      <Input
-        placeholder="Font family (e.g. Inter)"
-        value={value.family}
-        onChange={(e) => onChange({ ...value, family: e.target.value })}
-        className="h-8 text-xs"
-      />
-      <div className="grid grid-cols-3 gap-2">
-        <div>
-          <Label className="text-[10px] text-muted-foreground">Size (px)</Label>
-          <Input
-            type="number"
-            min={8}
-            max={200}
-            value={value.size}
-            onChange={(e) => onChange({ ...value, size: Number(e.target.value) || 16 })}
-            className="h-8 text-xs"
-          />
-        </div>
-        <div>
-          <Label className="text-[10px] text-muted-foreground">Weight</Label>
-          <Input
-            type="number"
-            min={100}
-            max={900}
-            step={100}
-            value={value.weight ?? 400}
-            onChange={(e) => onChange({ ...value, weight: Number(e.target.value) || 400 })}
-            className="h-8 text-xs"
-          />
-        </div>
-        <div>
-          <Label className="text-[10px] text-muted-foreground">Line ht</Label>
-          <Input
-            type="number"
-            min={0.8}
-            max={3}
-            step={0.1}
-            value={value.lineHeight ?? 1.4}
-            onChange={(e) => onChange({ ...value, lineHeight: Number(e.target.value) || 1.4 })}
-            className="h-8 text-xs"
-          />
-        </div>
-      </div>
-      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border px-2 py-2 text-xs text-muted-foreground hover:bg-muted/40">
-        <Upload className="h-3.5 w-3.5" />
-        <span>{busy ? "Uploading..." : value.url ? "Replace font file" : "Upload .ttf / .otf / .woff"}</span>
-        <input
-          type="file"
-          className="hidden"
-          accept=".ttf,.otf,.woff,.woff2,font/*"
-          disabled={busy}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void handleUpload(f);
-            e.currentTarget.value = "";
-          }}
-        />
-      </label>
-      {value.family && (
-        <p
-          className="truncate text-muted-foreground"
-          style={{
-            fontFamily: value.family,
-            fontSize: Math.min(value.size, 22),
-            fontWeight: value.weight,
-            lineHeight: value.lineHeight,
-          }}
-        >
-          Preview: {value.family}
-        </p>
-      )}
-    </div>
-  );
+function mediaToBackground(item: MediaItem): SceneBackground {
+  if (item.kind === "video") return { type: "video", value: item.url };
+  if (item.kind === "animation") return { type: "lottie", value: item.url };
+  return { type: "image", value: item.url };
 }
 
 function ThemeEditor({
   theme,
   onChange,
   onBack,
+  onApplyBackground,
+  onInsertText,
 }: {
   theme: ThemeData;
   onChange: (t: ThemeData) => void;
   onBack: () => void;
+  onApplyBackground?: (bg: SceneBackground) => void;
+  onInsertText?: (role: TextRole, style: TextRoleStyle) => void;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto p-3">
@@ -324,24 +235,28 @@ function ThemeEditor({
             label="Backgrounds"
             items={theme.backgrounds}
             onChange={(items) => onChange({ ...theme, backgrounds: items })}
+            onSelect={onApplyBackground ? (item) => onApplyBackground(mediaToBackground(item)) : undefined}
           />
         </TabsContent>
 
         <TabsContent value="fonts" className="mt-3 space-y-3">
-          <FontField
+          <TextRoleEditor
             label="Heading"
             value={theme.fonts.heading}
             onChange={(f) => onChange({ ...theme, fonts: { ...theme.fonts, heading: f } })}
+            onInsert={onInsertText ? () => onInsertText("heading", theme.fonts.heading) : undefined}
           />
-          <FontField
+          <TextRoleEditor
             label="Sub-heading"
             value={theme.fonts.subheading}
             onChange={(f) => onChange({ ...theme, fonts: { ...theme.fonts, subheading: f } })}
+            onInsert={onInsertText ? () => onInsertText("subheading", theme.fonts.subheading) : undefined}
           />
-          <FontField
+          <TextRoleEditor
             label="Paragraph"
             value={theme.fonts.paragraph}
             onChange={(f) => onChange({ ...theme, fonts: { ...theme.fonts, paragraph: f } })}
+            onInsert={onInsertText ? () => onInsertText("paragraph", theme.fonts.paragraph) : undefined}
           />
         </TabsContent>
 
@@ -365,7 +280,14 @@ function ThemeEditor({
   );
 }
 
-export function ThemeBuilder() {
+
+export function ThemeBuilder({
+  onApplyBackground,
+  onInsertText,
+}: {
+  onApplyBackground?: (bg: SceneBackground) => void;
+  onInsertText?: (role: TextRole, style: TextRoleStyle) => void;
+} = {}) {
   const [themes, setThemes] = useState<ThemeData[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [, setLoading] = useState(true);
@@ -413,7 +335,15 @@ export function ThemeBuilder() {
   };
 
   if (active) {
-    return <ThemeEditor theme={active} onChange={updateActive} onBack={() => setActiveId(null)} />;
+    return (
+      <ThemeEditor
+        theme={active}
+        onChange={updateActive}
+        onBack={() => setActiveId(null)}
+        onApplyBackground={onApplyBackground}
+        onInsertText={onInsertText}
+      />
+    );
   }
 
   return (

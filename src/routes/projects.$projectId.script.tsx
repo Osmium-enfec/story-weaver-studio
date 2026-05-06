@@ -11,9 +11,10 @@ import { toast } from "sonner";
 import { Trash2, Plus, Eraser } from "lucide-react";
 import { toolbarStore } from "@/components/toolbar-store";
 import { AnimationSearchPanel } from "@/components/AnimationSearchPanel";
-import { AnimationBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
+import { AnimationBlockRenderer, TextBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
 import { BackgroundPicker, BackgroundLayer, type SceneBackground } from "@/components/BackgroundPicker";
 import { ThemeBuilder } from "@/components/ThemeBuilder";
+import { TextPanel, type TextRole, type TextRoleStyle } from "@/components/TextPanel";
 import { PlaybackDialog } from "@/components/PlaybackDialog";
 import type { AnimationResult } from "@/lib/animation-providers";
 import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
@@ -447,6 +448,71 @@ function ScriptCanvas() {
     setSelectedElementId(newEl.id);
   }
 
+  async function addTextBlock(role: TextRole, style: TextRoleStyle) {
+    if (!activeScene) return;
+    const node = canvasRefs.current[activeScene.id];
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const w = Math.round(rect.width * (role === "heading" ? 0.7 : role === "subheading" ? 0.55 : 0.5));
+    const h = Math.round((style.size ?? 24) * (style.lineHeight ?? 1.4) * 1.6);
+    const x = Math.round((rect.width - w) / 2);
+    const y = Math.round((rect.height - h) / 2);
+    const placeholder = role === "heading" ? "Heading" : role === "subheading" ? "Sub-heading" : "Paragraph text";
+    const content: AnimationBlockContent = {
+      provider: "internal",
+      name: role,
+      role,
+      text: selectedWord ?? placeholder,
+      font_family: style.family,
+      font_size: style.size,
+      font_weight: style.weight,
+      line_height: style.lineHeight,
+      color: style.color,
+      opacity: 1,
+      rotation: 0,
+      word: selectedWord,
+      occurrence: selectedWord
+        ? activeScene.elements.filter((e) => (e.content.word ?? "").toLowerCase() === selectedWord.toLowerCase()).length + 1
+        : null,
+    };
+    const { data, error } = await supabase
+      .from("scene_elements")
+      .insert({
+        scene_id: activeScene.id,
+        type: "text",
+        content: content as unknown as never,
+        position: { x, y, w, h },
+        z_index: activeScene.elements.length,
+      })
+      .select("*")
+      .single();
+    if (error) return toast.error(error.message);
+    const newEl = data as unknown as PlacedElement;
+    setScenes((prev) => prev.map((s) => (s.id === activeScene.id ? { ...s, elements: [...s.elements, newEl] } : s)));
+    setSelectedElementId(newEl.id);
+  }
+
+  async function updateElementText(sceneId: string, id: string, text: string) {
+    let nextContent: AnimationBlockContent | null = null;
+    setScenes((prev) =>
+      prev.map((s) =>
+        s.id === sceneId
+          ? {
+              ...s,
+              elements: s.elements.map((e) => {
+                if (e.id !== id) return e;
+                nextContent = { ...e.content, text };
+                return { ...e, content: nextContent };
+              }),
+            }
+          : s,
+      ),
+    );
+    if (nextContent) {
+      await supabase.from("scene_elements").update({ content: nextContent as unknown as never }).eq("id", id);
+    }
+  }
+
   async function updateElement(sceneId: string, id: string, position: PlacedElement["position"]) {
     setScenes((prev) =>
       prev.map((s) =>
@@ -549,20 +615,30 @@ function ScriptCanvas() {
                     data-canvas-element="true"
                   >
                     <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
-                      <AnimationBlockRenderer content={el.content} exportMode={isExporting} />
+                      {el.type === "text" ? (
+                        <TextBlockRenderer
+                          content={el.content}
+                          editable={selectedElementId === el.id}
+                          onChange={(text) => void updateElementText(s.id, el.id, text)}
+                        />
+                      ) : (
+                        <AnimationBlockRenderer content={el.content} exportMode={isExporting} />
+                      )}
                       {selectedElementId === el.id && (
                         <>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); void toggleElementBackground(s.id, el.id); }}
-                            title={el.content.remove_background ? "Restore background" : "Remove background"}
-                            className={`absolute right-6 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full shadow ${
-                              el.content.remove_background
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-card text-foreground border border-border"
-                            }`}
-                          >
-                            <Eraser className="h-3 w-3" />
-                          </button>
+                          {el.type !== "text" && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); void toggleElementBackground(s.id, el.id); }}
+                              title={el.content.remove_background ? "Restore background" : "Remove background"}
+                              className={`absolute right-6 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full shadow ${
+                                el.content.remove_background
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-card text-foreground border border-border"
+                              }`}
+                            >
+                              <Eraser className="h-3 w-3" />
+                            </button>
+                          )}
                           <button
                             onClick={(e) => { e.stopPropagation(); deleteElement(s.id, el.id); }}
                             title="Delete"
@@ -656,10 +732,11 @@ function ScriptCanvas() {
           style={{ top: "4.5rem", height: "calc(100vh - 5.5rem)" }}
         >
           <Tabs defaultValue="animations" className="flex h-full min-h-0 flex-col">
-            <TabsList className="m-3 grid shrink-0 grid-cols-3">
-              <TabsTrigger value="animations">Animations</TabsTrigger>
-              <TabsTrigger value="background">Background</TabsTrigger>
-              <TabsTrigger value="theme">Theme</TabsTrigger>
+            <TabsList className="m-3 grid shrink-0 grid-cols-4">
+              <TabsTrigger value="animations" className="text-[11px]">Anim</TabsTrigger>
+              <TabsTrigger value="background" className="text-[11px]">BG</TabsTrigger>
+              <TabsTrigger value="text" className="text-[11px]">Text</TabsTrigger>
+              <TabsTrigger value="theme" className="text-[11px]">Theme</TabsTrigger>
             </TabsList>
             <TabsContent value="animations" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
               <div className="shrink-0 border-b border-border px-4 py-2">
@@ -692,8 +769,14 @@ function ScriptCanvas() {
                 </div>
               )}
             </TabsContent>
+            <TabsContent value="text" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
+              <TextPanel onInsert={(role, style) => void addTextBlock(role, style)} />
+            </TabsContent>
             <TabsContent value="theme" className="m-0 min-h-0 flex-1 overflow-hidden border-t border-border">
-              <ThemeBuilder />
+              <ThemeBuilder
+                onApplyBackground={(bg) => void updateBackground(bg, true)}
+                onInsertText={(role, style) => void addTextBlock(role, style)}
+              />
             </TabsContent>
           </Tabs>
         </div>
