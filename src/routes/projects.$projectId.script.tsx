@@ -732,10 +732,11 @@ function ScriptCanvas() {
           style={{ top: "4.5rem", height: "calc(100vh - 5.5rem)" }}
         >
           <Tabs defaultValue="animations" className="flex h-full min-h-0 flex-col">
-            <TabsList className="m-3 grid shrink-0 grid-cols-3">
-              <TabsTrigger value="animations">Animations</TabsTrigger>
-              <TabsTrigger value="background">Background</TabsTrigger>
-              <TabsTrigger value="theme">Theme</TabsTrigger>
+            <TabsList className="m-3 grid shrink-0 grid-cols-4">
+              <TabsTrigger value="animations" className="text-[11px]">Anim</TabsTrigger>
+              <TabsTrigger value="background" className="text-[11px]">BG</TabsTrigger>
+              <TabsTrigger value="text" className="text-[11px]">Text</TabsTrigger>
+              <TabsTrigger value="theme" className="text-[11px]">Theme</TabsTrigger>
             </TabsList>
             <TabsContent value="animations" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
               <div className="shrink-0 border-b border-border px-4 py-2">
@@ -768,9 +769,16 @@ function ScriptCanvas() {
                 </div>
               )}
             </TabsContent>
-            <TabsContent value="theme" className="m-0 min-h-0 flex-1 overflow-hidden border-t border-border">
-              <ThemeBuilder />
+            <TabsContent value="text" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
+              <TextPanel onInsert={(role, style) => void addTextBlock(role, style)} />
             </TabsContent>
+            <TabsContent value="theme" className="m-0 min-h-0 flex-1 overflow-hidden border-t border-border">
+              <ThemeBuilder
+                onApplyBackground={(bg) => void updateBackground(bg, true)}
+                onInsertText={(role, style) => void addTextBlock(role, style)}
+              />
+            </TabsContent>
+          </Tabs>
           </Tabs>
         </div>
       </aside>
