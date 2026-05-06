@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: code-motion-render-worker
+    runtime: docker
+    plan: standard            # 2 GB RAM, 1 CPU. Bump to "pro" (4 GB) if 4K renders OOM.
+    region: oregon            # change if you want (oregon, frankfurt, singapore, ohio, virginia)
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: RENDER_WORKER_SECRET
+        sync: false           # you'll paste this in the Render dashboard
+      - key: LOVABLE_APP_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

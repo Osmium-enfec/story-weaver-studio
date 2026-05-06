@@ -1,69 +1,67 @@
-# Code Motion Render Worker
+# Code Motion Render Worker — Deploy on Render.com
 
 Renders Remotion videos for the Lovable app and uploads MP4s to Lovable Cloud Storage.
 
-## Deploy to Fly.io
+## Deploy on Render.com (no CLI needed)
 
-### 1. Install flyctl
-```bash
-curl -L https://fly.io/install.sh | sh
-fly auth login
-```
+### 1. Push this `worker/` folder to a GitHub repo
+Render deploys from GitHub. Easiest path:
+1. Create a new GitHub repo (e.g. `code-motion-render-worker`) — can be private.
+2. Copy the contents of this `worker/` folder into the repo root and push.
 
-### 2. Launch (first time only — from inside the `worker/` folder)
-```bash
-cd worker
-fly launch --no-deploy --copy-config --name code-motion-render-worker --region iad
-```
-- When asked to overwrite `fly.toml`, say **No** (we already have one).
-- When asked to set up Postgres / Redis, say **No**.
+> If you'd rather keep everything in one repo, you can also point Render at a subdirectory — see step 3.
 
-If the name `code-motion-render-worker` is taken, run with a different `--name` and update the `app =` line in `fly.toml`.
+### 2. Sign in to Render
+Go to https://render.com and sign up / log in (free, GitHub login works).
 
-### 3. Set secrets
-Generate a random secret:
-```bash
-openssl rand -hex 32
-```
-Save the output. Then:
-```bash
-fly secrets set \
-  RENDER_WORKER_SECRET=<paste-the-random-string> \
-  LOVABLE_APP_URL=https://project--adee30b3-ab01-48b5-858a-891d7104de3b.lovable.app \
-  SUPABASE_URL=<your supabase url> \
-  SUPABASE_SERVICE_ROLE_KEY=<your service role key>
-```
+### 3. Create the service
+1. Click **New +** → **Web Service**.
+2. Connect your GitHub account and pick the repo from step 1.
+3. Render will auto-detect the `render.yaml` and `Dockerfile`. Confirm:
+   - **Runtime**: Docker
+   - **Plan**: Standard ($25/mo — needed for Chromium + ffmpeg headroom)
+   - **Region**: pick the closest one
+   - **Branch**: `main`
+   - If you put the worker in a subfolder of a bigger repo, set **Root Directory** to `worker`.
+4. Click **Create Web Service**. The first build takes ~5–8 min (Chromium + ffmpeg image is ~1.5 GB).
 
-You can find `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in your Lovable project under **Cloud → Secrets** (they're already configured there).
+### 4. Set the environment variables
+In the service dashboard → **Environment** → **Add Environment Variable**, add all four:
 
-### 4. Deploy
-```bash
-fly deploy
-```
+| Key | Value |
+|-----|-------|
+| `RENDER_WORKER_SECRET` | Run `openssl rand -hex 32` locally and paste the output. **Save this — you'll give it to Lovable.** |
+| `LOVABLE_APP_URL` | `https://project--adee30b3-ab01-48b5-858a-891d7104de3b.lovable.app` |
+| `SUPABASE_URL` | (from your Lovable Cloud secrets) |
+| `SUPABASE_SERVICE_ROLE_KEY` | (from your Lovable Cloud secrets) |
 
-First deploy takes ~5 minutes (Chromium + ffmpeg image is large).
+Click **Save Changes** — Render will redeploy automatically.
 
 ### 5. Grab your URL
-```bash
-fly status
-```
-Your `Hostname` is the URL — e.g. `code-motion-render-worker.fly.dev`. The full URL you give Lovable is `https://code-motion-render-worker.fly.dev`.
+Top of the service page: e.g. `https://code-motion-render-worker.onrender.com`. That's your `RENDER_WORKER_URL`.
 
 ### 6. Plug back into Lovable
-In the Lovable chat, give me:
-- `RENDER_WORKER_URL` = `https://code-motion-render-worker.fly.dev`
-- `RENDER_WORKER_SECRET` = the random string from step 3
+In the Lovable chat, paste:
+- `RENDER_WORKER_URL` = `https://code-motion-render-worker.onrender.com`
+- `RENDER_WORKER_SECRET` = the random string from step 4
 
 I'll add them as secrets and the Export page will start firing real renders.
 
+---
+
+## Notes about the Render.com free/standard tier
+- The **Standard** plan ($25/mo) keeps the service warm 24/7 — no cold starts.
+- The **Free** plan sleeps after 15 min of inactivity AND has only 512 MB RAM — **not enough** for Remotion + Chromium. Don't use free.
+- If 4K renders crash with OOM, bump the plan to **Pro** (4 GB RAM) in the dashboard.
+
 ## Test locally (optional)
 ```bash
+cd worker
 npm install
-RENDER_WORKER_SECRET=dev LOVABLE_APP_URL=https://project--adee30b3-ab01-48b5-858a-891d7104de3b.lovable.app SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... npm run dev
+RENDER_WORKER_SECRET=dev \
+LOVABLE_APP_URL=https://project--adee30b3-ab01-48b5-858a-891d7104de3b.lovable.app \
+SUPABASE_URL=... \
+SUPABASE_SERVICE_ROLE_KEY=... \
+npm run dev
 curl http://localhost:8080
 ```
-
-## Notes
-- The Fly machine `auto_stop_machines = "stop"` — it sleeps when idle, wakes on the first `/render` call (cold start ~10s).
-- Renders run in the background; the HTTP request returns immediately. Progress is posted back to your app every few seconds.
-- MP4s are uploaded to the `animation-cache` bucket as `renders/<jobId>.mp4` and the public URL is stored on the render job.
