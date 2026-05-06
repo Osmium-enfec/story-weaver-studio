@@ -410,6 +410,7 @@ function ScriptCanvas() {
       rotation: 0,
       color_support: a.color_support,
       tint: null,
+      remove_background: a.provider === "iconscout",
       word: selectedWord,
       occurrence: selectedWord
         ? activeScene.elements.filter((e) => (e.content.word ?? "").toLowerCase() === selectedWord.toLowerCase()).length + 1
