@@ -267,6 +267,7 @@ function ThemeEditor({
             label="Cards"
             items={theme.cards}
             onChange={(items) => onChange({ ...theme, cards: items })}
+            onSelect={onInsertMedia}
           />
         </TabsContent>
 
@@ -275,6 +276,7 @@ function ThemeEditor({
             label="Components"
             items={theme.components}
             onChange={(items) => onChange({ ...theme, components: items })}
+            onSelect={onInsertMedia}
           />
         </TabsContent>
       </Tabs>
