@@ -141,18 +141,21 @@ export async function searchAllAnimations(opts: SearchOpts): Promise<AnimationRe
 export async function uploadLottieFile(file: File): Promise<AnimationResult> {
   const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const path = `${Date.now()}-${safe}`;
+  const isImage = IMAGE_EXT_RE.test(file.name);
   const { error } = await supabase.storage
     .from("lottie-uploads")
-    .upload(path, file, { contentType: file.type || "application/json", upsert: false });
+    .upload(path, file, { contentType: file.type || (isImage ? "image/*" : "application/json"), upsert: false });
   if (error) throw error;
   const { data } = supabase.storage.from("lottie-uploads").getPublicUrl(path);
   return {
     id: `upload:${path}`,
-    provider: "upload",
-    name: file.name.replace(/\.(json|lottie)$/i, ""),
+    provider: isImage ? "image" : "upload",
+    name: file.name.replace(/\.(json|lottie|gif|png|jpe?g|webp|avif|svg)$/i, ""),
     tags: [],
     concepts: [],
-    lottie_url: data.publicUrl,
+    lottie_url: isImage ? null : data.publicUrl,
+    thumbnail_url: isImage ? data.publicUrl : null,
+    video_url: isImage ? data.publicUrl : null,
     color_support: "theme",
   };
 }
