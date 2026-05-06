@@ -17,6 +17,24 @@ import {
 import { PlaybackDialog } from "@/components/PlaybackDialog";
 import type { AnimationResult } from "@/lib/animation-providers";
 import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
+import { proxyImageAsDataUrl } from "@/server/proxy-image.functions";
+
+async function inlineAllImages(root: HTMLElement) {
+  const imgs = Array.from(root.querySelectorAll("img"));
+  await Promise.all(
+    imgs.map(async (img) => {
+      const src = img.getAttribute("src");
+      if (!src || src.startsWith("data:")) return;
+      try {
+        const { dataUrl } = await proxyImageAsDataUrl({ data: { url: src } });
+        img.setAttribute("src", dataUrl);
+        img.setAttribute("crossorigin", "anonymous");
+      } catch {
+        // leave original src; toPng will skip with imagePlaceholder
+      }
+    }),
+  );
+}
 
 export const Route = createFileRoute("/projects/$projectId/script")({
   component: ScriptCanvas,
