@@ -569,6 +569,24 @@ function ScriptCanvas() {
                 <p className="text-xs text-muted-foreground">No script yet. Click Edit to add one.</p>
               )}
             </div>
+            <CanvasAudioEditor
+              sceneId={s.id}
+              projectId={projectId}
+              state={{
+                voice_url: s.voice_url,
+                voice_start_ms: s.voice_start_ms,
+                voice_end_ms: s.voice_end_ms,
+                voice_trim_start_ms: s.voice_trim_start_ms,
+                voice_trim_end_ms: s.voice_trim_end_ms,
+                voice_cuts: s.voice_cuts,
+                voice_volume: s.voice_volume,
+                voice_fade_in_ms: s.voice_fade_in_ms,
+                voice_fade_out_ms: s.voice_fade_out_ms,
+              }}
+              onChange={(patch) =>
+                setScenes((prev) => prev.map((x) => (x.id === s.id ? { ...x, ...patch } : x)))
+              }
+            />
           </div>
         ))}
         <Button variant="outline" className="w-full gap-1.5" onClick={addCanvas}>
@@ -634,6 +652,12 @@ function ScriptCanvas() {
           voice_start_ms: s.voice_start_ms,
           voice_end_ms: s.voice_end_ms,
           word_timings: s.word_timings,
+          voice_trim_start_ms: s.voice_trim_start_ms,
+          voice_trim_end_ms: s.voice_trim_end_ms,
+          voice_cuts: s.voice_cuts,
+          voice_volume: s.voice_volume,
+          voice_fade_in_ms: s.voice_fade_in_ms,
+          voice_fade_out_ms: s.voice_fade_out_ms,
           elements: s.elements.map((e) => ({
             id: e.id,
             content: e.content,
