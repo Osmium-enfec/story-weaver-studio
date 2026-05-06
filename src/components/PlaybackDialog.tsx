@@ -106,14 +106,15 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       setCurrentIdx(idx);
       clearTimers();
 
-      // Build word→elements map for this scene, tracking occurrence
+      // Build word→elements map for this scene, tracking occurrence.
+      // Sequence order = scene.elements order (already z_index-sorted upstream).
       const occurrenceCounter: Record<string, number> = {};
-      const wordMap = new Map<string, string[]>(); // key: word|occurrence -> element ids
-      const unboundIds: string[] = [];
+      const wordMap = new Map<string, string[]>();
+      const unboundIdsBySeq: string[] = [];
       for (const el of scene.elements) {
         const w = el.content.word ? normalize(el.content.word) : "";
         if (!w) {
-          unboundIds.push(el.id);
+          unboundIdsBySeq.push(el.id);
           continue;
         }
         const occ = el.content.occurrence ?? 1;
@@ -123,8 +124,21 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         wordMap.set(key, arr);
       }
 
-      // Start with unbound elements visible immediately
-      setRevealedIds(new Set(unboundIds));
+      // Nothing visible at start; reveals are scheduled below.
+      setRevealedIds(new Set());
+
+      // Schedule unbound elements evenly across `totalMs` in sequence order.
+      const scheduleUnbound = (totalMs: number) => {
+        if (unboundIdsBySeq.length === 0) return;
+        unboundIdsBySeq.forEach((id, i) => {
+          const at = ((i + 1) / (unboundIdsBySeq.length + 1)) * totalMs;
+          const t = setTimeout(() => {
+            if (cancelRef.current) return;
+            setRevealedIds((prev) => new Set(prev).add(id));
+          }, Math.max(0, at));
+          timersRef.current.push(t);
+        });
+      };
 
       const finish = () => {
         if (cancelRef.current) return resolve();
@@ -173,6 +187,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         if (cursor < trimEnd) ranges.push({ start: cursor, end: trimEnd });
 
         const totalAudibleMs = ranges.reduce((sum, r) => sum + (r.end - r.start), 0);
+        scheduleUnbound(totalAudibleMs);
 
         // Schedule word-based reveals using AUDIBLE elapsed time
         // (skip words inside cuts; squeeze remaining timeline)
@@ -286,19 +301,15 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       const hasSpeech = narration.length > 0 && "speechSynthesis" in window;
 
       if (!hasSpeech) {
-        // Stagger reveals over fallback duration
-        const ids = scene.elements.map((e) => e.id);
-        ids.forEach((id, i) => {
-          const t = setTimeout(() => {
-            if (cancelRef.current) return;
-            setRevealedIds((prev) => new Set(prev).add(id));
-          }, ((i + 1) / (ids.length + 1)) * FALLBACK_SCENE_MS);
-          timersRef.current.push(t);
-        });
+        scheduleUnbound(FALLBACK_SCENE_MS);
         const t = setTimeout(finish, Math.max(MIN_REVEAL_MS, FALLBACK_SCENE_MS));
         timersRef.current.push(t);
         return;
       }
+
+      // Estimate narration duration to distribute unbound elements
+      const estimatedMs = Math.max(MIN_REVEAL_MS, narration.length * 60);
+      scheduleUnbound(estimatedMs);
 
       const u = new SpeechSynthesisUtterance(narration);
       u.rate = 1;

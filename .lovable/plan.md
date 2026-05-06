@@ -1,69 +1,74 @@
-## Voice upload + speech-to-text + auto-canvas-split + word→animation mapping
+## Animation sequence panel + word-bound visibility
 
 ### Goal
-On the Voice step, user uploads an audio file. We transcribe it (with word-level timestamps), auto-split it into N canvases by sentence/duration, save narration per scene, store per-scene audio segment, and let users add animations bound to words. Playback uses the real uploaded voice (instead of browser TTS) and reveals each animation exactly when its bound word is spoken.
+Give each canvas an explicit, reorderable animation sequence shown in the right sidebar, and make word-linked animations only appear when their bound word is spoken during playback.
 
-### Provider
-Use **ElevenLabs Scribe v2 batch STT** (already documented). It returns `{ text, words: [{ text, start, end }] }`. Requires `ELEVENLABS_API_KEY` secret — we'll request it after approval.
+### UX
 
-### UX flow
-1. **Voice page** (`projects.$projectId.voice.tsx`) — full implementation:
-   - Drag-drop / file picker for audio (mp3/wav/m4a, ≤25MB).
-   - Upload to `voice-uploads` storage bucket (new, private; signed URLs for playback).
-   - Show waveform + Play/Pause once uploaded.
-   - "Transcribe & build canvases" button → calls server fn → shows progress.
-   - After transcription: preview the script with sentence chunks; user picks **target canvas count** (default = auto, based on sentence count or ~8s per canvas) and clicks "Apply".
-   - Apply replaces existing scenes for the project (with confirm dialog) and pushes the user to the Script step.
-2. **Script page** — already supports per-scene narration, animation binding by word + occurrence. After apply, each scene is pre-populated with its narration text and a `voice_segment` (audio URL + start/end ms within the master file).
-3. **Playback** — `PlaybackDialog` switches: if a scene has `voice_segment`, play the sliced audio (HTMLAudioElement with `currentTime = start`, stop at `end`) and drive word reveals from the **stored word timestamps** instead of `speechSynthesis.onboundary`. Falls back to TTS when no voice.
+**Right sidebar — new "Sequence" tab (placed first)**
+- Lists all elements of the active canvas, top-to-bottom, in playback order.
+- Each row shows:
+  - A leading number badge (1, 2, 3…) — the play order.
+  - Thumbnail/icon + name (Lottie/video/image/text preview).
+  - A small chip when bound to a word: `🔗 "word"` (and occurrence # if >1).
+  - Hover row → highlights the element on the canvas.
+  - Click row → selects that element (same as clicking on canvas).
+  - Trash icon to remove.
+- Drag handle on the left to reorder via drag-and-drop (use `@dnd-kit/core` + `@dnd-kit/sortable`, already common in stack — install if missing).
+- Reordering updates each element's `z_index` (which we reuse as the order index) and persists to DB.
+- Empty state: "No animations yet. Add one from the Animations tab."
 
-### Auto-split algorithm
-Server-side, after STT:
-1. Split `text` into sentences (regex on `.?!` with abbreviation guard).
-2. Map each sentence back to its first/last word in the timestamp list to get `start_ms`, `end_ms`, and the word array.
-3. Greedy-pack sentences into canvases targeting **6–10 s** each (configurable). Never split a sentence.
-4. Result: array of `{ narration, start_ms, end_ms, words: [{text,start,end}] }`.
+**Numbering on canvas**
+- Each placed element on the canvas gets a small number badge (top-left corner) matching its sequence number, visible only in editor mode (not during playback/export). Helps the user correlate the list with what's on screen.
+- Word-bound elements get a 🔗 marker on the badge.
 
-### Database changes (migration)
-- New table `voice_tracks` already exists — extend with `is_master boolean default false` so we can mark the full upload (vs per-scene segments).
-- New columns on `scenes`:
-  - `voice_url text` — URL of master audio (same per scene from one upload).
-  - `voice_start_ms int`, `voice_end_ms int` — slice within master.
-  - `word_timings jsonb` — `[{text,start_ms,end_ms}]` for the scene's words. Used by playback to reveal bound animations on time.
-- New storage bucket `voice-uploads` (private) with RLS allowing the workspace to read/write.
+### Playback rules
 
-### Word → animation mapping
-Already implemented on the canvas side: clicking a word in the script populates the search and elements get `content.word` + `content.occurrence`. With this plan, animation reveal uses `word_timings` for precise timing instead of TTS boundary events. Occurrence counter is computed per scene from `word_timings`.
+In `PlaybackDialog`:
+- **Without voice (TTS or no narration):** elements appear in sequence order. We reveal them at evenly distributed timestamps across the scene duration, except word-bound ones which still wait for the boundary event.
+- **With uploaded voice (`voice_url` + `word_timings`):**
+  - Word-bound elements: appear at the start_ms of their bound word's matching occurrence (already implemented).
+  - Non-bound elements: appear in the order shown in the sequence panel, distributed across the gaps between/around bound elements — never overlap a bound reveal. Concretely: take the bound elements' reveal times as anchors, then place unbound elements evenly in the remaining timeline slots in their sequence order.
+- Elements never appear before their turn — initial render of a scene shows only elements whose reveal time ≤ 0 (i.e. nothing until the first cue), unlike today where everything is visible immediately.
 
-### Files to add / change
+### Data model
 
-**New**
-- `supabase/migrations/<ts>_voice_uploads.sql` — bucket + RLS + new scene columns.
-- `src/server/voice.functions.ts`
-  - `uploadVoiceUrl()` — returns signed upload URL (or just lets client use supabase-js storage).
-  - `transcribeAndSplit({ projectId, voiceUrl, targetCanvasCount? })` — calls ElevenLabs, splits, deletes old scenes/elements for the project, inserts new scenes with narration + voice slice + word_timings, returns the new scene list.
-- `src/lib/sentence-split.ts` — pure helper for sentence segmentation + greedy packing (unit-testable).
-- `src/components/Waveform.tsx` — light waveform via `<audio>` + canvas (no extra deps; or use `wavesurfer.js` if approved).
+Reuse the existing `scene_elements.z_index` column as the canonical order field (it already drives query order). No migration required.
+- Reorder = bulk update of `z_index` for affected rows in the active scene.
+- New element insert keeps the current behavior: appended at end (`z_index = elements.length`).
+- Delete: remaining elements get re-numbered client-side; we persist new z_indexes.
 
-**Edited**
-- `src/routes/projects.$projectId.voice.tsx` — full UI replacing placeholder.
-- `src/routes/projects.$projectId.script.tsx` — when scene has `voice_url`, hide the manual narration textarea's "Done" save behaviour (still editable but won't change timings); show a small "Voice synced" badge.
-- `src/components/PlaybackDialog.tsx` — voice-driven playback path:
-  - If `scene.voice_url` exists: create one shared `<audio>` element, `currentTime = voice_start_ms/1000`, schedule reveals via `setTimeout` from `word_timings` (relative to scene start), advance to next scene at `voice_end_ms`.
-  - Else: keep current TTS path.
-- `src/lib/db-types.ts` — add the new scene fields to `Scene`.
+If we later need separate stacking vs. play order, we'd add `play_order` — but for now the user's mental model treats them as one.
 
-### Secrets
-Need `ELEVENLABS_API_KEY`. After plan approval, I'll request it via `add_secret` (with link to elevenlabs.io/app/settings/api-keys) and won't proceed with the server fn until it's set.
+### Files to change
 
-### Tech notes (technical section)
-- Server fn uses `requireSupabaseAuth` + admin client only for the bulk delete/insert of scenes (workspace-scoped).
-- Audio is uploaded directly from the browser to Storage (no payload through the worker — ElevenLabs is called server-side with a fetched stream from the signed URL).
-- ElevenLabs response is large; we only persist `{text,start_ms,end_ms}` per word per scene, not the full payload.
-- For the master-audio approach we don't physically slice the file — we just store offsets and seek the `<audio>` element at playback. Cheap, fast, no ffmpeg needed in the worker.
+- `src/routes/projects.$projectId.script.tsx`
+  - Add Sequence tab as first `TabsTrigger`/`TabsContent` in the right sidebar.
+  - New component `SequencePanel` (inline or extracted) rendering the sortable list.
+  - `reorderElements(sceneId, newOrderIds[])` helper: updates state + bulk-updates z_index in DB.
+  - Render numbered badges on each placed element on the canvas (small absolute-positioned chip).
+  - Pass sequence info into `PlaybackDialog` (already implicit via `elements` order).
 
-### Out of scope (future)
-- Per-scene re-recording / trimming.
-- AI synonym matching (word "explain" reveals an "explanation" animation).
-- SRT export from `word_timings`.
-- Auto-suggesting animations from the transcript.
+- `src/components/SequencePanel.tsx` (new)
+  - Sortable list using `@dnd-kit/sortable`.
+  - Props: `elements`, `selectedId`, `onSelect`, `onReorder(ids)`, `onRemove(id)`.
+
+- `src/components/PlaybackDialog.tsx`
+  - Build a per-scene reveal schedule:
+    1. Sort elements by sequence (their incoming order).
+    2. Compute reveal_ms for each: bound → word match time; unbound → distributed in remaining slots.
+    3. Render only elements whose reveal_ms ≤ currentTime.
+  - Replace current "show all from frame 0" behavior with this gated rendering.
+
+- `package.json`: add `@dnd-kit/core` and `@dnd-kit/sortable` if not already installed.
+
+### Out of scope
+- Per-element duration / hide-after timing (elements stay visible until end of scene).
+- Cross-scene sequencing.
+- Animating the reveal itself beyond the existing element animation (could add a fade-in next pass).
+
+### Open question (will ask before building)
+For unbound elements during voice playback, two reasonable distributions:
+A) Spread evenly across the scene (ignoring bound anchors).
+B) Place into the gaps between bound elements proportionally.
+Default to (A) unless you prefer (B).
