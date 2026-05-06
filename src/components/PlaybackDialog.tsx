@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { AnimationBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
 import { BackgroundLayer, type SceneBackground } from "@/components/BackgroundPicker";
@@ -16,36 +16,42 @@ export interface PlaybackScene {
   id: string;
   background: SceneBackground;
   elements: PlaybackElement[];
+  narration?: string;
 }
 
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  script: string;
+  script?: string;
   scenes: PlaybackScene[];
-  /** Original canvas pixel size when elements were placed */
   canvasSize: { w: number; h: number };
 }
 
-const SCENE_DURATION_MS = 3500;
+const FALLBACK_SCENE_MS = 3500;
 const TRANSITION_MS = 600;
+const MIN_REVEAL_MS = 1200;
 
-export function PlaybackDialog({ open, onOpenChange, script, scenes, canvasSize }: Props) {
+function normalize(w: string) {
+  return w.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+}
+
+export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props) {
   const [playing, setPlaying] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
-  const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
   const stageRef = useRef<HTMLDivElement>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [scale, setScale] = useState(1);
+  const cancelRef = useRef(false);
 
   useEffect(() => {
     if (!open) {
       window.speechSynthesis?.cancel();
+      cancelRef.current = true;
       setPlaying(false);
       setCurrentIdx(0);
       setTransitioning(false);
-      if (timerRef.current) clearTimeout(timerRef.current);
+      setRevealedIds(new Set());
     }
   }, [open]);
 
@@ -63,38 +69,107 @@ export function PlaybackDialog({ open, onOpenChange, script, scenes, canvasSize 
     return () => window.removeEventListener("resize", update);
   }, [open, canvasSize.w, canvasSize.h]);
 
-  function advance(from: number) {
-    if (from + 1 >= scenes.length) {
-      setPlaying(false);
-      return;
-    }
-    setTransitioning(true);
-    timerRef.current = setTimeout(() => {
-      setCurrentIdx(from + 1);
-      setTransitioning(false);
-      timerRef.current = setTimeout(() => advance(from + 1), SCENE_DURATION_MS);
-    }, TRANSITION_MS);
+  function playScene(idx: number): Promise<void> {
+    return new Promise((resolve) => {
+      if (cancelRef.current) return resolve();
+      const scene = scenes[idx];
+      if (!scene) return resolve();
+      setCurrentIdx(idx);
+
+      // Build word→elements map for this scene, tracking occurrence
+      const occurrenceCounter: Record<string, number> = {};
+      const wordMap = new Map<string, string[]>(); // key: word|occurrence -> element ids
+      const unboundIds: string[] = [];
+      for (const el of scene.elements) {
+        const w = el.content.word ? normalize(el.content.word) : "";
+        if (!w) {
+          unboundIds.push(el.id);
+          continue;
+        }
+        const occ = el.content.occurrence ?? 1;
+        const key = `${w}|${occ}`;
+        const arr = wordMap.get(key) ?? [];
+        arr.push(el.id);
+        wordMap.set(key, arr);
+      }
+
+      // Start with unbound elements visible immediately
+      setRevealedIds(new Set(unboundIds));
+
+      const narration = (scene.narration ?? "").trim();
+      const hasSpeech = narration.length > 0 && "speechSynthesis" in window;
+
+      const finish = () => {
+        if (cancelRef.current) return resolve();
+        // Reveal everything at the end before transitioning
+        setRevealedIds(new Set(scene.elements.map((e) => e.id)));
+        setTimeout(() => {
+          if (cancelRef.current) return resolve();
+          if (idx + 1 < scenes.length) {
+            setTransitioning(true);
+            setTimeout(() => {
+              setTransitioning(false);
+              playScene(idx + 1).then(resolve);
+            }, TRANSITION_MS);
+          } else {
+            resolve();
+          }
+        }, 400);
+      };
+
+      if (!hasSpeech) {
+        // Stagger reveals over fallback duration
+        const ids = scene.elements.map((e) => e.id);
+        ids.forEach((id, i) => {
+          setTimeout(() => {
+            if (cancelRef.current) return;
+            setRevealedIds((prev) => new Set(prev).add(id));
+          }, ((i + 1) / (ids.length + 1)) * FALLBACK_SCENE_MS);
+        });
+        setTimeout(finish, Math.max(MIN_REVEAL_MS, FALLBACK_SCENE_MS));
+        return;
+      }
+
+      const u = new SpeechSynthesisUtterance(narration);
+      u.rate = 1;
+      u.onboundary = (ev: SpeechSynthesisEvent) => {
+        if (ev.name && ev.name !== "word") return;
+        // Extract spoken word at charIndex
+        const tail = narration.slice(ev.charIndex);
+        const m = tail.match(/[A-Za-z][A-Za-z0-9_-]*/);
+        if (!m) return;
+        const word = normalize(m[0]);
+        occurrenceCounter[word] = (occurrenceCounter[word] ?? 0) + 1;
+        const occ = occurrenceCounter[word];
+        const ids = wordMap.get(`${word}|${occ}`) ?? wordMap.get(`${word}|1`) ?? [];
+        if (ids.length === 0) return;
+        setRevealedIds((prev) => {
+          const next = new Set(prev);
+          ids.forEach((id) => next.add(id));
+          return next;
+        });
+      };
+      u.onend = finish;
+      u.onerror = finish;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    });
   }
 
   function start() {
     if (scenes.length === 0) return toast.error("Add a canvas first");
-    setCurrentIdx(0);
-    setTransitioning(false);
+    cancelRef.current = false;
     setPlaying(true);
-    if (script.trim() && "speechSynthesis" in window) {
-      const u = new SpeechSynthesisUtterance(script);
-      u.rate = 1;
-      utterRef.current = u;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
-    }
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => advance(0), SCENE_DURATION_MS);
+    setCurrentIdx(0);
+    setRevealedIds(new Set());
+    playScene(0).then(() => {
+      setPlaying(false);
+    });
   }
 
   function stop() {
+    cancelRef.current = true;
     window.speechSynthesis?.cancel();
-    if (timerRef.current) clearTimeout(timerRef.current);
     setPlaying(false);
     setTransitioning(false);
   }
@@ -124,21 +199,27 @@ export function PlaybackDialog({ open, onOpenChange, script, scenes, canvasSize 
               }}
             >
               {current && <BackgroundLayer background={current.background} />}
-              {current?.elements.map((el) => (
-                <div
-                  key={el.id}
-                  style={{
-                    position: "absolute",
-                    left: el.position.x,
-                    top: el.position.y,
-                    width: el.position.w,
-                    height: el.position.h,
-                    zIndex: el.z_index,
-                  }}
-                >
-                  <AnimationBlockRenderer content={el.content} />
-                </div>
-              ))}
+              {current?.elements.map((el) => {
+                const visible = revealedIds.has(el.id);
+                return (
+                  <div
+                    key={el.id}
+                    style={{
+                      position: "absolute",
+                      left: el.position.x,
+                      top: el.position.y,
+                      width: el.position.w,
+                      height: el.position.h,
+                      zIndex: el.z_index,
+                      opacity: visible ? 1 : 0,
+                      transform: visible ? "scale(1)" : "scale(0.92)",
+                      transition: "opacity 350ms ease, transform 350ms ease",
+                    }}
+                  >
+                    <AnimationBlockRenderer content={el.content} />
+                  </div>
+                );
+              })}
             </div>
           </div>
           <div className="flex items-center justify-between gap-2">
