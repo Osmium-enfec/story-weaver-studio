@@ -13,6 +13,7 @@ import { toolbarStore } from "@/components/toolbar-store";
 import { AnimationSearchPanel } from "@/components/AnimationSearchPanel";
 import { AnimationBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
 import { BackgroundPicker, BackgroundLayer, type SceneBackground } from "@/components/BackgroundPicker";
+import { ThemeBuilder } from "@/components/ThemeBuilder";
 import { PlaybackDialog } from "@/components/PlaybackDialog";
 import type { AnimationResult } from "@/lib/animation-providers";
 import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
@@ -655,9 +656,10 @@ function ScriptCanvas() {
           style={{ top: "4.5rem", height: "calc(100vh - 5.5rem)" }}
         >
           <Tabs defaultValue="animations" className="flex h-full min-h-0 flex-col">
-            <TabsList className="m-3 grid shrink-0 grid-cols-2">
+            <TabsList className="m-3 grid shrink-0 grid-cols-3">
               <TabsTrigger value="animations">Animations</TabsTrigger>
               <TabsTrigger value="background">Background</TabsTrigger>
+              <TabsTrigger value="theme">Theme</TabsTrigger>
             </TabsList>
             <TabsContent value="animations" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
               <div className="shrink-0 border-b border-border px-4 py-2">
@@ -689,6 +691,9 @@ function ScriptCanvas() {
                   </Button>
                 </div>
               )}
+            </TabsContent>
+            <TabsContent value="theme" className="m-0 min-h-0 flex-1 overflow-hidden border-t border-border">
+              <ThemeBuilder />
             </TabsContent>
           </Tabs>
         </div>
