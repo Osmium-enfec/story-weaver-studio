@@ -10,10 +10,7 @@ import { toast } from "sonner";
 import { Pencil, Save, Trash2 } from "lucide-react";
 import { toolbarStore } from "@/components/toolbar-store";
 import { AnimationSearchPanel } from "@/components/AnimationSearchPanel";
-import {
-  AnimationBlockRenderer,
-  type AnimationBlockContent,
-} from "@/components/AnimationBlock";
+import { AnimationBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
 import { PlaybackDialog } from "@/components/PlaybackDialog";
 import type { AnimationResult } from "@/lib/animation-providers";
 import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
@@ -99,7 +96,9 @@ function ScriptCanvas() {
       // Inline all remote images to avoid tainted-canvas errors
       await inlineAllImages(node);
       setIsPlaying(true);
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
 
       const totalMs = 4000;
       const start = performance.now();
