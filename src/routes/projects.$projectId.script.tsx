@@ -64,6 +64,8 @@ function ScriptCanvas() {
   const [scenes, setScenes] = useState<SceneRow[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [selectedWord, setSelectedWord] = useState<string | null>(null);
+  const [editingScript, setEditingScript] = useState<Record<string, boolean>>({});
   const canvasRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const narrationTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [isPlaying, setIsPlaying] = useState(false);
@@ -312,8 +314,10 @@ function ScriptCanvas() {
       rotation: 0,
       color_support: a.color_support,
       tint: null,
-      word: null,
-      occurrence: null,
+      word: selectedWord,
+      occurrence: selectedWord
+        ? activeScene.elements.filter((e) => (e.content.word ?? "").toLowerCase() === selectedWord.toLowerCase()).length + 1
+        : null,
     };
     const { data, error } = await supabase
       .from("scene_elements")
@@ -429,15 +433,43 @@ function ScriptCanvas() {
             </div>
             {/* Per-canvas script */}
             <div className="border-t border-border p-3">
-              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Script for Canvas {idx + 1}
-              </label>
-              <Textarea
-                value={s.narration}
-                onChange={(e) => updateNarration(s.id, e.target.value)}
-                placeholder="What is narrated while this canvas plays…"
-                className="min-h-[80px] resize-y text-sm"
-              />
+              <div className="mb-1 flex items-center justify-between">
+                <label className="block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Script for Canvas {idx + 1}
+                  {idx === activeIdx && selectedWord && (
+                    <span className="ml-2 normal-case text-primary">· {selectedWord}</span>
+                  )}
+                </label>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingScript((m) => ({ ...m, [s.id]: !m[s.id] }));
+                  }}
+                >
+                  {editingScript[s.id] ? "Done" : "Edit"}
+                </Button>
+              </div>
+              {editingScript[s.id] ? (
+                <Textarea
+                  value={s.narration}
+                  onChange={(e) => updateNarration(s.id, e.target.value)}
+                  placeholder="What is narrated while this canvas plays…"
+                  className="min-h-[80px] resize-y text-sm"
+                />
+              ) : s.narration ? (
+                <div className="rounded-md bg-muted/30 p-2 text-sm leading-7">
+                  <ClickableScript
+                    text={s.narration}
+                    selected={idx === activeIdx ? selectedWord : null}
+                    onWordClick={(w) => { setActiveIdx(idx); setSelectedWord(w); }}
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">No script yet. Click Edit to add one.</p>
+              )}
             </div>
           </div>
         ))}
@@ -509,5 +541,48 @@ function ScriptCanvas() {
         canvasSize={canvasSize}
       />
     </div>
+  );
+}
+
+const WORD_RE = /[A-Za-z][A-Za-z0-9_-]*/g;
+
+function ClickableScript({
+  text,
+  selected,
+  onWordClick,
+}: {
+  text: string;
+  selected: string | null;
+  onWordClick: (w: string) => void;
+}) {
+  const tokens: { word: boolean; text: string }[] = [];
+  let last = 0;
+  for (const m of text.matchAll(WORD_RE)) {
+    const idx = m.index ?? 0;
+    if (idx > last) tokens.push({ word: false, text: text.slice(last, idx) });
+    tokens.push({ word: true, text: m[0] });
+    last = idx + m[0].length;
+  }
+  if (last < text.length) tokens.push({ word: false, text: text.slice(last) });
+  return (
+    <p className="whitespace-pre-wrap">
+      {tokens.map((t, i) =>
+        t.word ? (
+          <button
+            key={i}
+            onClick={(e) => { e.stopPropagation(); onWordClick(t.text); }}
+            className={`rounded px-0.5 transition ${
+              selected?.toLowerCase() === t.text.toLowerCase()
+                ? "bg-primary/20 text-primary font-semibold"
+                : "hover:bg-muted"
+            }`}
+          >
+            {t.text}
+          </button>
+        ) : (
+          <span key={i}>{t.text}</span>
+        ),
+      )}
+    </p>
   );
 }
