@@ -177,7 +177,7 @@ function MediaGallery({
           type="file"
           multiple
           className="hidden"
-          accept="image/*,video/*,.lottie,.json,application/json"
+          accept="image/*,video/*,.gif,.png,.jpg,.jpeg,.webp,.avif,.svg,.lottie,.json,application/json"
           disabled={busy}
           onChange={(e) => {
             if (e.target.files?.length) void handleUpload(e.target.files);
