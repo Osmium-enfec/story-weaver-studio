@@ -386,9 +386,15 @@ export type Database = {
           transition: string
           updated_at: string
           visual_brief: string
+          voice_cuts: Json
           voice_end_ms: number | null
+          voice_fade_in_ms: number
+          voice_fade_out_ms: number
           voice_start_ms: number | null
+          voice_trim_end_ms: number | null
+          voice_trim_start_ms: number
           voice_url: string | null
+          voice_volume: number
           word_timings: Json
           workspace_id: string
         }
@@ -406,9 +412,15 @@ export type Database = {
           transition?: string
           updated_at?: string
           visual_brief?: string
+          voice_cuts?: Json
           voice_end_ms?: number | null
+          voice_fade_in_ms?: number
+          voice_fade_out_ms?: number
           voice_start_ms?: number | null
+          voice_trim_end_ms?: number | null
+          voice_trim_start_ms?: number
           voice_url?: string | null
+          voice_volume?: number
           word_timings?: Json
           workspace_id?: string
         }
@@ -426,9 +438,15 @@ export type Database = {
           transition?: string
           updated_at?: string
           visual_brief?: string
+          voice_cuts?: Json
           voice_end_ms?: number | null
+          voice_fade_in_ms?: number
+          voice_fade_out_ms?: number
           voice_start_ms?: number | null
+          voice_trim_end_ms?: number | null
+          voice_trim_start_ms?: number
           voice_url?: string | null
+          voice_volume?: number
           word_timings?: Json
           workspace_id?: string
         }

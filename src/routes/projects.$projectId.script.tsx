@@ -17,6 +17,7 @@ import { PlaybackDialog } from "@/components/PlaybackDialog";
 import type { AnimationResult } from "@/lib/animation-providers";
 import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
 import { proxyImageAsDataUrl } from "@/server/proxy-image.functions";
+import { CanvasAudioEditor } from "@/components/CanvasAudioEditor";
 
 async function inlineAllImages(root: HTMLElement) {
   const imgs = Array.from(root.querySelectorAll("img"));
@@ -58,6 +59,12 @@ interface SceneRow {
   voice_start_ms: number | null;
   voice_end_ms: number | null;
   word_timings: { text: string; start_ms: number; end_ms: number }[];
+  voice_trim_start_ms: number;
+  voice_trim_end_ms: number | null;
+  voice_cuts: { start_ms: number; end_ms: number }[];
+  voice_volume: number;
+  voice_fade_in_ms: number;
+  voice_fade_out_ms: number;
 }
 
 const DEFAULT_BG: SceneBackground = { type: "color", value: "#ffffff" };
@@ -238,7 +245,7 @@ function ScriptCanvas() {
     (async () => {
       const { data: rows } = await supabase
         .from("scenes")
-        .select("id, order_index, background, narration, voice_url, voice_start_ms, voice_end_ms, word_timings")
+        .select("id, order_index, background, narration, voice_url, voice_start_ms, voice_end_ms, word_timings, voice_trim_start_ms, voice_trim_end_ms, voice_cuts, voice_volume, voice_fade_in_ms, voice_fade_out_ms")
         .eq("project_id", projectId)
         .order("order_index");
       let sceneRows = (rows ?? []) as {
@@ -250,6 +257,12 @@ function ScriptCanvas() {
         voice_start_ms: number | null;
         voice_end_ms: number | null;
         word_timings: { text: string; start_ms: number; end_ms: number }[] | null;
+        voice_trim_start_ms: number | null;
+        voice_trim_end_ms: number | null;
+        voice_cuts: { start_ms: number; end_ms: number }[] | null;
+        voice_volume: number | null;
+        voice_fade_in_ms: number | null;
+        voice_fade_out_ms: number | null;
       }[];
 
       if (sceneRows.length === 0) {
@@ -263,7 +276,7 @@ function ScriptCanvas() {
             detected_concepts: [],
             duration_ms: 8000,
           })
-          .select("id, order_index, background, narration, voice_url, voice_start_ms, voice_end_ms, word_timings")
+          .select("id, order_index, background, narration, voice_url, voice_start_ms, voice_end_ms, word_timings, voice_trim_start_ms, voice_trim_end_ms, voice_cuts, voice_volume, voice_fade_in_ms, voice_fade_out_ms")
           .single();
         if (error) return toast.error(error.message);
         sceneRows = [created as never];
@@ -291,6 +304,12 @@ function ScriptCanvas() {
           voice_start_ms: s.voice_start_ms,
           voice_end_ms: s.voice_end_ms,
           word_timings: s.word_timings ?? [],
+          voice_trim_start_ms: s.voice_trim_start_ms ?? 0,
+          voice_trim_end_ms: s.voice_trim_end_ms,
+          voice_cuts: s.voice_cuts ?? [],
+          voice_volume: s.voice_volume ?? 1,
+          voice_fade_in_ms: s.voice_fade_in_ms ?? 0,
+          voice_fade_out_ms: s.voice_fade_out_ms ?? 0,
         })),
       );
       setActiveIdx(0);
@@ -328,6 +347,12 @@ function ScriptCanvas() {
         voice_start_ms: null,
         voice_end_ms: null,
         word_timings: [],
+        voice_trim_start_ms: 0,
+        voice_trim_end_ms: null,
+        voice_cuts: [],
+        voice_volume: 1,
+        voice_fade_in_ms: 0,
+        voice_fade_out_ms: 0,
       },
     ]);
     setActiveIdx(scenes.length);
@@ -544,6 +569,24 @@ function ScriptCanvas() {
                 <p className="text-xs text-muted-foreground">No script yet. Click Edit to add one.</p>
               )}
             </div>
+            <CanvasAudioEditor
+              sceneId={s.id}
+              projectId={projectId}
+              state={{
+                voice_url: s.voice_url,
+                voice_start_ms: s.voice_start_ms,
+                voice_end_ms: s.voice_end_ms,
+                voice_trim_start_ms: s.voice_trim_start_ms,
+                voice_trim_end_ms: s.voice_trim_end_ms,
+                voice_cuts: s.voice_cuts,
+                voice_volume: s.voice_volume,
+                voice_fade_in_ms: s.voice_fade_in_ms,
+                voice_fade_out_ms: s.voice_fade_out_ms,
+              }}
+              onChange={(patch) =>
+                setScenes((prev) => prev.map((x) => (x.id === s.id ? { ...x, ...patch } : x)))
+              }
+            />
           </div>
         ))}
         <Button variant="outline" className="w-full gap-1.5" onClick={addCanvas}>
@@ -609,6 +652,12 @@ function ScriptCanvas() {
           voice_start_ms: s.voice_start_ms,
           voice_end_ms: s.voice_end_ms,
           word_timings: s.word_timings,
+          voice_trim_start_ms: s.voice_trim_start_ms,
+          voice_trim_end_ms: s.voice_trim_end_ms,
+          voice_cuts: s.voice_cuts,
+          voice_volume: s.voice_volume,
+          voice_fade_in_ms: s.voice_fade_in_ms,
+          voice_fade_out_ms: s.voice_fade_out_ms,
           elements: s.elements.map((e) => ({
             id: e.id,
             content: e.content,
