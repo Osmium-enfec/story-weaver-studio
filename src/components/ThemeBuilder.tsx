@@ -112,10 +112,12 @@ function MediaGallery({
   label,
   items,
   onChange,
+  onSelect,
 }: {
   label: string;
   items: MediaItem[];
   onChange: (items: MediaItem[]) => void;
+  onSelect?: (item: MediaItem) => void;
 }) {
   const [busy, setBusy] = useState(false);
 
