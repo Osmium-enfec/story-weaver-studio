@@ -125,7 +125,10 @@ export function AnimationBlockRenderer({
 
   if (content.provider === "iconscout" && content.video_url) {
     return (
-      <div style={{ ...wrapperStyle, isolation: "isolate" }} className="pointer-events-none">
+      <div
+        style={{ ...wrapperStyle, isolation: "isolate", overflow: "hidden" }}
+        className="pointer-events-none"
+      >
         {content.remove_background && <WhiteKeyFilterDef />}
         <video
           src={content.video_url}
@@ -135,8 +138,10 @@ export function AnimationBlockRenderer({
           muted
           playsInline
           style={{
-            width: "100%",
-            height: "100%",
+            width: "104%",
+            height: "104%",
+            marginLeft: "-2%",
+            marginTop: "-2%",
             objectFit: "contain",
             opacity: 0,
             animation: "anim-block-fade-in 180ms ease-out 80ms forwards",
