@@ -1,0 +1,27 @@
+{
+  "name": "code-motion-render-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx/esm src/server.ts",
+    "dev": "node --import tsx/esm --watch src/server.ts"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.0",
+    "@remotion/renderer": "^4.0.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "express": "^4.21.0",
+    "remotion": "^4.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsx": "^4.19.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "typescript": "^5.5.0"
+  }
+}
