@@ -1,6 +1,6 @@
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Download, Loader2, RefreshCw } from "lucide-react";
+import { Download, Loader2, RefreshCw, Film } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -8,6 +8,9 @@ import {
   enqueueRenderJob,
   listRenderJobs,
 } from "@/server/render-jobs.functions";
+import { supabase } from "@/integrations/supabase/client";
+import type { Scene } from "@/lib/db-types";
+import { renderInBrowser } from "@/lib/browser-render";
 
 export const Route = createFileRoute("/projects/$projectId/export")({
   component: ExportPage,
@@ -36,6 +39,45 @@ function ExportPage() {
   const [loading, setLoading] = useState(false);
   const [enqueuing, setEnqueuing] = useState(false);
   const [resolution, setResolution] = useState<"720p" | "1080p" | "4k">("1080p");
+  const [browserRendering, setBrowserRendering] = useState(false);
+  const [browserProgress, setBrowserProgress] = useState(0);
+
+  async function startBrowserRender() {
+    setBrowserRendering(true);
+    setBrowserProgress(0);
+    try {
+      const { data, error } = await supabase
+        .from("scenes")
+        .select("*")
+        .eq("project_id", projectId)
+        .order("order_index");
+      if (error) throw error;
+      const scenes = (data ?? []) as Scene[];
+      if (!scenes.length) throw new Error("No scenes to render");
+
+      const blob = await renderInBrowser({
+        scenes,
+        width: 1920,
+        height: 1080,
+        fps: 30,
+        onProgress: setBrowserProgress,
+      });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `render-${Date.now()}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Render downloaded");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBrowserRendering(false);
+    }
+  }
 
   async function refresh() {
     setLoading(true);
@@ -84,6 +126,40 @@ function ExportPage() {
           Renders run on the backend worker with full audio. Keep editing while
           they bake — the file appears here when done.
         </p>
+      </div>
+
+      <div className="rounded-lg border bg-card p-4 space-y-3">
+        <div className="flex items-start gap-3">
+          <Film className="h-5 w-5 mt-0.5 text-primary" />
+          <div className="flex-1">
+            <h3 className="font-medium">Quick render in browser</h3>
+            <p className="text-sm text-muted-foreground">
+              Renders 1080p WebM directly in your browser — no backend needed.
+              Lower quality, no audio. Keep this tab open until done.
+            </p>
+          </div>
+        </div>
+        {browserRendering && (
+          <div className="h-1.5 w-full rounded bg-muted overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${browserProgress}%` }}
+            />
+          </div>
+        )}
+        <Button onClick={startBrowserRender} disabled={browserRendering}>
+          {browserRendering ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              Rendering… {browserProgress}%
+            </>
+          ) : (
+            <>
+              <Download className="h-4 w-4 mr-2" />
+              Render &amp; download (1080p WebM)
+            </>
+          )}
+        </Button>
       </div>
 
       <div className="rounded-lg border bg-card p-4 space-y-3">
