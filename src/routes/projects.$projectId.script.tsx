@@ -438,6 +438,7 @@ function ScriptCanvas() {
           z_index: e.z_index,
         }))}
         canvasSize={canvasSize}
+        background={background}
       />
     </div>
   );
