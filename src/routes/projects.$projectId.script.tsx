@@ -179,11 +179,14 @@ function ScriptCanvas() {
     (async () => {
       const { data: existing } = await supabase
         .from("scenes")
-        .select("id")
+        .select("id, background")
         .eq("project_id", projectId)
         .order("order_index")
         .limit(1);
       let id = existing?.[0]?.id as string | undefined;
+      if (existing?.[0]?.background) {
+        setBackground(existing[0].background as unknown as SceneBackground);
+      }
       if (!id) {
         const { data: created, error } = await supabase
           .from("scenes")
