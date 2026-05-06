@@ -129,6 +129,40 @@ function ExportPage() {
       </div>
 
       <div className="rounded-lg border bg-card p-4 space-y-3">
+        <div className="flex items-start gap-3">
+          <Film className="h-5 w-5 mt-0.5 text-primary" />
+          <div className="flex-1">
+            <h3 className="font-medium">Quick render in browser</h3>
+            <p className="text-sm text-muted-foreground">
+              Renders 1080p WebM directly in your browser — no backend needed.
+              Lower quality, no audio. Keep this tab open until done.
+            </p>
+          </div>
+        </div>
+        {browserRendering && (
+          <div className="h-1.5 w-full rounded bg-muted overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${browserProgress}%` }}
+            />
+          </div>
+        )}
+        <Button onClick={startBrowserRender} disabled={browserRendering}>
+          {browserRendering ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              Rendering… {browserProgress}%
+            </>
+          ) : (
+            <>
+              <Download className="h-4 w-4 mr-2" />
+              Render &amp; download (1080p WebM)
+            </>
+          )}
+        </Button>
+      </div>
+
+      <div className="rounded-lg border bg-card p-4 space-y-3">
         <div className="flex items-center gap-3">
           <label className="text-sm font-medium">Resolution</label>
           <div className="flex gap-1">
