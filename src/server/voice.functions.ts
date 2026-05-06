@@ -209,3 +209,81 @@ export const transcribeAndSplit = createServerFn({ method: "POST" })
       durationMs: totalMs,
     };
   });
+
+/**
+ * Re-transcribe a single audio clip (already uploaded) and update one scene's
+ * narration / word_timings / voice_url. Used when a user re-records or
+ * re-uploads audio for a specific canvas, or trims/cuts and wants timings
+ * resynced.
+ */
+export const transcribeClip = createServerFn({ method: "POST" })
+  .inputValidator((d: { sceneId: string; voiceUrl: string; storagePath: string; durationMs?: number }) =>
+    z
+      .object({
+        sceneId: z.string().uuid(),
+        voiceUrl: z.string().url(),
+        storagePath: z.string().min(1),
+        durationMs: z.number().int().positive().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
+
+    const admin = getAdmin();
+    const { data: blob, error: dlErr } = await admin.storage
+      .from("voice-uploads")
+      .download(data.storagePath);
+    if (dlErr || !blob) throw new Error(`Failed to download audio: ${dlErr?.message ?? "unknown"}`);
+
+    const form = new FormData();
+    const filename = data.storagePath.split("/").pop() ?? "clip.webm";
+    form.append("file", blob, filename);
+    form.append("model", "whisper-1");
+    form.append("response_format", "verbose_json");
+    form.append("timestamp_granularities[]", "word");
+
+    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`Whisper API failed [${res.status}]: ${txt}`);
+    }
+    const tr = (await res.json()) as {
+      text: string;
+      duration?: number;
+      words?: { word: string; start: number; end: number }[];
+    };
+
+    const words: WordTiming[] = (tr.words ?? []).map((w) => ({
+      text: w.word.trim(),
+      start_ms: Math.round(w.start * 1000),
+      end_ms: Math.round(w.end * 1000),
+    }));
+    const totalMs =
+      data.durationMs ??
+      Math.round((tr.duration ?? 0) * 1000) ??
+      (words.at(-1)?.end_ms ?? 0);
+
+    const { error: upErr } = await admin
+      .from("scenes")
+      .update({
+        voice_url: data.voiceUrl,
+        voice_start_ms: 0,
+        voice_end_ms: totalMs,
+        voice_trim_start_ms: 0,
+        voice_trim_end_ms: null,
+        voice_cuts: [] as unknown as never,
+        word_timings: words as unknown as never,
+        narration: tr.text,
+        duration_ms: Math.max(1000, totalMs),
+      })
+      .eq("id", data.sceneId);
+    if (upErr) throw new Error(`Failed to update scene: ${upErr.message}`);
+
+    return { transcript: tr.text, durationMs: totalMs, wordCount: words.length };
+  });
