@@ -539,7 +539,7 @@ function ScriptCanvas() {
                           <button
                             onClick={(e) => { e.stopPropagation(); void toggleElementBackground(s.id, el.id); }}
                             title={el.content.remove_background ? "Restore background" : "Remove background"}
-                            className={`absolute -right-10 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full shadow ${
+                            className={`absolute right-6 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full shadow ${
                               el.content.remove_background
                                 ? "bg-primary text-primary-foreground"
                                 : "bg-card text-foreground border border-border"
