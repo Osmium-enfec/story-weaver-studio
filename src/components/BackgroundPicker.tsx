@@ -18,6 +18,10 @@ export type SceneBackground =
 interface Props {
   value: SceneBackground;
   onChange: (bg: SceneBackground) => void;
+  /** Render inline (panel) instead of as a popover button */
+  inline?: boolean;
+  applyToAll?: boolean;
+  onApplyToAllChange?: (v: boolean) => void;
 }
 
 const COLORS = [
