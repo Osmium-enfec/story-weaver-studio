@@ -64,6 +64,8 @@ function ScriptCanvas() {
   const [scenes, setScenes] = useState<SceneRow[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [selectedWord, setSelectedWord] = useState<string | null>(null);
+  const [editingScript, setEditingScript] = useState<Record<string, boolean>>({});
   const canvasRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const narrationTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [isPlaying, setIsPlaying] = useState(false);
