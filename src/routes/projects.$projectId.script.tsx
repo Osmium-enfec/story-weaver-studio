@@ -98,6 +98,26 @@ function ScriptCanvas() {
     return () => clearTimeout(t);
   }, [isPlaying]);
 
+  // Delete/Backspace removes selected element on canvas
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!selectedElementId) return;
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement | null)?.isContentEditable) return;
+      e.preventDefault();
+      for (const s of scenes) {
+        if (s.elements.some((el) => el.id === selectedElementId)) {
+          void deleteElement(s.id, selectedElementId);
+          setSelectedElementId(null);
+          break;
+        }
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedElementId, scenes]);
+
   async function exportVideo() {
     const node = canvasRefs.current[activeScene?.id ?? ""];
     if (!node) return;
