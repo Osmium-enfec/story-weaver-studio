@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import { Image as ImageIcon, Sparkles, Link as LinkIcon, Palette, Loader2, X, Search } from "lucide-react";
+import { Image as ImageIcon, Sparkles, Link as LinkIcon, Palette, Loader2, X, Search, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -68,8 +68,38 @@ function PickerBody({
   const [mirrored, setMirrored] = useState<MirroredBg[]>([]);
   const [loadingMirrored, setLoadingMirrored] = useState(false);
   const [bgQuery, setBgQuery] = useState("");
+  const [uploads, setUploads] = useState<{ name: string; url: string; isLottie: boolean }[]>([]);
+  const [loadingUploads, setLoadingUploads] = useState(false);
   const imgRef = useRef<HTMLInputElement>(null);
   const lottieRef = useRef<HTMLInputElement>(null);
+
+  const loadUploads = useCallback(async () => {
+    setLoadingUploads(true);
+    const { data, error } = await supabase.storage
+      .from("scene-backgrounds")
+      .list("", { limit: 200, sortBy: { column: "created_at", order: "desc" } });
+    if (error) {
+      toast.error(error.message);
+      setLoadingUploads(false);
+      return;
+    }
+    const items = (data ?? [])
+      .filter((f) => !f.name.startsWith("."))
+      .map((f) => {
+        const { data: pub } = supabase.storage.from("scene-backgrounds").getPublicUrl(f.name);
+        return {
+          name: f.name,
+          url: pub.publicUrl,
+          isLottie: /\.(json|lottie)$/i.test(f.name),
+        };
+      });
+    setUploads(items);
+    setLoadingUploads(false);
+  }, []);
+
+  useEffect(() => {
+    void loadUploads();
+  }, [loadUploads]);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +136,7 @@ function PickerBody({
       const { data } = supabase.storage.from("scene-backgrounds").getPublicUrl(path);
       onChange({ type: kind, value: data.publicUrl });
       toast.success("Background updated");
+      void loadUploads();
       close();
     } catch (e) {
       toast.error((e as Error).message);
@@ -238,6 +269,58 @@ function PickerBody({
             <Button size="sm" className="h-8 px-2" onClick={applyUrl}>
               <LinkIcon className="h-3 w-3" />
             </Button>
+          </div>
+
+          <div className="pt-3">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-[11px] font-medium text-muted-foreground">Your uploads</span>
+              {uploads.length > 0 && (
+                <span className="text-[10px] text-muted-foreground">{uploads.length}</span>
+              )}
+            </div>
+            {loadingUploads ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : uploads.length === 0 ? (
+              <div className="rounded-md border border-dashed border-border p-3 text-center text-[11px] text-muted-foreground">
+                No uploads yet.
+              </div>
+            ) : (
+              <div className="grid max-h-[220px] grid-cols-3 gap-2 overflow-y-auto pr-1">
+                {uploads.map((u) => (
+                  <div key={u.name} className="group relative overflow-hidden rounded-md border border-border bg-muted/30">
+                    <button
+                      onClick={() => {
+                        onChange({ type: u.isLottie ? "lottie" : "image", value: u.url });
+                        close();
+                      }}
+                      className="block aspect-video w-full transition hover:ring-2 hover:ring-primary"
+                      title={u.name}
+                    >
+                      {u.isLottie ? (
+                        <DotLottieReact src={u.url} loop autoplay style={{ width: "100%", height: "100%" }} />
+                      ) : (
+                        <img src={u.url} alt="" className="h-full w-full object-cover" />
+                      )}
+                    </button>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const { error } = await supabase.storage.from("scene-backgrounds").remove([u.name]);
+                        if (error) return toast.error(error.message);
+                        toast.success("Deleted");
+                        void loadUploads();
+                      }}
+                      title="Delete"
+                      className="absolute right-1 top-1 hidden h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow group-hover:flex"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </TabsContent>
       </Tabs>
