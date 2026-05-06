@@ -34,23 +34,30 @@ function WhiteKeyFilterDef() {
     <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
       <defs>
         <filter id={WHITE_KEY_FILTER_ID} colorInterpolationFilters="sRGB">
-          {/* Compute brightness into alpha; subtract from 1 so white→0 alpha, dark→1 alpha */}
-          <feColorMatrix
-            type="matrix"
-            values="1 0 0 0 0
-                    0 1 0 0 0
-                    0 0 1 0 0
-                    -1 -1 -1 0 1"
-          />
-          {/* Sharpen the alpha cutoff a bit to remove anti-aliased near-white halo */}
-          <feComponentTransfer>
-            <feFuncA type="linear" slope="6" intercept="-0.5" />
+          {/* Build alpha = max(1-R, 1-G, 1-B) so ONLY pure white (R=G=B=1) becomes transparent.
+              Coloured pixels (any channel low) keep full alpha. */}
+          <feColorMatrix in="SourceGraphic" type="matrix"
+            values="0 0 0 0 0
+                    0 0 0 0 0
+                    0 0 0 0 0
+                    -1 0 0 0 1" result="aR" />
+          <feColorMatrix in="SourceGraphic" type="matrix"
+            values="0 0 0 0 0
+                    0 0 0 0 0
+                    0 0 0 0 0
+                    0 -1 0 0 1" result="aG" />
+          <feColorMatrix in="SourceGraphic" type="matrix"
+            values="0 0 0 0 0
+                    0 0 0 0 0
+                    0 0 0 0 0
+                    0 0 -1 0 1" result="aB" />
+          <feBlend in="aR" in2="aG" mode="lighten" result="aRG" />
+          <feBlend in="aRG" in2="aB" mode="lighten" result="aMax" />
+          {/* Sharpen alpha so near-white halos go transparent and everything else stays solid */}
+          <feComponentTransfer in="aMax" result="keyAlpha">
+            <feFuncA type="linear" slope="8" intercept="-0.2" />
           </feComponentTransfer>
-          {/* Use the computed alpha as a mask over the original colors */}
-          <feComposite in2="SourceGraphic" operator="in" result="masked" />
-          <feMerge>
-            <feMergeNode in="masked" />
-          </feMerge>
+          <feComposite in="SourceGraphic" in2="keyAlpha" operator="in" />
         </filter>
       </defs>
     </svg>
