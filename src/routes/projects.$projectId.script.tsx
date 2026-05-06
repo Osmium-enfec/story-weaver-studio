@@ -525,10 +525,29 @@ function ScriptCanvas() {
   }
 
   async function deleteElement(sceneId: string, id: string) {
+    const scene = scenes.find((s) => s.id === sceneId);
+    const remaining = scene ? scene.elements.filter((e) => e.id !== id).map((e, i) => ({ ...e, z_index: i })) : [];
     setScenes((prev) =>
-      prev.map((s) => (s.id === sceneId ? { ...s, elements: s.elements.filter((e) => e.id !== id) } : s)),
+      prev.map((s) => (s.id === sceneId ? { ...s, elements: remaining } : s)),
     );
     await supabase.from("scene_elements").delete().eq("id", id);
+    await Promise.all(
+      remaining.map((e) => supabase.from("scene_elements").update({ z_index: e.z_index }).eq("id", e.id)),
+    );
+  }
+
+  async function reorderElements(sceneId: string, orderedIds: string[]) {
+    const scene = scenes.find((s) => s.id === sceneId);
+    if (!scene) return;
+    const byId = new Map(scene.elements.map((e) => [e.id, e]));
+    const next = orderedIds.map((id, i) => {
+      const el = byId.get(id)!;
+      return { ...el, z_index: i };
+    });
+    setScenes((prev) => prev.map((s) => (s.id === sceneId ? { ...s, elements: next } : s)));
+    await Promise.all(
+      next.map((e) => supabase.from("scene_elements").update({ z_index: e.z_index }).eq("id", e.id)),
+    );
   }
 
   async function toggleElementBackground(sceneId: string, id: string) {
