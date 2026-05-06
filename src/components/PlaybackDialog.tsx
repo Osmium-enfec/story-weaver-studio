@@ -248,6 +248,15 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
   function stop() {
     cancelRef.current = true;
     window.speechSynthesis?.cancel();
+    if (audioRef.current) {
+      try {
+        audioRef.current.pause();
+      } catch {
+        /* ignore */
+      }
+      audioRef.current = null;
+    }
+    clearTimers();
     setPlaying(false);
     setTransitioning(false);
   }
