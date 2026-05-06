@@ -132,10 +132,9 @@ export function PlaybackDialog({ open, onOpenChange, script, elements, canvasSiz
                 height: canvasSize.h,
                 transform: `scale(${scale})`,
                 transformOrigin: "center center",
-                backgroundImage:
-                  "linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--muted)) 100%)",
               }}
             >
+              {background && <BackgroundLayer background={background} />}
               {elements.map((el) => {
                 const visible = visibleIds.has(el.id);
                 return (
