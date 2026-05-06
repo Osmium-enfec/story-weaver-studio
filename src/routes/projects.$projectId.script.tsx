@@ -603,7 +603,13 @@ function ScriptCanvas() {
                 }}
               >
                 <BackgroundLayer background={s.background} exportMode={isExporting} />
-                {s.elements.map((el) => (
+                {gridCanvases[s.id] && (
+                  <div className="pointer-events-none absolute inset-0 z-10 grid grid-cols-3 grid-rows-3">
+                    {Array.from({ length: 9 }).map((_, i) => (
+                      <div key={i} className="border border-primary/40" />
+                    ))}
+                  </div>
+                )}
                   <Rnd
                     key={el.id}
                     bounds="parent"
