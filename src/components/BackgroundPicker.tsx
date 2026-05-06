@@ -37,22 +37,48 @@ const GRADIENTS = [
   "linear-gradient(135deg,#fdfbfb 0%,#ebedee 100%)",
 ];
 
-// Curated free animated backgrounds (LottieFiles public CDN)
-const ANIMATED_BGS: { name: string; url: string }[] = [
-  { name: "Particles", url: "https://lottie.host/4f1a4d2e-1b76-4c66-9a76-9a3b6a1aa90f/3pP1nWk1Lh.lottie" },
-  { name: "Waves", url: "https://assets10.lottiefiles.com/packages/lf20_jcikwtux.json" },
-  { name: "Bubbles", url: "https://assets2.lottiefiles.com/packages/lf20_ystsffqy.json" },
-  { name: "Confetti", url: "https://assets1.lottiefiles.com/packages/lf20_obhph3sh.json" },
-  { name: "Stars", url: "https://assets9.lottiefiles.com/packages/lf20_rwq6ciql.json" },
-  { name: "Grid Glow", url: "https://assets3.lottiefiles.com/packages/lf20_kkflmtur.json" },
-];
+interface MirroredBg {
+  id: string;
+  name: string;
+  category: string | null;
+  lottie_url: string | null;
+  video_url: string | null;
+  thumbnail_url: string | null;
+}
 
 export function BackgroundPicker({ value, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [mirrored, setMirrored] = useState<MirroredBg[]>([]);
+  const [loadingMirrored, setLoadingMirrored] = useState(false);
+  const [bgQuery, setBgQuery] = useState("");
   const imgRef = useRef<HTMLInputElement>(null);
   const lottieRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setLoadingMirrored(true);
+    (async () => {
+      let q = supabase
+        .from("animation_components")
+        .select("id, name, category, lottie_url, video_url, thumbnail_url")
+        .eq("provider", "iconscout")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (bgQuery.trim()) {
+        const term = `%${bgQuery.trim()}%`;
+        q = q.or(`name.ilike.${term},category.ilike.${term}`);
+      }
+      const { data, error } = await q;
+      if (cancelled) return;
+      if (error) toast.error(error.message);
+      setMirrored((data ?? []) as MirroredBg[]);
+      setLoadingMirrored(false);
+    })();
+    return () => { cancelled = true; };
+  }, [open, bgQuery]);
 
   async function uploadFile(file: File, kind: "image" | "lottie") {
     setUploading(true);
