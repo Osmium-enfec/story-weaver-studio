@@ -27,6 +27,12 @@ export interface PlaybackScene {
   voice_start_ms?: number | null;
   voice_end_ms?: number | null;
   word_timings?: WordTiming[];
+  voice_trim_start_ms?: number;
+  voice_trim_end_ms?: number | null;
+  voice_cuts?: { start_ms: number; end_ms: number }[];
+  voice_volume?: number;
+  voice_fade_in_ms?: number;
+  voice_fade_out_ms?: number;
 }
 
 interface Props {
