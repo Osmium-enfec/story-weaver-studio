@@ -541,3 +541,46 @@ function ScriptCanvas() {
     </div>
   );
 }
+
+const WORD_RE = /[A-Za-z][A-Za-z0-9_-]*/g;
+
+function ClickableScript({
+  text,
+  selected,
+  onWordClick,
+}: {
+  text: string;
+  selected: string | null;
+  onWordClick: (w: string) => void;
+}) {
+  const tokens: { word: boolean; text: string }[] = [];
+  let last = 0;
+  for (const m of text.matchAll(WORD_RE)) {
+    const idx = m.index ?? 0;
+    if (idx > last) tokens.push({ word: false, text: text.slice(last, idx) });
+    tokens.push({ word: true, text: m[0] });
+    last = idx + m[0].length;
+  }
+  if (last < text.length) tokens.push({ word: false, text: text.slice(last) });
+  return (
+    <p className="whitespace-pre-wrap">
+      {tokens.map((t, i) =>
+        t.word ? (
+          <button
+            key={i}
+            onClick={(e) => { e.stopPropagation(); onWordClick(t.text); }}
+            className={`rounded px-0.5 transition ${
+              selected?.toLowerCase() === t.text.toLowerCase()
+                ? "bg-primary/20 text-primary font-semibold"
+                : "hover:bg-muted"
+            }`}
+          >
+            {t.text}
+          </button>
+        ) : (
+          <span key={i}>{t.text}</span>
+        ),
+      )}
+    </p>
+  );
+}
