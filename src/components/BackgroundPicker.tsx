@@ -324,5 +324,21 @@ export function BackgroundLayer({ background, exportMode = false }: { background
       </div>
     );
   }
+  if (background.type === "video") {
+    if (exportMode) {
+      return <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10" />;
+    }
+    return (
+      <video
+        src={background.value}
+        autoPlay
+        loop
+        muted
+        playsInline
+        crossOrigin="anonymous"
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+      />
+    );
+  }
   return null;
 }
