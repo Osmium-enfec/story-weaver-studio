@@ -335,7 +335,15 @@ export function ThemeBuilder({
   };
 
   if (active) {
-    return <ThemeEditor theme={active} onChange={updateActive} onBack={() => setActiveId(null)} />;
+    return (
+      <ThemeEditor
+        theme={active}
+        onChange={updateActive}
+        onBack={() => setActiveId(null)}
+        onApplyBackground={onApplyBackground}
+        onInsertText={onInsertText}
+      />
+    );
   }
 
   return (
