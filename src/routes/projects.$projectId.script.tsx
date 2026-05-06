@@ -92,6 +92,30 @@ function ScriptCanvas() {
     }, 500);
   }
 
+  async function flushNarration(sceneId: string, narration: string) {
+    if (narrationTimers.current[sceneId]) {
+      clearTimeout(narrationTimers.current[sceneId]);
+      delete narrationTimers.current[sceneId];
+    }
+    await supabase.from("scenes").update({ narration }).eq("id", sceneId);
+  }
+
+  // Flush pending narration saves before unload
+  useEffect(() => {
+    function onBeforeUnload() {
+      for (const sceneId of Object.keys(narrationTimers.current)) {
+        clearTimeout(narrationTimers.current[sceneId]);
+        const s = scenes.find((x) => x.id === sceneId);
+        if (s) {
+          // fire-and-forget; browser will send before unload
+          void supabase.from("scenes").update({ narration: s.narration }).eq("id", sceneId);
+        }
+      }
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [scenes]);
+
   useEffect(() => {
     if (!isPlaying) return;
     const t = setTimeout(() => setIsPlaying(false), 4000);
@@ -466,6 +490,7 @@ function ScriptCanvas() {
                   className="h-6 px-2 text-xs"
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (editingScript[s.id]) void flushNarration(s.id, s.narration);
                     setEditingScript((m) => ({ ...m, [s.id]: !m[s.id] }));
                   }}
                 >
