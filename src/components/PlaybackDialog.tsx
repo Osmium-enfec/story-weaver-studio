@@ -239,11 +239,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
             const ids =
               wordMap.get(`${word}|${occ}`) ?? wordMap.get(`${word}|1`) ?? [];
             if (ids.length === 0) return;
-            setRevealedIds((prev) => {
-              const next = new Set(prev);
-              ids.forEach((id) => next.add(id));
-              return next;
-            });
+            markAvailable(ids);
           }, Math.max(0, elapsed));
           timersRef.current.push(t);
         }
@@ -347,11 +343,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         const occ = occurrenceCounter[word];
         const ids = wordMap.get(`${word}|${occ}`) ?? wordMap.get(`${word}|1`) ?? [];
         if (ids.length === 0) return;
-        setRevealedIds((prev) => {
-          const next = new Set(prev);
-          ids.forEach((id) => next.add(id));
-          return next;
-        });
+        markAvailable(ids);
       };
       u.onend = finish;
       u.onerror = finish;
