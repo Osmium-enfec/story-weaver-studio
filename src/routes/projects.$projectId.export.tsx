@@ -39,6 +39,45 @@ function ExportPage() {
   const [loading, setLoading] = useState(false);
   const [enqueuing, setEnqueuing] = useState(false);
   const [resolution, setResolution] = useState<"720p" | "1080p" | "4k">("1080p");
+  const [browserRendering, setBrowserRendering] = useState(false);
+  const [browserProgress, setBrowserProgress] = useState(0);
+
+  async function startBrowserRender() {
+    setBrowserRendering(true);
+    setBrowserProgress(0);
+    try {
+      const { data, error } = await supabase
+        .from("scenes")
+        .select("*")
+        .eq("project_id", projectId)
+        .order("order_index");
+      if (error) throw error;
+      const scenes = (data ?? []) as Scene[];
+      if (!scenes.length) throw new Error("No scenes to render");
+
+      const blob = await renderInBrowser({
+        scenes,
+        width: 1920,
+        height: 1080,
+        fps: 30,
+        onProgress: setBrowserProgress,
+      });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `render-${Date.now()}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Render downloaded");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBrowserRendering(false);
+    }
+  }
 
   async function refresh() {
     setLoading(true);
