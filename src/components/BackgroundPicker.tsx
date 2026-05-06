@@ -68,8 +68,38 @@ function PickerBody({
   const [mirrored, setMirrored] = useState<MirroredBg[]>([]);
   const [loadingMirrored, setLoadingMirrored] = useState(false);
   const [bgQuery, setBgQuery] = useState("");
+  const [uploads, setUploads] = useState<{ name: string; url: string; isLottie: boolean }[]>([]);
+  const [loadingUploads, setLoadingUploads] = useState(false);
   const imgRef = useRef<HTMLInputElement>(null);
   const lottieRef = useRef<HTMLInputElement>(null);
+
+  const loadUploads = useCallback(async () => {
+    setLoadingUploads(true);
+    const { data, error } = await supabase.storage
+      .from("scene-backgrounds")
+      .list("", { limit: 200, sortBy: { column: "created_at", order: "desc" } });
+    if (error) {
+      toast.error(error.message);
+      setLoadingUploads(false);
+      return;
+    }
+    const items = (data ?? [])
+      .filter((f) => !f.name.startsWith("."))
+      .map((f) => {
+        const { data: pub } = supabase.storage.from("scene-backgrounds").getPublicUrl(f.name);
+        return {
+          name: f.name,
+          url: pub.publicUrl,
+          isLottie: /\.(json|lottie)$/i.test(f.name),
+        };
+      });
+    setUploads(items);
+    setLoadingUploads(false);
+  }, []);
+
+  useEffect(() => {
+    void loadUploads();
+  }, [loadUploads]);
 
   useEffect(() => {
     let cancelled = false;
