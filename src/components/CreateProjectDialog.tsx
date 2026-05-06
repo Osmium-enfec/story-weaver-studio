@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { WORKSPACE_ID, type AspectRatio, type AudienceLevel, type CourseType, type ThemeName, type VoiceMode } from "@/lib/db-types";
@@ -15,11 +15,14 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { Upload, Mic2, Loader2, X } from "lucide-react";
+import { transcribeAndSplit } from "@/server/voice.functions";
 
 const COURSES: CourseType[] = ["Python", "Java", "Android", "Web", "DSA", "Database", "API", "Other"];
 const LEVELS: AudienceLevel[] = ["Beginner", "Intermediate", "Advanced"];
 const RATIOS: AspectRatio[] = ["16:9", "9:16", "1:1"];
 const THEMES: ThemeName[] = ["Whiteboard", "Dark Code", "Flat Modern", "Android UI", "Classroom"];
+const ACCEPT = "audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/mp4,audio/m4a,audio/x-m4a,audio/webm";
 
 export function CreateProjectDialog({
   open,
@@ -36,8 +39,17 @@ export function CreateProjectDialog({
   const [ratio, setRatio] = useState<AspectRatio>("16:9");
   const [theme, setTheme] = useState<ThemeName>("Whiteboard");
   const [voice, setVoice] = useState<VoiceMode>("no_voice");
+  const [voiceFile, setVoiceFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<string>("");
+  const fileRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+
+  function pickFile(f: File | null) {
+    if (!f) return;
+    if (f.size > 25 * 1024 * 1024) return toast.error("Max 25MB");
+    setVoiceFile(f);
+  }
 
   async function submit() {
     if (!title.trim()) {
@@ -45,6 +57,7 @@ export function CreateProjectDialog({
       return;
     }
     setBusy(true);
+    setProgress("Creating project…");
     const { data, error } = await supabase
       .from("projects")
       .insert({
@@ -58,17 +71,46 @@ export function CreateProjectDialog({
       })
       .select()
       .single();
+    if (error || !data) {
+      setBusy(false);
+      setProgress("");
+      return toast.error(error?.message ?? "Failed to create project");
+    }
+
+    // If they picked a voice file, upload + transcribe before navigating
+    if (voice === "upload_voice" && voiceFile) {
+      try {
+        setProgress("Uploading voice…");
+        const ext = voiceFile.name.split(".").pop() || "mp3";
+        const path = `${data.id}/${Date.now()}.${ext}`;
+        const up = await supabase.storage
+          .from("voice-uploads")
+          .upload(path, voiceFile, { contentType: voiceFile.type, upsert: false });
+        if (up.error) throw up.error;
+        const { data: pub } = supabase.storage.from("voice-uploads").getPublicUrl(path);
+
+        setProgress("Transcribing & splitting into canvases…");
+        await transcribeAndSplit({
+          data: { projectId: data.id, voiceUrl: pub.publicUrl, storagePath: path },
+        });
+        toast.success("Voice transcribed and split into canvases");
+      } catch (e) {
+        toast.error(`Voice setup failed: ${(e as Error).message}`);
+      }
+    }
+
     setBusy(false);
-    if (error) return toast.error(error.message);
+    setProgress("");
     toast.success("Project created");
     onOpenChange(false);
     setTitle("");
+    setVoiceFile(null);
     onCreated?.();
-    if (data) navigate({ to: `/projects/${data.id}/script` as string });
+    navigate({ to: `/projects/${data.id}/script` as string });
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => !busy && onOpenChange(v)}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Create New Video</DialogTitle>
@@ -100,18 +142,65 @@ export function CreateProjectDialog({
           <Field label="Voice">
             <SimpleSelect
               value={voice}
-              onChange={(v) => setVoice(v as VoiceMode)}
+              onChange={(v) => {
+                setVoice(v as VoiceMode);
+                if (v !== "upload_voice") setVoiceFile(null);
+              }}
               options={[
-                { value: "upload_voice", label: "Upload voice later" },
+                { value: "upload_voice", label: "Upload voice now" },
                 { value: "ai_voice", label: "Generate AI voice later" },
                 { value: "no_voice", label: "No voice for now" },
               ]}
             />
           </Field>
+
+          {voice === "upload_voice" && (
+            <div className="rounded-lg border border-dashed border-border bg-muted/30 p-3">
+              {voiceFile ? (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Mic2 className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="truncate text-sm">{voiceFile.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      ({(voiceFile.size / 1024 / 1024).toFixed(1)} MB)
+                    </span>
+                  </div>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setVoiceFile(null)} disabled={busy}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="flex w-full flex-col items-center gap-1 py-3 text-sm text-muted-foreground hover:text-foreground"
+                  onClick={() => fileRef.current?.click()}
+                >
+                  <Upload className="h-5 w-5" />
+                  <span>Click to upload voiceover</span>
+                  <span className="text-xs">MP3, WAV, M4A · max 25MB · auto-transcribed with Whisper</span>
+                </button>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept={ACCEPT}
+                className="hidden"
+                onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+          )}
+
+          {progress && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> {progress}
+            </div>
+          )}
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={submit} disabled={busy}>{busy ? "Creating…" : "Create"}</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
+          <Button onClick={submit} disabled={busy}>
+            {busy ? "Working…" : voice === "upload_voice" && voiceFile ? "Create & transcribe" : "Create"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
