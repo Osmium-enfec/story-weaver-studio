@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import { Image as ImageIcon, Sparkles, Upload, Link as LinkIcon, Palette, Loader2, X } from "lucide-react";
+import { Image as ImageIcon, Sparkles, Link as LinkIcon, Palette, Loader2, X, Search } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,8 @@ export type SceneBackground =
   | { type: "color"; value: string }
   | { type: "gradient"; value: string }
   | { type: "image"; value: string }
-  | { type: "lottie"; value: string };
+  | { type: "lottie"; value: string }
+  | { type: "video"; value: string };
 
 interface Props {
   value: SceneBackground;
