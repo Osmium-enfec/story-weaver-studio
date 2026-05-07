@@ -741,6 +741,7 @@ function ScriptCanvas() {
                   <Rnd
                     key={el.id}
                     bounds="parent"
+                    scale={canvasScales[s.id] ?? 1}
                     size={{ width: el.position.w, height: el.position.h }}
                     position={{ x: el.position.x, y: el.position.y }}
                     onDragStop={(_, d) => {
