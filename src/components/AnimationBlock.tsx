@@ -132,7 +132,7 @@ export function AnimationBlockRenderer({
     width: "100%",
     height: "100%",
     boxSizing: "border-box",
-    padding: content.provider === "iconscout" ? "8%" : "4%",
+    padding: 0,
     opacity: content.opacity ?? 1,
     transform: `rotate(${content.rotation ?? 0}deg)`,
     filter: combinedFilter,
