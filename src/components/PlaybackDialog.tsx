@@ -47,6 +47,7 @@ interface Props {
 const FALLBACK_SCENE_MS = 3500;
 const TRANSITION_MS = 600;
 const MIN_REVEAL_MS = 1200;
+const REVEAL_STEP_MS = 700;
 
 function normalize(w: string) {
   return w.toLowerCase().replace(/[^a-z0-9_-]/g, "");
@@ -132,23 +133,38 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       // never appear before #2 even if #3's linked word happens earlier.
       const availableIds = new Set<string>();
       let nextSequenceIndex = 0;
+      let flushingSequence = false;
+
+      const revealNextAvailable = () => {
+        if (cancelRef.current) return;
+        const nextId = scene.elements[nextSequenceIndex]?.id;
+        if (!nextId || !availableIds.has(nextId)) {
+          flushingSequence = false;
+          return;
+        }
+
+        nextSequenceIndex += 1;
+        setRevealedIds((prev) => {
+          const next = new Set(prev);
+          next.add(nextId);
+          return next;
+        });
+
+        const followingId = scene.elements[nextSequenceIndex]?.id;
+        if (followingId && availableIds.has(followingId)) {
+          const t = setTimeout(revealNextAvailable, REVEAL_STEP_MS);
+          timersRef.current.push(t);
+          return;
+        }
+        flushingSequence = false;
+      };
 
       const markAvailable = (ids: string | string[]) => {
         const incoming = Array.isArray(ids) ? ids : [ids];
         incoming.forEach((id) => availableIds.add(id));
-        const newlyVisible: string[] = [];
-        while (nextSequenceIndex < scene.elements.length) {
-          const nextId = scene.elements[nextSequenceIndex].id;
-          if (!availableIds.has(nextId)) break;
-          newlyVisible.push(nextId);
-          nextSequenceIndex += 1;
-        }
-        if (newlyVisible.length === 0) return;
-        setRevealedIds((prev) => {
-          const next = new Set(prev);
-          newlyVisible.forEach((id) => next.add(id));
-          return next;
-        });
+        if (flushingSequence) return;
+        flushingSequence = true;
+        revealNextAvailable();
       };
 
       // Schedule unbound elements evenly across `totalMs` in sequence order.
@@ -167,10 +183,23 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       const finish = () => {
         if (cancelRef.current) return resolve();
         clearTimers();
-        // Reveal everything at the end before transitioning
-        setRevealedIds(new Set(scene.elements.map((e) => e.id)));
-        setTimeout(() => {
+        unboundIdsBySeq.forEach((id) => availableIds.add(id));
+
+        const transitionAfterSequence = () => {
           if (cancelRef.current) return resolve();
+          const nextId = scene.elements[nextSequenceIndex]?.id;
+          if (nextId && availableIds.has(nextId)) {
+            nextSequenceIndex += 1;
+            setRevealedIds((prev) => {
+              const next = new Set(prev);
+              next.add(nextId);
+              return next;
+            });
+            const t = setTimeout(transitionAfterSequence, REVEAL_STEP_MS);
+            timersRef.current.push(t);
+            return;
+          }
+
           if (idx + 1 < scenes.length) {
             setTransitioning(true);
             setTimeout(() => {
@@ -180,7 +209,10 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
           } else {
             resolve();
           }
-        }, 400);
+        };
+
+        const t = setTimeout(transitionAfterSequence, 400);
+        timersRef.current.push(t);
       };
 
       // ─── Path A: real voice with word timings ────────────────────────────
