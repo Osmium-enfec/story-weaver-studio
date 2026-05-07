@@ -75,9 +75,16 @@ import { DESIGN, cellRect, clampRectToDesign, nextEmptyCellIndex } from "@/lib/g
 const DESIGN_CANVAS_SIZE = { w: DESIGN.w, h: DESIGN.h } as const;
 
 function snapElementsToGrid(elements: PlacedElement[]): PlacedElement[] {
+  // Only assign a grid cell to elements that don't have a saved position yet.
+  // Preserve any user-edited positions already stored in the DB.
   return [...elements]
     .sort((a, b) => a.z_index - b.z_index)
-    .map((element, index) => ({ ...element, position: cellRect(index) }));
+    .map((element, index) => {
+      const p = element.position;
+      const hasPos =
+        p && typeof p.w === "number" && typeof p.h === "number" && p.w > 0 && p.h > 0;
+      return hasPos ? element : { ...element, position: cellRect(index) };
+    });
 }
 
 function ScriptCanvas() {
