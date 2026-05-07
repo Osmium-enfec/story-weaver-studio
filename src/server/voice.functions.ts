@@ -529,7 +529,7 @@ async function seedScene(
   localWords: { text: string; start_ms: number; end_ms: number }[],
   themeTags: string[],
 ): Promise<number> {
-  const keywords = pickKeywords(localWords, 3, 3);
+  const keywords = pickKeywords(localWords, 9, 3);
   const picks: { kw: typeof keywords[number]; pick: NonNullable<Awaited<ReturnType<typeof pickAnimationForKeyword>>> }[] = [];
   for (const kw of keywords) {
     const pick = await pickAnimationForKeyword(admin, kw.text, themeTags);
