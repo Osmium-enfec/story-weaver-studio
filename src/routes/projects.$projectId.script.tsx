@@ -279,7 +279,7 @@ function ScriptCanvas() {
       },
       {
         label: isSeeding ? "Generating…" : "Auto-animate",
-        icon: "sparkles",
+        icon: "play",
         variant: "outline",
         disabled: isSeeding || isExporting,
         onClick: regenerateAnimations,
