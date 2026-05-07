@@ -71,7 +71,8 @@ interface SceneRow {
 }
 
 const DEFAULT_BG: SceneBackground = { type: "color", value: "#ffffff" };
-const DESIGN_CANVAS_SIZE = { w: 1280, h: 720 } as const;
+import { DESIGN, cellRect, nextEmptyCellIndex } from "@/lib/grid";
+const DESIGN_CANVAS_SIZE = { w: DESIGN.w, h: DESIGN.h } as const;
 
 function ScriptCanvas() {
   const { projectId } = useParams({ from: "/projects/$projectId/script" });
@@ -472,11 +473,8 @@ function ScriptCanvas() {
       }
     }
 
-    const rect = node.getBoundingClientRect();
-    const w = Math.round(rect.width * 0.3);
-    const h = Math.round(rect.height * 0.3);
-    const x = Math.round((rect.width - w) / 2);
-    const y = Math.round((rect.height - h) / 2);
+    const cellIdx = nextEmptyCellIndex(activeScene.elements.map((e) => e.position));
+    const { x, y, w, h } = cellRect(cellIdx);
 
     const content: AnimationBlockContent = {
       provider: a.provider,
@@ -523,11 +521,8 @@ function ScriptCanvas() {
     }
     const node = canvasRefs.current[activeScene.id];
     if (!node) return;
-    const rect = node.getBoundingClientRect();
-    const w = Math.round(rect.width * (role === "heading" ? 0.7 : role === "subheading" ? 0.55 : 0.5));
-    const h = Math.round((style.size ?? 24) * (style.lineHeight ?? 1.4) * 1.6);
-    const x = Math.round((rect.width - w) / 2);
-    const y = Math.round((rect.height - h) / 2);
+    const cellIdx = nextEmptyCellIndex(activeScene.elements.map((e) => e.position));
+    const { x, y, w, h } = cellRect(cellIdx);
     const placeholder = role === "heading" ? "Heading" : role === "subheading" ? "Sub-heading" : "Paragraph text";
     const content: AnimationBlockContent = {
       provider: "internal",
@@ -701,13 +696,13 @@ function ScriptCanvas() {
                 )}
                 <div
                   className="absolute left-0 top-0 origin-top-left"
-                  style={{ width: 1280, height: 720 }}
+                  style={{ width: DESIGN.w, height: DESIGN.h }}
                   ref={(node) => {
                     if (!node) return;
                     const parent = node.parentElement as HTMLElement | null;
                     if (!parent) return;
                     const apply = () => {
-                      const s = Math.min(parent.clientWidth / 1280, parent.clientHeight / 720);
+                      const s = Math.min(parent.clientWidth / DESIGN.w, parent.clientHeight / DESIGN.h);
                       node.style.transform = `scale(${s})`;
                     };
                     apply();
