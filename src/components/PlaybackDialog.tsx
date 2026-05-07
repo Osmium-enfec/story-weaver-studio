@@ -355,8 +355,8 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         <div className="flex flex-col gap-3">
           <div
             ref={stageRef}
-            className="relative flex items-center justify-center bg-muted/30 rounded-lg overflow-hidden p-3"
-            style={{ height: "min(72vh, calc((100vw - 4rem) * 9 / 16 + 1.5rem))", minHeight: 360 }}
+            className="relative flex items-center justify-center bg-muted/30 rounded-lg overflow-hidden w-full"
+            style={{ aspectRatio: `${canvasSize.w} / ${canvasSize.h}` }}
           >
             <div
               key={current?.id}
