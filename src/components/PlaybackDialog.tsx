@@ -374,7 +374,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
               {current && [...current.elements]
                 .sort((a, b) => a.z_index - b.z_index)
                 .map((el, idx) => {
-                  const visible = revealedIds.has(el.id);
+                  const visible = !playing || revealedIds.has(el.id);
                   const isText =
                     el.type === "text" || typeof el.content.text === "string" || !!el.content.role;
                   const rect = cellRect(idx);
