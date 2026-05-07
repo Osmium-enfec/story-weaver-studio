@@ -1,6 +1,6 @@
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { Sparkles } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { AnimationProvider } from "@/lib/animation-providers";
 
 // Measure text natural pixel size using a canvas at the given font.
