@@ -371,6 +371,33 @@ function ScriptCanvas() {
     })();
   }, [projectId]);
 
+  // Realtime: pick up newly-seeded scene_elements (auto-animate / transcribe seed)
+  useEffect(() => {
+    const sceneIds = scenes.map((s) => s.id);
+    if (sceneIds.length === 0) return;
+    const channel = supabase
+      .channel(`scene_elements_${projectId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "scene_elements" },
+        (payload) => {
+          const row = payload.new as unknown as PlacedElement;
+          if (!sceneIds.includes(row.scene_id)) return;
+          setScenes((prev) =>
+            prev.map((s) =>
+              s.id === row.scene_id && !s.elements.find((e) => e.id === row.id)
+                ? { ...s, elements: [...s.elements, row] }
+                : s,
+            ),
+          );
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [projectId, scenes.length]);
+
   const ratio = project.aspect_ratio;
   const aspect = ratio === "9:16" ? "9 / 16" : ratio === "1:1" ? "1 / 1" : "16 / 9";
 
