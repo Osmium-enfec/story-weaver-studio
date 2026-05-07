@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Trash2, Plus, Eraser, Grid3x3, Minus } from "lucide-react";
 import { toolbarStore } from "@/components/toolbar-store";
 import { AnimationSearchPanel } from "@/components/AnimationSearchPanel";
-import { AnimationBlockRenderer, TextBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
+import { AnimationBlockRenderer, TextBlockRenderer, measureTextSize, type AnimationBlockContent } from "@/components/AnimationBlock";
 import { BackgroundPicker, BackgroundLayer, type SceneBackground } from "@/components/BackgroundPicker";
 import { ThemeBuilder } from "@/components/ThemeBuilder";
 import { TextPanel, type TextRole, type TextRoleStyle } from "@/components/TextPanel";
