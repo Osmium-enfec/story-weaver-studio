@@ -396,20 +396,8 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       const estimatedMs = Math.max(MIN_REVEAL_MS, narration.length * 60);
       scheduleUnbound(estimatedMs);
 
-      let speechStarted = false;
-      const speechStartTimer = setTimeout(() => {
-        if (speechStarted || cancelRef.current) return;
-        scheduleUnbound(FALLBACK_SCENE_MS);
-        const t = setTimeout(finish, Math.max(MIN_REVEAL_MS, FALLBACK_SCENE_MS));
-        timersRef.current.push(t);
-      }, 250);
-      timersRef.current.push(speechStartTimer);
-
       const u = new SpeechSynthesisUtterance(narration);
       u.rate = 1;
-      u.onstart = () => {
-        speechStarted = true;
-      };
       u.onboundary = (ev: SpeechSynthesisEvent) => {
         if (ev.name && ev.name !== "word") return;
         const tail = narration.slice(ev.charIndex);
