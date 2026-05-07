@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { AnimationBlockRenderer, TextBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
+import {
+  AnimationBlockRenderer,
+  TextBlockRenderer,
+  type AnimationBlockContent,
+} from "@/components/AnimationBlock";
 import { BackgroundLayer, type SceneBackground } from "@/components/BackgroundPicker";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -172,10 +176,13 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         if (unboundIdsBySeq.length === 0) return;
         unboundIdsBySeq.forEach((id, i) => {
           const at = ((i + 1) / (unboundIdsBySeq.length + 1)) * totalMs;
-          const t = setTimeout(() => {
-            if (cancelRef.current) return;
-            markAvailable(id);
-          }, Math.max(0, at));
+          const t = setTimeout(
+            () => {
+              if (cancelRef.current) return;
+              markAvailable(id);
+            },
+            Math.max(0, at),
+          );
           timersRef.current.push(t);
         });
       };
@@ -217,19 +224,19 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
 
       // ─── Path A: real voice with word timings ────────────────────────────
       const hasVoice =
-        !!scene.voice_url &&
-        scene.voice_start_ms != null &&
-        scene.voice_end_ms != null;
+        !!scene.voice_url && scene.voice_start_ms != null && scene.voice_end_ms != null;
 
       if (hasVoice) {
         const segStart = scene.voice_start_ms ?? 0;
         const segEnd = scene.voice_end_ms ?? segStart;
         const trimStart = Math.max(0, scene.voice_trim_start_ms ?? 0);
-        const trimEnd = scene.voice_trim_end_ms ?? (segEnd - segStart);
+        const trimEnd = scene.voice_trim_end_ms ?? segEnd - segStart;
         const volume = scene.voice_volume ?? 1;
         const fadeIn = (scene.voice_fade_in_ms ?? 0) / 1000;
         const fadeOut = (scene.voice_fade_out_ms ?? 0) / 1000;
-        const cuts = (scene.voice_cuts ?? []).filter((c) => c.end_ms > trimStart && c.start_ms < trimEnd);
+        const cuts = (scene.voice_cuts ?? []).filter(
+          (c) => c.end_ms > trimStart && c.start_ms < trimEnd,
+        );
 
         // Build playback ranges (segment-relative ms) honoring trim + cuts
         const ranges: { start: number; end: number }[] = [];
@@ -264,15 +271,17 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
           }
           const word = normalize(wt.text);
           if (!word) continue;
-          const t = setTimeout(() => {
-            if (cancelRef.current) return;
-            occurrenceCounter[word] = (occurrenceCounter[word] ?? 0) + 1;
-            const occ = occurrenceCounter[word];
-            const ids =
-              wordMap.get(`${word}|${occ}`) ?? wordMap.get(`${word}|1`) ?? [];
-            if (ids.length === 0) return;
-            markAvailable(ids);
-          }, Math.max(0, elapsed));
+          const t = setTimeout(
+            () => {
+              if (cancelRef.current) return;
+              occurrenceCounter[word] = (occurrenceCounter[word] ?? 0) + 1;
+              const occ = occurrenceCounter[word];
+              const ids = wordMap.get(`${word}|${occ}`) ?? wordMap.get(`${word}|1`) ?? [];
+              if (ids.length === 0) return;
+              markAvailable(ids);
+            },
+            Math.max(0, elapsed),
+          );
           timersRef.current.push(t);
         }
 
@@ -284,7 +293,9 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         let AC: AudioContext | null = null;
         let gain: GainNode | null = null;
         try {
-          const Ctx = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext);
+          const Ctx =
+            window.AudioContext ||
+            (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
           AC = new Ctx();
           const src = AC.createMediaElementSource(audio);
           gain = AC.createGain();
@@ -298,7 +309,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         // segment-relative (start_ms is ~0). Audio file is the canvas's clip
         // OR a master file — handle both: if voice_start_ms > 0, the audio is
         // the master file and we offset accordingly.
-        const fileOffsetSec = (segStart) / 1000;
+        const fileOffsetSec = segStart / 1000;
         let rangeIdx = 0;
         let stopped = false;
 
@@ -306,8 +317,16 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
           if (stopped || cancelRef.current) return;
           const r = ranges[rangeIdx];
           if (!r) {
-            try { audio.pause(); } catch { /* */ }
-            try { void AC?.close(); } catch { /* */ }
+            try {
+              audio.pause();
+            } catch {
+              /* */
+            }
+            try {
+              void AC?.close();
+            } catch {
+              /* */
+            }
             finish();
             return;
           }
@@ -328,7 +347,9 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
               gain.gain.linearRampToValueAtTime(0, now + dur);
             }
           }
-          audio.play().catch(() => { /* autoplay rejection */ });
+          audio.play().catch(() => {
+            /* autoplay rejection */
+          });
           const t = setTimeout(() => {
             rangeIdx += 1;
             playRange();
@@ -339,8 +360,16 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         // Safety stop after total audible duration
         const guard = setTimeout(() => {
           stopped = true;
-          try { audio.pause(); } catch { /* */ }
-          try { void AC?.close(); } catch { /* */ }
+          try {
+            audio.pause();
+          } catch {
+            /* */
+          }
+          try {
+            void AC?.close();
+          } catch {
+            /* */
+          }
         }, totalAudibleMs + 500);
         timersRef.current.push(guard);
 
@@ -438,7 +467,8 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
               {current && <BackgroundLayer background={current.background} />}
               {current?.elements.map((el) => {
                 const visible = revealedIds.has(el.id);
-                const isText = el.type === "text" || typeof el.content.text === "string" || !!el.content.role;
+                const isText =
+                  el.type === "text" || typeof el.content.text === "string" || !!el.content.role;
                 return (
                   <div
                     key={el.id}
@@ -469,7 +499,9 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
               Canvas {Math.min(currentIdx + 1, scenes.length)} / {scenes.length}
             </span>
             {playing ? (
-              <Button variant="secondary" onClick={stop}>Stop</Button>
+              <Button variant="secondary" onClick={stop}>
+                Stop
+              </Button>
             ) : (
               <Button onClick={start}>Play</Button>
             )}
