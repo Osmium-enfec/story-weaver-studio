@@ -232,6 +232,35 @@ function ScriptCanvas() {
     }
   }
 
+  async function regenerateAnimations() {
+    if (isSeeding) return;
+    if (!confirm("Replace all canvas animations with fresh ones from your script keywords?")) return;
+    setIsSeeding(true);
+    try {
+      const res = await seedAnimationsForProject({ data: { projectId, replace: true } });
+      toast.success(`Added ${res.elementsInserted} animations across ${res.sceneCount} canvases`);
+      // Refetch elements
+      const { data: rows } = await supabase
+        .from("scenes")
+        .select("id")
+        .eq("project_id", projectId);
+      const ids = (rows ?? []).map((r) => r.id);
+      const { data: els } = await supabase
+        .from("scene_elements")
+        .select("*")
+        .in("scene_id", ids)
+        .order("z_index");
+      const byScene = new Map<string, PlacedElement[]>();
+      for (const id of ids) byScene.set(id, []);
+      for (const e of (els ?? []) as unknown as PlacedElement[]) byScene.get(e.scene_id)?.push(e);
+      setScenes((prev) => prev.map((s) => ({ ...s, elements: byScene.get(s.id) ?? [] })));
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setIsSeeding(false);
+    }
+  }
+
   useEffect(() => {
     toolbarStore.set([
       {
@@ -249,6 +278,13 @@ function ScriptCanvas() {
         },
       },
       {
+        label: isSeeding ? "Generating…" : "Auto-animate",
+        icon: "sparkles",
+        variant: "outline",
+        disabled: isSeeding || isExporting,
+        onClick: regenerateAnimations,
+      },
+      {
         label: isExporting ? "Exporting…" : "Export",
         icon: "download",
         variant: "outline",
@@ -257,7 +293,7 @@ function ScriptCanvas() {
       },
     ]);
     return () => toolbarStore.clear();
-  }, [isPlaying, isExporting, activeScene?.id]);
+  }, [isPlaying, isExporting, isSeeding, activeScene?.id]);
 
   // Load all scenes + their elements
   useEffect(() => {
