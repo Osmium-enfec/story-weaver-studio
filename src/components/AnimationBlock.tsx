@@ -1,6 +1,31 @@
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { Sparkles } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { AnimationProvider } from "@/lib/animation-providers";
+
+// Measure text natural pixel size using a canvas at the given font.
+export function measureTextSize(
+  text: string,
+  opts: { fontFamily?: string; fontSize?: number; fontWeight?: number; lineHeight?: number },
+): { w: number; h: number } {
+  const family = opts.fontFamily || "Inter";
+  const size = opts.fontSize ?? 24;
+  const weight = opts.fontWeight ?? 400;
+  const lh = opts.lineHeight ?? 1.4;
+  if (typeof document === "undefined") {
+    return { w: Math.max(40, size * (text?.length || 1) * 0.55), h: Math.max(size * lh, size) };
+  }
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return { w: Math.max(40, size * (text?.length || 1) * 0.55), h: size * lh };
+  ctx.font = `${weight} ${size}px ${family}`;
+  const lines = (text || " ").split("\n");
+  let maxW = 0;
+  for (const line of lines) maxW = Math.max(maxW, ctx.measureText(line || " ").width);
+  const w = Math.ceil(maxW) + 8; // small padding
+  const h = Math.ceil(lines.length * size * lh) + 4;
+  return { w: Math.max(24, w), h: Math.max(24, h) };
+}
 
 export interface AnimationBlockContent {
   provider: AnimationProvider;
