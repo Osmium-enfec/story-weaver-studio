@@ -384,6 +384,10 @@ function ScriptCanvas() {
 
   async function addAnimation(a: AnimationResult) {
     if (!activeScene) return;
+    if (!selectedWord) {
+      toast.error("Click + next to a word in the script first");
+      return;
+    }
     const node = canvasRefs.current[activeScene.id];
     if (!node) return;
 
