@@ -50,8 +50,7 @@ interface Props {
 
 const FALLBACK_SCENE_MS = 3500;
 const TRANSITION_MS = 600;
-const MIN_REVEAL_MS = 1200;
-const REVEAL_STEP_MS = 700;
+const TAIL_HOLD_MS = 800;
 
 function normalize(w: string) {
   return w.toLowerCase().replace(/[^a-z0-9_-]/g, "");
@@ -108,24 +107,15 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       if (cancelRef.current) return resolve();
       const scene = scenes[idx];
       if (!scene) return resolve();
-      const orderedElements = [...scene.elements].sort((a, b) => {
-        const byOrder = (a.z_index ?? 0) - (b.z_index ?? 0);
-        return byOrder || a.id.localeCompare(b.id);
-      });
       setCurrentIdx(idx);
       clearTimers();
 
-      // Build word→elements map for this scene, tracking occurrence.
-      // Sequence order = the visible numbering/z_index order.
+      // Build word→elements map (occurrence-aware)
       const occurrenceCounter: Record<string, number> = {};
       const wordMap = new Map<string, string[]>();
-      const unboundIdsBySeq: string[] = [];
-      for (const el of orderedElements) {
+      for (const el of scene.elements) {
         const w = el.content.word ? normalize(el.content.word) : "";
-        if (!w) {
-          unboundIdsBySeq.push(el.id);
-          continue;
-        }
+        if (!w) continue;
         const occ = el.content.occurrence ?? 1;
         const key = `${w}|${occ}`;
         const arr = wordMap.get(key) ?? [];
@@ -133,84 +123,27 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         wordMap.set(key, arr);
       }
 
-      // Nothing visible at start; reveals are scheduled below.
       setRevealedIds(new Set());
 
-      // Items become "available" from either their timed slot or linked word.
-      // We only reveal the next contiguous run in sequence order, so #3 can
-      // never appear before #2 even if #3's linked word happens earlier.
-      const availableIds = new Set<string>();
-      let nextSequenceIndex = 0;
-      let flushingSequence = false;
-
-      const revealNextAvailable = () => {
-        if (cancelRef.current) return;
-        const nextId = orderedElements[nextSequenceIndex]?.id;
-        if (!nextId || !availableIds.has(nextId)) {
-          flushingSequence = false;
-          return;
-        }
-
-        nextSequenceIndex += 1;
+      const reveal = (ids: string | string[]) => {
+        const incoming = Array.isArray(ids) ? ids : [ids];
+        if (incoming.length === 0) return;
         setRevealedIds((prev) => {
           const next = new Set(prev);
-          next.add(nextId);
+          incoming.forEach((id) => next.add(id));
           return next;
-        });
-
-        const followingId = orderedElements[nextSequenceIndex]?.id;
-        if (followingId && availableIds.has(followingId)) {
-          const t = setTimeout(revealNextAvailable, REVEAL_STEP_MS);
-          timersRef.current.push(t);
-          return;
-        }
-        flushingSequence = false;
-      };
-
-      const markAvailable = (ids: string | string[]) => {
-        const incoming = Array.isArray(ids) ? ids : [ids];
-        incoming.forEach((id) => availableIds.add(id));
-        if (flushingSequence) return;
-        flushingSequence = true;
-        revealNextAvailable();
-      };
-
-      // Schedule unbound elements evenly across `totalMs` in sequence order.
-      const scheduleUnbound = (totalMs: number) => {
-        if (unboundIdsBySeq.length === 0) return;
-        unboundIdsBySeq.forEach((id, i) => {
-          const at = ((i + 1) / (unboundIdsBySeq.length + 1)) * totalMs;
-          const t = setTimeout(
-            () => {
-              if (cancelRef.current) return;
-              markAvailable(id);
-            },
-            Math.max(0, at),
-          );
-          timersRef.current.push(t);
         });
       };
 
       const finish = () => {
         if (cancelRef.current) return resolve();
         clearTimers();
-        orderedElements.forEach((el) => availableIds.add(el.id));
+        // Reveal any leftover word-bound elements whose word never fired
+        const leftover = scene.elements.filter((el) => el.content.word).map((e) => e.id);
+        reveal(leftover);
 
-        const transitionAfterSequence = () => {
+        const t = setTimeout(() => {
           if (cancelRef.current) return resolve();
-          const nextId = orderedElements[nextSequenceIndex]?.id;
-          if (nextId && availableIds.has(nextId)) {
-            nextSequenceIndex += 1;
-            setRevealedIds((prev) => {
-              const next = new Set(prev);
-              next.add(nextId);
-              return next;
-            });
-            const t = setTimeout(transitionAfterSequence, REVEAL_STEP_MS);
-            timersRef.current.push(t);
-            return;
-          }
-
           if (idx + 1 < scenes.length) {
             setTransitioning(true);
             setTimeout(() => {
@@ -220,9 +153,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
           } else {
             resolve();
           }
-        };
-
-        const t = setTimeout(transitionAfterSequence, 400);
+        }, TAIL_HOLD_MS);
         timersRef.current.push(t);
       };
 
@@ -242,7 +173,6 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
           (c) => c.end_ms > trimStart && c.start_ms < trimEnd,
         );
 
-        // Build playback ranges (segment-relative ms) honoring trim + cuts
         const ranges: { start: number; end: number }[] = [];
         let cursor = trimStart;
         for (const c of cuts.sort((a, b) => a.start_ms - b.start_ms)) {
@@ -254,16 +184,11 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         if (cursor < trimEnd) ranges.push({ start: cursor, end: trimEnd });
 
         const totalAudibleMs = ranges.reduce((sum, r) => sum + (r.end - r.start), 0);
-        scheduleUnbound(totalAudibleMs);
 
-        // Schedule word-based reveals using AUDIBLE elapsed time
-        // (skip words inside cuts; squeeze remaining timeline)
         const timings = scene.word_timings ?? [];
         for (const wt of timings) {
           if (wt.start_ms < trimStart || wt.end_ms > trimEnd) continue;
-          // Skip words inside any cut
           if (cuts.some((c) => wt.start_ms >= c.start_ms && wt.end_ms <= c.end_ms)) continue;
-          // Compute audible elapsed at wt.start_ms
           let elapsed = 0;
           for (const r of ranges) {
             if (wt.start_ms >= r.end) {
@@ -282,14 +207,13 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
               const occ = occurrenceCounter[word];
               const ids = wordMap.get(`${word}|${occ}`) ?? wordMap.get(`${word}|1`) ?? [];
               if (ids.length === 0) return;
-              markAvailable(ids);
+              reveal(ids);
             },
             Math.max(0, elapsed),
           );
           timersRef.current.push(t);
         }
 
-        // Audio element + WebAudio gain for volume/fades
         const audio = new Audio(scene.voice_url!);
         audio.crossOrigin = "anonymous";
         audioRef.current = audio;
@@ -309,10 +233,6 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
           audio.volume = Math.min(1, Math.max(0, volume));
         }
 
-        // Play through ranges sequentially. Whisper times are already
-        // segment-relative (start_ms is ~0). Audio file is the canvas's clip
-        // OR a master file — handle both: if voice_start_ms > 0, the audio is
-        // the master file and we offset accordingly.
         const fileOffsetSec = segStart / 1000;
         let rangeIdx = 0;
         let stopped = false;
@@ -321,22 +241,13 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
           if (stopped || cancelRef.current) return;
           const r = ranges[rangeIdx];
           if (!r) {
-            try {
-              audio.pause();
-            } catch {
-              /* */
-            }
-            try {
-              void AC?.close();
-            } catch {
-              /* */
-            }
+            try { audio.pause(); } catch { /* */ }
+            try { void AC?.close(); } catch { /* */ }
             finish();
             return;
           }
           audio.currentTime = fileOffsetSec + r.start / 1000;
           const dur = (r.end - r.start) / 1000;
-          // Fades: only on first/last range
           if (gain && AC) {
             const now = AC.currentTime;
             gain.gain.cancelScheduledValues(now);
@@ -351,9 +262,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
               gain.gain.linearRampToValueAtTime(0, now + dur);
             }
           }
-          audio.play().catch(() => {
-            /* autoplay rejection */
-          });
+          audio.play().catch(() => { /* autoplay rejection */ });
           const t = setTimeout(() => {
             rangeIdx += 1;
             playRange();
@@ -361,19 +270,10 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
           timersRef.current.push(t);
         };
 
-        // Safety stop after total audible duration
         const guard = setTimeout(() => {
           stopped = true;
-          try {
-            audio.pause();
-          } catch {
-            /* */
-          }
-          try {
-            void AC?.close();
-          } catch {
-            /* */
-          }
+          try { audio.pause(); } catch { /* */ }
+          try { void AC?.close(); } catch { /* */ }
         }, totalAudibleMs + 500);
         timersRef.current.push(guard);
 
@@ -381,20 +281,15 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         return;
       }
 
-      // ─── Path B: TTS or stagger fallback ─────────────────────────────────
+      // ─── Path B: TTS or fallback ─────────────────────────────────────────
       const narration = (scene.narration ?? "").trim();
       const hasSpeech = narration.length > 0 && "speechSynthesis" in window;
 
       if (!hasSpeech) {
-        scheduleUnbound(FALLBACK_SCENE_MS);
-        const t = setTimeout(finish, Math.max(MIN_REVEAL_MS, FALLBACK_SCENE_MS));
+        const t = setTimeout(finish, FALLBACK_SCENE_MS);
         timersRef.current.push(t);
         return;
       }
-
-      // Estimate narration duration to distribute unbound elements
-      const estimatedMs = Math.max(MIN_REVEAL_MS, narration.length * 60);
-      scheduleUnbound(estimatedMs);
 
       const u = new SpeechSynthesisUtterance(narration);
       u.rate = 1;
@@ -408,7 +303,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         const occ = occurrenceCounter[word];
         const ids = wordMap.get(`${word}|${occ}`) ?? wordMap.get(`${word}|1`) ?? [];
         if (ids.length === 0) return;
-        markAvailable(ids);
+        reveal(ids);
       };
       u.onend = finish;
       u.onerror = finish;
@@ -432,11 +327,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
     cancelRef.current = true;
     window.speechSynthesis?.cancel();
     if (audioRef.current) {
-      try {
-        audioRef.current.pause();
-      } catch {
-        /* ignore */
-      }
+      try { audioRef.current.pause(); } catch { /* ignore */ }
       audioRef.current = null;
     }
     clearTimers();

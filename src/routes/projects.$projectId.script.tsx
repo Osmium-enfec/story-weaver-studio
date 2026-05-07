@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Trash2, Plus, Eraser, Grid3x3 } from "lucide-react";
+import { Trash2, Plus, Eraser, Grid3x3, Minus } from "lucide-react";
 import { toolbarStore } from "@/components/toolbar-store";
 import { AnimationSearchPanel } from "@/components/AnimationSearchPanel";
 import { AnimationBlockRenderer, TextBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
@@ -20,7 +20,6 @@ import type { AnimationResult } from "@/lib/animation-providers";
 import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
 import { proxyImageAsDataUrl } from "@/server/proxy-image.functions";
 import { CanvasAudioEditor } from "@/components/CanvasAudioEditor";
-import { SequencePanel } from "@/components/SequencePanel";
 
 async function inlineAllImages(root: HTMLElement) {
   const imgs = Array.from(root.querySelectorAll("img"));
@@ -87,6 +86,7 @@ function ScriptCanvas() {
   const [playOpen, setPlayOpen] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ w: 1280, h: 720 });
   const [gridCanvases, setGridCanvases] = useState<Record<string, boolean>>({});
+  const [rightTab, setRightTab] = useState<string>("animations");
 
   const activeScene = scenes[activeIdx];
 
@@ -385,6 +385,10 @@ function ScriptCanvas() {
 
   async function addAnimation(a: AnimationResult) {
     if (!activeScene) return;
+    if (!selectedWord) {
+      toast.error("Click + next to a word in the script first");
+      return;
+    }
     const node = canvasRefs.current[activeScene.id];
     if (!node) return;
 
@@ -452,6 +456,10 @@ function ScriptCanvas() {
 
   async function addTextBlock(role: TextRole, style: TextRoleStyle) {
     if (!activeScene) return;
+    if (!selectedWord) {
+      toast.error("Click + next to a word in the script first");
+      return;
+    }
     const node = canvasRefs.current[activeScene.id];
     if (!node) return;
     const rect = node.getBoundingClientRect();
@@ -630,7 +638,7 @@ function ScriptCanvas() {
                     ))}
                   </div>
                 )}
-                {s.elements.map((el, elIdx) => (
+                {s.elements.map((el) => (
                   <Rnd
                     key={el.id}
                     bounds="parent"
@@ -654,14 +662,11 @@ function ScriptCanvas() {
                     data-canvas-element="true"
                   >
                     <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
-                      <span
-                        className={`pointer-events-none absolute -left-2 -top-2 z-20 flex h-5 min-w-[1.25rem] items-center gap-0.5 rounded-full px-1 text-[10px] font-semibold shadow ${
-                          el.content.word ? "bg-accent text-accent-foreground" : "bg-primary text-primary-foreground"
-                        }`}
-                      >
-                        {elIdx + 1}
-                        {el.content.word && <span aria-hidden>🔗</span>}
-                      </span>
+                      {el.content.word && (
+                        <span className="pointer-events-none absolute -left-2 -top-2 z-20 flex h-5 items-center gap-0.5 rounded-full bg-accent px-1.5 text-[10px] font-semibold text-accent-foreground shadow">
+                          🔗 {el.content.word}
+                        </span>
+                      )}
                       {el.type === "text" ? (
                         <TextBlockRenderer
                           content={el.content}
@@ -739,8 +744,18 @@ function ScriptCanvas() {
                   <ClickableScript
                     text={s.narration}
                     selected={idx === activeIdx ? selectedWord : null}
-                    boundWords={new Set(s.elements.map((e) => (e.content.word ?? "").toLowerCase()).filter(Boolean))}
-                    onWordClick={(w) => { setActiveIdx(idx); setSelectedWord(w); }}
+                    elements={s.elements}
+                    onWordSelect={(w) => { setActiveIdx(idx); setSelectedWord(w); }}
+                    onAddForWord={(w) => {
+                      setActiveIdx(idx);
+                      setSelectedWord(w);
+                      setRightTab("animations");
+                    }}
+                    onRemoveForWord={(w) => {
+                      const lower = w.toLowerCase();
+                      const targets = s.elements.filter((e) => (e.content.word ?? "").toLowerCase() === lower);
+                      targets.forEach((t) => void deleteElement(s.id, t.id));
+                    }}
                   />
                 </div>
               ) : (
@@ -778,31 +793,20 @@ function ScriptCanvas() {
           className="sticky flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
           style={{ top: "4.5rem", height: "calc(100vh - 5.5rem)" }}
         >
-          <Tabs defaultValue="sequence" className="flex h-full min-h-0 flex-col">
-            <TabsList className="m-3 grid shrink-0 grid-cols-5">
-              <TabsTrigger value="sequence" className="text-[11px]">Seq</TabsTrigger>
+          <Tabs value={rightTab} onValueChange={setRightTab} className="flex h-full min-h-0 flex-col">
+            <TabsList className="m-3 grid shrink-0 grid-cols-4">
               <TabsTrigger value="animations" className="text-[11px]">Anim</TabsTrigger>
               <TabsTrigger value="background" className="text-[11px]">BG</TabsTrigger>
               <TabsTrigger value="text" className="text-[11px]">Text</TabsTrigger>
               <TabsTrigger value="theme" className="text-[11px]">Theme</TabsTrigger>
             </TabsList>
-            <TabsContent value="sequence" className="m-0 flex min-h-0 flex-1 flex-col overflow-y-auto border-t border-border">
-              <div className="shrink-0 border-b border-border px-4 py-2">
-                <p className="text-xs text-muted-foreground">Canvas {activeIdx + 1} · play order</p>
-              </div>
-              {activeScene && (
-                <SequencePanel
-                  items={activeScene.elements.map((e) => ({ id: e.id, type: e.type, content: e.content }))}
-                  selectedId={selectedElementId}
-                  onSelect={setSelectedElementId}
-                  onReorder={(ids) => void reorderElements(activeScene.id, ids)}
-                  onRemove={(id) => void deleteElement(activeScene.id, id)}
-                />
-              )}
-            </TabsContent>
             <TabsContent value="animations" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
               <div className="shrink-0 border-b border-border px-4 py-2">
-                <p className="text-xs text-muted-foreground">Adds to Canvas {activeIdx + 1}</p>
+                <p className="text-xs text-muted-foreground">
+                  {selectedWord
+                    ? <>Adding to word · <span className="font-semibold text-primary">{selectedWord}</span></>
+                    : "Click + next to a word in the script first"}
+                </p>
               </div>
               <div className="min-h-0 flex-1 overflow-hidden">
                 <AnimationSearchPanel initialQuery={selectedWord ?? ""} onSelect={addAnimation} />
@@ -896,14 +900,25 @@ const WORD_RE = /[A-Za-z][A-Za-z0-9_-]*/g;
 function ClickableScript({
   text,
   selected,
-  boundWords,
-  onWordClick,
+  elements,
+  onWordSelect,
+  onAddForWord,
+  onRemoveForWord,
 }: {
   text: string;
   selected: string | null;
-  boundWords?: Set<string>;
-  onWordClick: (w: string) => void;
+  elements: PlacedElement[];
+  onWordSelect: (w: string) => void;
+  onAddForWord: (w: string) => void;
+  onRemoveForWord: (w: string) => void;
 }) {
+  const boundCounts = new Map<string, number>();
+  for (const el of elements) {
+    const w = (el.content.word ?? "").toLowerCase();
+    if (!w) continue;
+    boundCounts.set(w, (boundCounts.get(w) ?? 0) + 1);
+  }
+
   const tokens: { word: boolean; text: string }[] = [];
   let last = 0;
   for (const m of text.matchAll(WORD_RE)) {
@@ -913,27 +928,47 @@ function ClickableScript({
     last = idx + m[0].length;
   }
   if (last < text.length) tokens.push({ word: false, text: text.slice(last) });
+
   return (
-    <p className="whitespace-pre-wrap">
+    <p className="whitespace-pre-wrap leading-9">
       {tokens.map((t, i) => {
         if (!t.word) return <span key={i}>{t.text}</span>;
         const lower = t.text.toLowerCase();
         const isSelected = selected?.toLowerCase() === lower;
-        const isBound = boundWords?.has(lower);
+        const count = boundCounts.get(lower) ?? 0;
+        const isBound = count > 0;
         return (
-          <button
-            key={i}
-            onClick={(e) => { e.stopPropagation(); onWordClick(t.text); }}
-            className={`rounded px-0.5 transition ${
-              isSelected
-                ? "bg-primary/20 text-primary font-semibold"
-                : isBound
-                  ? "bg-accent/40 text-accent-foreground underline decoration-dotted underline-offset-4"
-                  : "hover:bg-muted"
-            }`}
-          >
-            {t.text}
-          </button>
+          <span key={i} className="inline-flex items-center gap-0.5 align-baseline">
+            <button
+              onClick={(e) => { e.stopPropagation(); onWordSelect(t.text); }}
+              className={`rounded px-0.5 transition ${
+                isSelected
+                  ? "bg-primary/20 text-primary font-semibold"
+                  : isBound
+                    ? "bg-accent/40 text-accent-foreground underline decoration-dotted underline-offset-4"
+                    : "hover:bg-muted"
+              }`}
+            >
+              {t.text}
+            </button>
+            {isBound ? (
+              <button
+                title={`Remove ${count} animation${count > 1 ? "s" : ""}`}
+                onClick={(e) => { e.stopPropagation(); onRemoveForWord(t.text); }}
+                className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm hover:scale-110 transition"
+              >
+                <Minus className="h-2.5 w-2.5" />
+              </button>
+            ) : (
+              <button
+                title="Add animation for this word"
+                onClick={(e) => { e.stopPropagation(); onAddForWord(t.text); }}
+                className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm opacity-60 hover:opacity-100 hover:scale-110 transition"
+              >
+                <Plus className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </span>
         );
       })}
     </p>
