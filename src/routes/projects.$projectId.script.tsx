@@ -903,14 +903,25 @@ const WORD_RE = /[A-Za-z][A-Za-z0-9_-]*/g;
 function ClickableScript({
   text,
   selected,
-  boundWords,
-  onWordClick,
+  elements,
+  onWordSelect,
+  onAddForWord,
+  onRemoveForWord,
 }: {
   text: string;
   selected: string | null;
-  boundWords?: Set<string>;
-  onWordClick: (w: string) => void;
+  elements: PlacedElement[];
+  onWordSelect: (w: string) => void;
+  onAddForWord: (w: string) => void;
+  onRemoveForWord: (w: string) => void;
 }) {
+  const boundCounts = new Map<string, number>();
+  for (const el of elements) {
+    const w = (el.content.word ?? "").toLowerCase();
+    if (!w) continue;
+    boundCounts.set(w, (boundCounts.get(w) ?? 0) + 1);
+  }
+
   const tokens: { word: boolean; text: string }[] = [];
   let last = 0;
   for (const m of text.matchAll(WORD_RE)) {
@@ -920,27 +931,47 @@ function ClickableScript({
     last = idx + m[0].length;
   }
   if (last < text.length) tokens.push({ word: false, text: text.slice(last) });
+
   return (
-    <p className="whitespace-pre-wrap">
+    <p className="whitespace-pre-wrap leading-9">
       {tokens.map((t, i) => {
         if (!t.word) return <span key={i}>{t.text}</span>;
         const lower = t.text.toLowerCase();
         const isSelected = selected?.toLowerCase() === lower;
-        const isBound = boundWords?.has(lower);
+        const count = boundCounts.get(lower) ?? 0;
+        const isBound = count > 0;
         return (
-          <button
-            key={i}
-            onClick={(e) => { e.stopPropagation(); onWordClick(t.text); }}
-            className={`rounded px-0.5 transition ${
-              isSelected
-                ? "bg-primary/20 text-primary font-semibold"
-                : isBound
-                  ? "bg-accent/40 text-accent-foreground underline decoration-dotted underline-offset-4"
-                  : "hover:bg-muted"
-            }`}
-          >
-            {t.text}
-          </button>
+          <span key={i} className="inline-flex items-center gap-0.5 align-baseline">
+            <button
+              onClick={(e) => { e.stopPropagation(); onWordSelect(t.text); }}
+              className={`rounded px-0.5 transition ${
+                isSelected
+                  ? "bg-primary/20 text-primary font-semibold"
+                  : isBound
+                    ? "bg-accent/40 text-accent-foreground underline decoration-dotted underline-offset-4"
+                    : "hover:bg-muted"
+              }`}
+            >
+              {t.text}
+            </button>
+            {isBound ? (
+              <button
+                title={`Remove ${count} animation${count > 1 ? "s" : ""}`}
+                onClick={(e) => { e.stopPropagation(); onRemoveForWord(t.text); }}
+                className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm hover:scale-110 transition"
+              >
+                <Minus className="h-2.5 w-2.5" />
+              </button>
+            ) : (
+              <button
+                title="Add animation for this word"
+                onClick={(e) => { e.stopPropagation(); onAddForWord(t.text); }}
+                className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm opacity-60 hover:opacity-100 hover:scale-110 transition"
+              >
+                <Plus className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </span>
         );
       })}
     </p>
