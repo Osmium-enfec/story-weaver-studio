@@ -703,6 +703,22 @@ function ScriptCanvas() {
                     ))}
                   </div>
                 )}
+                <div
+                  className="absolute left-0 top-0 origin-top-left"
+                  style={{ width: 1280, height: 720 }}
+                  ref={(node) => {
+                    if (!node) return;
+                    const parent = node.parentElement as HTMLElement | null;
+                    if (!parent) return;
+                    const apply = () => {
+                      const w = parent.clientWidth;
+                      node.style.transform = `scale(${w / 1280})`;
+                    };
+                    apply();
+                    const ro = new ResizeObserver(apply);
+                    ro.observe(parent);
+                  }}
+                >
                 {s.elements.map((el) => (
                   <Rnd
                     key={el.id}
@@ -768,6 +784,7 @@ function ScriptCanvas() {
                     </div>
                   </Rnd>
                 ))}
+                </div>
                 {s.elements.length === 0 && (
                   <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
                     Add an animation from the right panel →
