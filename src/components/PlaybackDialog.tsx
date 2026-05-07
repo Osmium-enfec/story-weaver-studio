@@ -8,6 +8,7 @@ import {
 import { BackgroundLayer, type SceneBackground } from "@/components/BackgroundPicker";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { cellRect } from "@/lib/grid";
 
 export interface PlaybackElement {
   id: string;
@@ -371,34 +372,37 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
               }}
             >
               {current && <BackgroundLayer background={current.background} />}
-              {current?.elements.map((el) => {
-                const visible = revealedIds.has(el.id);
-                const isText =
-                  el.type === "text" || typeof el.content.text === "string" || !!el.content.role;
-                return (
-                  <div
-                    key={el.id}
-                    style={{
-                      position: "absolute",
-                      left: el.position.x,
-                      top: el.position.y,
-                      width: el.position.w,
-                      height: el.position.h,
-                      zIndex: el.z_index,
-                      opacity: visible ? 1 : 0,
-                      transform: visible ? "scale(1)" : "scale(0.92)",
-                      transition: "opacity 350ms ease, transform 350ms ease",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {isText ? (
-                      <TextBlockRenderer content={el.content} />
-                    ) : (
-                      <AnimationBlockRenderer content={el.content} />
-                    )}
-                  </div>
-                );
-              })}
+              {current && [...current.elements]
+                .sort((a, b) => a.z_index - b.z_index)
+                .map((el, idx) => {
+                  const visible = revealedIds.has(el.id);
+                  const isText =
+                    el.type === "text" || typeof el.content.text === "string" || !!el.content.role;
+                  const rect = cellRect(idx);
+                  return (
+                    <div
+                      key={el.id}
+                      style={{
+                        position: "absolute",
+                        left: rect.x,
+                        top: rect.y,
+                        width: rect.w,
+                        height: rect.h,
+                        zIndex: el.z_index,
+                        opacity: visible ? 1 : 0,
+                        transform: visible ? "scale(1)" : "scale(0.92)",
+                        transition: "opacity 350ms ease, transform 350ms ease",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {isText ? (
+                        <TextBlockRenderer content={el.content} />
+                      ) : (
+                        <AnimationBlockRenderer content={el.content} />
+                      )}
+                    </div>
+                  );
+                })}
             </div>
           </div>
           <div className="flex items-center justify-between gap-2">
