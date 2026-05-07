@@ -473,11 +473,8 @@ function ScriptCanvas() {
       }
     }
 
-    const rect = node.getBoundingClientRect();
-    const w = Math.round(rect.width * 0.3);
-    const h = Math.round(rect.height * 0.3);
-    const x = Math.round((rect.width - w) / 2);
-    const y = Math.round((rect.height - h) / 2);
+    const cellIdx = nextEmptyCellIndex(activeScene.elements.map((e) => e.position));
+    const { x, y, w, h } = cellRect(cellIdx);
 
     const content: AnimationBlockContent = {
       provider: a.provider,
