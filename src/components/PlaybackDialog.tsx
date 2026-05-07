@@ -388,6 +388,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
                       opacity: visible ? 1 : 0,
                       transform: visible ? "scale(1)" : "scale(0.92)",
                       transition: "opacity 350ms ease, transform 350ms ease",
+                      overflow: "hidden",
                     }}
                   >
                     {isText ? (
