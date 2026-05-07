@@ -85,7 +85,13 @@ function VoicePage() {
           targetSceneCount: target,
         },
       });
-      toast.success(`Created ${res.sceneCount} canvases from voice`);
+      setProgress("Adding animations to each canvas…");
+      try {
+        await seedAnimationsForProject({ data: { projectId } });
+      } catch (e) {
+        console.error("seed failed", e);
+      }
+      toast.success(`Created ${res.sceneCount} canvases with animations`);
       navigate({ to: "/projects/$projectId/script", params: { projectId } });
     } catch (e) {
       toast.error((e as Error).message);
