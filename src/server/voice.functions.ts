@@ -422,7 +422,7 @@ function gridPositions(n: number) {
   const rows = 3;
   const cellW = CW / cols;
   const cellH = CH / rows;
-  const pad = 16;
+  const pad = 48;
   const total = cols * rows;
   const count = Math.min(Math.max(n, 0), total);
   return Array.from({ length: count }, (_, i) => {
