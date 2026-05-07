@@ -68,27 +68,64 @@ export function TextBlockRenderer({
   editable?: boolean;
   onChange?: (text: string) => void;
 }) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const innerRef = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(1);
+  const baseSize = content.font_size ?? 24;
+  const text = content.text ?? "";
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const wrap = wrapRef.current;
+      const inner = innerRef.current;
+      if (!wrap || !inner) return;
+      // Reset to measure natural size
+      inner.style.transform = "none";
+      const naturalW = inner.scrollWidth || 1;
+      const naturalH = inner.scrollHeight || 1;
+      const boxW = wrap.clientWidth;
+      const boxH = wrap.clientHeight;
+      const s = Math.max(0.05, Math.min(boxW / naturalW, boxH / naturalH));
+      setScale(s);
+      inner.style.transform = `scale(${s})`;
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (wrapRef.current) ro.observe(wrapRef.current);
+    return () => ro.disconnect();
+  }, [text, baseSize, content.font_family, content.font_weight, content.line_height]);
+
   return (
     <div
-      contentEditable={editable}
-      suppressContentEditableWarning
-      onBlur={(e) => onChange?.(e.currentTarget.innerText)}
-      onMouseDown={(e) => { if (editable) e.stopPropagation(); }}
-      className="h-full w-full outline-none"
+      ref={wrapRef}
+      className="flex h-full w-full items-center justify-center overflow-hidden outline-none"
       style={{
-        fontFamily: content.font_family || "Inter",
-        fontSize: (content.font_size ?? 24) + "px",
-        fontWeight: content.font_weight ?? 400,
-        lineHeight: content.line_height ?? 1.4,
-        color: content.color || "#0f172a",
         opacity: content.opacity ?? 1,
         transform: `rotate(${content.rotation ?? 0}deg)`,
-        cursor: editable ? "text" : "default",
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word",
       }}
     >
-      {content.text ?? ""}
+      <div
+        ref={innerRef}
+        contentEditable={editable}
+        suppressContentEditableWarning
+        onBlur={(e) => onChange?.(e.currentTarget.innerText)}
+        onMouseDown={(e) => { if (editable) e.stopPropagation(); }}
+        className="outline-none"
+        style={{
+          fontFamily: content.font_family || "Inter",
+          fontSize: baseSize + "px",
+          fontWeight: content.font_weight ?? 400,
+          lineHeight: content.line_height ?? 1.4,
+          color: content.color || "#0f172a",
+          cursor: editable ? "text" : "default",
+          whiteSpace: "pre",
+          transformOrigin: "center center",
+          transform: `scale(${scale})`,
+          display: "inline-block",
+        }}
+      >
+        {text}
+      </div>
     </div>
   );
 }
