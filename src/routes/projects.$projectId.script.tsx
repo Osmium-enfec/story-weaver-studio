@@ -696,13 +696,13 @@ function ScriptCanvas() {
                 )}
                 <div
                   className="absolute left-0 top-0 origin-top-left"
-                  style={{ width: 1280, height: 720 }}
+                  style={{ width: DESIGN.w, height: DESIGN.h }}
                   ref={(node) => {
                     if (!node) return;
                     const parent = node.parentElement as HTMLElement | null;
                     if (!parent) return;
                     const apply = () => {
-                      const s = Math.min(parent.clientWidth / 1280, parent.clientHeight / 720);
+                      const s = Math.min(parent.clientWidth / DESIGN.w, parent.clientHeight / DESIGN.h);
                       node.style.transform = `scale(${s})`;
                     };
                     apply();
