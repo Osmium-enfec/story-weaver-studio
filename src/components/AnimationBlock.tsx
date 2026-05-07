@@ -1,6 +1,31 @@
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { Sparkles } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { AnimationProvider } from "@/lib/animation-providers";
+
+// Measure text natural pixel size using a canvas at the given font.
+export function measureTextSize(
+  text: string,
+  opts: { fontFamily?: string; fontSize?: number; fontWeight?: number; lineHeight?: number },
+): { w: number; h: number } {
+  const family = opts.fontFamily || "Inter";
+  const size = opts.fontSize ?? 24;
+  const weight = opts.fontWeight ?? 400;
+  const lh = opts.lineHeight ?? 1.4;
+  if (typeof document === "undefined") {
+    return { w: Math.max(40, size * (text?.length || 1) * 0.55), h: Math.max(size * lh, size) };
+  }
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return { w: Math.max(40, size * (text?.length || 1) * 0.55), h: size * lh };
+  ctx.font = `${weight} ${size}px ${family}`;
+  const lines = (text || " ").split("\n");
+  let maxW = 0;
+  for (const line of lines) maxW = Math.max(maxW, ctx.measureText(line || " ").width);
+  const w = Math.ceil(maxW) + 8; // small padding
+  const h = Math.ceil(lines.length * size * lh) + 4;
+  return { w: Math.max(24, w), h: Math.max(24, h) };
+}
 
 export interface AnimationBlockContent {
   provider: AnimationProvider;
@@ -43,27 +68,64 @@ export function TextBlockRenderer({
   editable?: boolean;
   onChange?: (text: string) => void;
 }) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const innerRef = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(1);
+  const baseSize = content.font_size ?? 24;
+  const text = content.text ?? "";
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const wrap = wrapRef.current;
+      const inner = innerRef.current;
+      if (!wrap || !inner) return;
+      // Reset to measure natural size
+      inner.style.transform = "none";
+      const naturalW = inner.scrollWidth || 1;
+      const naturalH = inner.scrollHeight || 1;
+      const boxW = wrap.clientWidth;
+      const boxH = wrap.clientHeight;
+      const s = Math.max(0.05, Math.min(boxW / naturalW, boxH / naturalH));
+      setScale(s);
+      inner.style.transform = `scale(${s})`;
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (wrapRef.current) ro.observe(wrapRef.current);
+    return () => ro.disconnect();
+  }, [text, baseSize, content.font_family, content.font_weight, content.line_height]);
+
   return (
     <div
-      contentEditable={editable}
-      suppressContentEditableWarning
-      onBlur={(e) => onChange?.(e.currentTarget.innerText)}
-      onMouseDown={(e) => { if (editable) e.stopPropagation(); }}
-      className="h-full w-full outline-none"
+      ref={wrapRef}
+      className="flex h-full w-full items-center justify-center overflow-hidden outline-none"
       style={{
-        fontFamily: content.font_family || "Inter",
-        fontSize: (content.font_size ?? 24) + "px",
-        fontWeight: content.font_weight ?? 400,
-        lineHeight: content.line_height ?? 1.4,
-        color: content.color || "#0f172a",
         opacity: content.opacity ?? 1,
         transform: `rotate(${content.rotation ?? 0}deg)`,
-        cursor: editable ? "text" : "default",
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word",
       }}
     >
-      {content.text ?? ""}
+      <div
+        ref={innerRef}
+        contentEditable={editable}
+        suppressContentEditableWarning
+        onBlur={(e) => onChange?.(e.currentTarget.innerText)}
+        onMouseDown={(e) => { if (editable) e.stopPropagation(); }}
+        className="outline-none"
+        style={{
+          fontFamily: content.font_family || "Inter",
+          fontSize: baseSize + "px",
+          fontWeight: content.font_weight ?? 400,
+          lineHeight: content.line_height ?? 1.4,
+          color: content.color || "#0f172a",
+          cursor: editable ? "text" : "default",
+          whiteSpace: "pre",
+          transformOrigin: "center center",
+          transform: `scale(${scale})`,
+          display: "inline-block",
+        }}
+      >
+        {text}
+      </div>
     </div>
   );
 }

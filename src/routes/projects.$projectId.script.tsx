@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Trash2, Plus, Eraser, Grid3x3, Minus } from "lucide-react";
 import { toolbarStore } from "@/components/toolbar-store";
 import { AnimationSearchPanel } from "@/components/AnimationSearchPanel";
-import { AnimationBlockRenderer, TextBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
+import { AnimationBlockRenderer, TextBlockRenderer, measureTextSize, type AnimationBlockContent } from "@/components/AnimationBlock";
 import { BackgroundPicker, BackgroundLayer, type SceneBackground } from "@/components/BackgroundPicker";
 import { ThemeBuilder } from "@/components/ThemeBuilder";
 import { TextPanel, type TextRole, type TextRoleStyle } from "@/components/TextPanel";
@@ -535,7 +535,18 @@ function ScriptCanvas() {
     const node = canvasRefs.current[activeScene.id];
     if (!node) return;
     const cellIdx = nextEmptyCellIndex(activeScene.elements.map((e) => e.position));
-    const { x, y, w, h } = cellRect(cellIdx);
+    const cell = cellRect(cellIdx);
+    const textValue = selectedWord ?? (role === "heading" ? "Heading" : role === "subheading" ? "Sub-heading" : "Paragraph text");
+    const natural = measureTextSize(textValue, {
+      fontFamily: style.family,
+      fontSize: style.size,
+      fontWeight: style.weight,
+      lineHeight: style.lineHeight,
+    });
+    const x = cell.x;
+    const y = cell.y;
+    const w = Math.min(natural.w, cell.w);
+    const h = Math.min(natural.h, cell.h);
     const placeholder = role === "heading" ? "Heading" : role === "subheading" ? "Sub-heading" : "Paragraph text";
     const content: AnimationBlockContent = {
       provider: "internal",
