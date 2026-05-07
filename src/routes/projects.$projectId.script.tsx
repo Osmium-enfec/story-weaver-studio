@@ -796,7 +796,7 @@ function ScriptCanvas() {
           className="sticky flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
           style={{ top: "4.5rem", height: "calc(100vh - 5.5rem)" }}
         >
-          <Tabs defaultValue="animations" className="flex h-full min-h-0 flex-col">
+          <Tabs value={rightTab} onValueChange={setRightTab} className="flex h-full min-h-0 flex-col">
             <TabsList className="m-3 grid shrink-0 grid-cols-4">
               <TabsTrigger value="animations" className="text-[11px]">Anim</TabsTrigger>
               <TabsTrigger value="background" className="text-[11px]">BG</TabsTrigger>
