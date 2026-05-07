@@ -1,6 +1,6 @@
 // Shared design-space + 3x3 grid system for editor and preview.
 export const DESIGN = { w: 1280, h: 720 } as const;
-export const GRID = { cols: 3, rows: 3, pad: 16 } as const;
+export const GRID = { cols: 3, rows: 3, pad: 48 } as const;
 
 export interface Rect { x: number; y: number; w: number; h: number }
 
