@@ -746,8 +746,18 @@ function ScriptCanvas() {
                   <ClickableScript
                     text={s.narration}
                     selected={idx === activeIdx ? selectedWord : null}
-                    boundWords={new Set(s.elements.map((e) => (e.content.word ?? "").toLowerCase()).filter(Boolean))}
-                    onWordClick={(w) => { setActiveIdx(idx); setSelectedWord(w); }}
+                    elements={s.elements}
+                    onWordSelect={(w) => { setActiveIdx(idx); setSelectedWord(w); }}
+                    onAddForWord={(w) => {
+                      setActiveIdx(idx);
+                      setSelectedWord(w);
+                      setRightTab("animations");
+                    }}
+                    onRemoveForWord={(w) => {
+                      const lower = w.toLowerCase();
+                      const targets = s.elements.filter((e) => (e.content.word ?? "").toLowerCase() === lower);
+                      targets.forEach((t) => void deleteElement(s.id, t.id));
+                    }}
                   />
                 </div>
               ) : (
