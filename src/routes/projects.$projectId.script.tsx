@@ -71,7 +71,8 @@ interface SceneRow {
 }
 
 const DEFAULT_BG: SceneBackground = { type: "color", value: "#ffffff" };
-const DESIGN_CANVAS_SIZE = { w: 1280, h: 720 } as const;
+import { DESIGN, cellRect, nextEmptyCellIndex } from "@/lib/grid";
+const DESIGN_CANVAS_SIZE = { w: DESIGN.w, h: DESIGN.h } as const;
 
 function ScriptCanvas() {
   const { projectId } = useParams({ from: "/projects/$projectId/script" });
