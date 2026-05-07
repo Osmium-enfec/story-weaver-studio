@@ -18,6 +18,7 @@ import { TextPanel, type TextRole, type TextRoleStyle } from "@/components/TextP
 import { PlaybackDialog } from "@/components/PlaybackDialog";
 import type { AnimationResult } from "@/lib/animation-providers";
 import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
+import { seedAnimationsForProject } from "@/server/voice.functions";
 import { proxyImageAsDataUrl } from "@/server/proxy-image.functions";
 import { CanvasAudioEditor } from "@/components/CanvasAudioEditor";
 
