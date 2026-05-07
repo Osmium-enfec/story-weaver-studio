@@ -357,7 +357,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
           <div
             ref={stageRef}
             className="relative flex items-center justify-center bg-muted/30 rounded-lg overflow-hidden w-full"
-            style={{ aspectRatio: `${canvasSize.w} / ${canvasSize.h}` }}
+            style={{ aspectRatio: `${canvasSize.w} / ${canvasSize.h}`, minHeight: 200 }}
           >
             <div
               key={current?.id}
@@ -365,10 +365,9 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
                 transitioning ? "opacity-0" : "opacity-100 animate-fade-in"
               }`}
               style={{
-                width: canvasSize.w,
-                height: canvasSize.h,
-                transform: `scale(${scale})`,
-                transformOrigin: "center center",
+                width: "100%",
+                height: "100%",
+                aspectRatio: `${canvasSize.w} / ${canvasSize.h}`,
               }}
             >
               {current && <BackgroundLayer background={current.background} />}
@@ -384,10 +383,10 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
                       key={el.id}
                       style={{
                         position: "absolute",
-                        left: rect.x,
-                        top: rect.y,
-                        width: rect.w,
-                        height: rect.h,
+                        left: `${(rect.x / canvasSize.w) * 100}%`,
+                        top: `${(rect.y / canvasSize.h) * 100}%`,
+                        width: `${(rect.w / canvasSize.w) * 100}%`,
+                        height: `${(rect.h / canvasSize.h) * 100}%`,
                         zIndex: el.z_index,
                         opacity: visible ? 1 : 0,
                         transform: visible ? "scale(1)" : "scale(0.92)",
