@@ -71,8 +71,14 @@ interface SceneRow {
 }
 
 const DEFAULT_BG: SceneBackground = { type: "color", value: "#ffffff" };
-import { DESIGN, cellRect, nextEmptyCellIndex } from "@/lib/grid";
+import { DESIGN, cellRect, clampRectToDesign, nextEmptyCellIndex } from "@/lib/grid";
 const DESIGN_CANVAS_SIZE = { w: DESIGN.w, h: DESIGN.h } as const;
+
+function snapElementsToGrid(elements: PlacedElement[]): PlacedElement[] {
+  return [...elements]
+    .sort((a, b) => a.z_index - b.z_index)
+    .map((element, index) => ({ ...element, position: cellRect(index) }));
+}
 
 function ScriptCanvas() {
   const { projectId } = useParams({ from: "/projects/$projectId/script" });
@@ -255,7 +261,7 @@ function ScriptCanvas() {
       const byScene = new Map<string, PlacedElement[]>();
       for (const id of ids) byScene.set(id, []);
       for (const e of (els ?? []) as unknown as PlacedElement[]) byScene.get(e.scene_id)?.push(e);
-      setScenes((prev) => prev.map((s) => ({ ...s, elements: byScene.get(s.id) ?? [] })));
+      setScenes((prev) => prev.map((s) => ({ ...s, elements: snapElementsToGrid(byScene.get(s.id) ?? []) })));
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -351,7 +357,7 @@ function ScriptCanvas() {
           order_index: s.order_index,
           background: (s.background ?? DEFAULT_BG) as SceneBackground,
           narration: s.narration ?? "",
-          elements: byScene.get(s.id) ?? [],
+          elements: snapElementsToGrid(byScene.get(s.id) ?? []),
           voice_url: s.voice_url,
           voice_start_ms: s.voice_start_ms,
           voice_end_ms: s.voice_end_ms,
@@ -580,12 +586,13 @@ function ScriptCanvas() {
   }
 
   async function updateElement(sceneId: string, id: string, position: PlacedElement["position"]) {
+    const safePosition = clampRectToDesign(position);
     setScenes((prev) =>
       prev.map((s) =>
-        s.id === sceneId ? { ...s, elements: s.elements.map((e) => (e.id === id ? { ...e, position } : e)) } : s,
+        s.id === sceneId ? { ...s, elements: s.elements.map((e) => (e.id === id ? { ...e, position: safePosition } : e)) } : s,
       ),
     );
-    await supabase.from("scene_elements").update({ position }).eq("id", id);
+    await supabase.from("scene_elements").update({ position: safePosition as unknown as never }).eq("id", id);
   }
 
   async function deleteElement(sceneId: string, id: string) {

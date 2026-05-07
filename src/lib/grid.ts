@@ -1,8 +1,19 @@
 // Shared design-space + 3x3 grid system for editor and preview.
 export const DESIGN = { w: 1280, h: 720 } as const;
-export const GRID = { cols: 3, rows: 3, pad: 16 } as const;
+export const GRID = { cols: 3, rows: 3, pad: 48 } as const;
 
 export interface Rect { x: number; y: number; w: number; h: number }
+
+export function clampRectToDesign(rect: Rect): Rect {
+  const w = Math.max(24, Math.min(Math.round(rect.w), DESIGN.w));
+  const h = Math.max(24, Math.min(Math.round(rect.h), DESIGN.h));
+  return {
+    x: Math.max(0, Math.min(Math.round(rect.x), DESIGN.w - w)),
+    y: Math.max(0, Math.min(Math.round(rect.y), DESIGN.h - h)),
+    w,
+    h,
+  };
+}
 
 export function cellRect(index: number): Rect {
   const cellW = DESIGN.w / GRID.cols;
