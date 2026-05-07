@@ -521,11 +521,8 @@ function ScriptCanvas() {
     }
     const node = canvasRefs.current[activeScene.id];
     if (!node) return;
-    const rect = node.getBoundingClientRect();
-    const w = Math.round(rect.width * (role === "heading" ? 0.7 : role === "subheading" ? 0.55 : 0.5));
-    const h = Math.round((style.size ?? 24) * (style.lineHeight ?? 1.4) * 1.6);
-    const x = Math.round((rect.width - w) / 2);
-    const y = Math.round((rect.height - h) / 2);
+    const cellIdx = nextEmptyCellIndex(activeScene.elements.map((e) => e.position));
+    const { x, y, w, h } = cellRect(cellIdx);
     const placeholder = role === "heading" ? "Heading" : role === "subheading" ? "Sub-heading" : "Paragraph text";
     const content: AnimationBlockContent = {
       provider: "internal",
