@@ -535,7 +535,18 @@ function ScriptCanvas() {
     const node = canvasRefs.current[activeScene.id];
     if (!node) return;
     const cellIdx = nextEmptyCellIndex(activeScene.elements.map((e) => e.position));
-    const { x, y, w, h } = cellRect(cellIdx);
+    const cell = cellRect(cellIdx);
+    const textValue = selectedWord ?? (role === "heading" ? "Heading" : role === "subheading" ? "Sub-heading" : "Paragraph text");
+    const natural = measureTextSize(textValue, {
+      fontFamily: style.family,
+      fontSize: style.size,
+      fontWeight: style.weight,
+      lineHeight: style.lineHeight,
+    });
+    const x = cell.x;
+    const y = cell.y;
+    const w = Math.min(natural.w, cell.w);
+    const h = Math.min(natural.h, cell.h);
     const placeholder = role === "heading" ? "Heading" : role === "subheading" ? "Sub-heading" : "Paragraph text";
     const content: AnimationBlockContent = {
       provider: "internal",
