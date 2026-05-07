@@ -184,18 +184,8 @@ export const transcribeAndSplit = createServerFn({ method: "POST" })
       })),
     }));
 
-    const { data: insertedScenes, error: insErr } = await admin
-      .from("scenes")
-      .insert(rows)
-      .select("id, order_index");
+    const { error: insErr } = await admin.from("scenes").insert(rows);
     if (insErr) throw new Error(`Failed to insert scenes: ${insErr.message}`);
-
-    // Auto-seed 3-5 keyword-bound animations per scene (best-effort, swallow failures)
-    try {
-      await seedSceneAnimations(admin, insertedScenes ?? [], scenes);
-    } catch (e) {
-      console.error("seedSceneAnimations failed", e);
-    }
 
     // Save the master voice track
     await admin.from("voice_tracks").insert({
@@ -423,68 +413,204 @@ async function mirrorOne(
   }
 }
 
-async function seedSceneAnimations(
-  admin: ReturnType<typeof getAdmin>,
-  insertedScenes: { id: string; order_index: number }[],
-  builtScenes: { text: string; start_ms: number; end_ms: number; words: WordTiming[] }[],
-) {
-  // Sort so order_index aligns with builtScenes order
-  const byOrder = [...insertedScenes].sort((a, b) => a.order_index - b.order_index);
-  const elementRows: any[] = [];
-
-  // Canvas reference size used in the editor
+// Lay out N elements in up to 2 rows in the safe area of a 1280x720 canvas.
+function gridPositions(n: number) {
   const CW = 1280;
   const CH = 720;
-
-  for (let i = 0; i < byOrder.length; i++) {
-    const sceneId = byOrder[i].id;
-    const built = builtScenes[i];
-    if (!built) continue;
-    // Word timings are stored relative to scene start in the DB. The picker uses local words too.
-    const localWords = built.words.map((w) => ({
-      text: w.text,
-      start_ms: w.start_ms - built.start_ms,
-      end_ms: w.end_ms - built.start_ms,
-    }));
-    const keywords = pickKeywords(localWords, 5, 3);
-    let z = 0;
-    for (const kw of keywords) {
-      const found = await iconscoutSearchOne(kw.text);
-      if (!found) continue;
-      const mirrored = await mirrorOne(admin, found);
-      if (!mirrored) continue;
-      const w = Math.round(CW * 0.28);
-      const h = Math.round(CH * 0.28);
-      const x = Math.round((CW - w) / 2);
-      const y = Math.round((CH - h) / 2);
-      elementRows.push({
-        scene_id: sceneId,
-        type: "iconscout",
-        content: {
-          provider: "iconscout",
-          name: found.name,
-          slug: found.slug,
-          lottie_url: mirrored.lottie_url,
-          video_url: mirrored.video_url,
-          external_id: found.external_id,
-          loop: true,
-          autoplay: true,
-          speed: 1,
-          opacity: 1,
-          rotation: 0,
-          color_support: "fixed",
-          tint: null,
-          remove_background: true,
-          word: kw.text,
-          occurrence: kw.occurrence,
-        },
-        position: { x, y, w, h },
-        z_index: z++,
-      });
-    }
+  const cols = Math.min(n, 3);
+  const rows = n <= 3 ? 1 : 2;
+  const cellW = CW * 0.28;
+  const cellH = CH * 0.32;
+  const gapX = (CW - cellW * cols) / (cols + 1);
+  const gapY = rows === 1 ? (CH - cellH) / 2 : (CH - cellH * rows) / (rows + 1);
+  const out: { x: number; y: number; w: number; h: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    const r = Math.floor(i / cols);
+    const c = i % cols;
+    out.push({
+      x: Math.round(gapX + c * (cellW + gapX)),
+      y: Math.round(gapY + r * (cellH + gapY)),
+      w: Math.round(cellW),
+      h: Math.round(cellH),
+    });
   }
-
-  if (elementRows.length > 0) {
-    await admin.from("scene_elements").insert(elementRows);
-  }
+  return out;
 }
+
+const THEME_TAGS: Record<string, string[]> = {
+  Whiteboard: ["whiteboard", "sketch", "doodle", "hand-drawn"],
+  "Dark Code": ["code", "developer", "terminal", "dark"],
+  "Flat Modern": ["flat", "modern", "minimal"],
+  "Android UI": ["android", "mobile", "app"],
+  Classroom: ["education", "school", "learning"],
+};
+
+async function findInLibrary(
+  admin: ReturnType<typeof getAdmin>,
+  keyword: string,
+  themeTags: string[],
+): Promise<{
+  name: string;
+  slug: string;
+  provider: string;
+  video_url: string | null;
+  lottie_url: string | null;
+  external_id: string | null;
+  color_support: string;
+} | null> {
+  const kw = keyword.toLowerCase();
+  // Try name/tags/concepts match
+  const { data } = await admin
+    .from("animation_components")
+    .select("name, slug, provider, video_url, lottie_url, external_id, color_support, tags, concepts, category")
+    .or(`name.ilike.%${kw}%,slug.ilike.%${kw}%,tags.cs.{${kw}},concepts.cs.{${kw}}`)
+    .limit(20);
+  const rows = (data ?? []) as any[];
+  if (rows.length === 0) return null;
+  // Prefer ones with playable assets, then theme-matching
+  const playable = rows.filter((r) => r.video_url || r.lottie_url);
+  const pool = playable.length ? playable : rows;
+  const themed = pool.find((r) =>
+    themeTags.some(
+      (t) =>
+        (r.tags ?? []).map((x: string) => x.toLowerCase()).includes(t) ||
+        (r.category ?? "").toLowerCase().includes(t),
+    ),
+  );
+  const pick = themed ?? pool[0];
+  return {
+    name: pick.name,
+    slug: pick.slug,
+    provider: pick.provider,
+    video_url: pick.video_url,
+    lottie_url: pick.lottie_url,
+    external_id: pick.external_id,
+    color_support: pick.color_support ?? "fixed",
+  };
+}
+
+async function pickAnimationForKeyword(
+  admin: ReturnType<typeof getAdmin>,
+  keyword: string,
+  themeTags: string[],
+) {
+  const local = await findInLibrary(admin, keyword, themeTags);
+  if (local) {
+    return {
+      name: local.name,
+      slug: local.slug,
+      provider: local.provider,
+      video_url: local.video_url,
+      lottie_url: local.lottie_url,
+      external_id: local.external_id,
+      color_support: local.color_support,
+      type: local.provider === "iconscout" ? "iconscout" : local.provider === "lottie" ? "lottie" : "animation",
+    };
+  }
+  const found = await iconscoutSearchOne(keyword);
+  if (!found) return null;
+  const mirrored = await mirrorOne(admin, found);
+  if (!mirrored) return null;
+  return {
+    name: found.name,
+    slug: found.slug,
+    provider: "iconscout",
+    video_url: mirrored.video_url,
+    lottie_url: mirrored.lottie_url,
+    external_id: found.external_id,
+    color_support: "fixed",
+    type: "iconscout",
+  };
+}
+
+async function seedScene(
+  admin: ReturnType<typeof getAdmin>,
+  sceneId: string,
+  localWords: { text: string; start_ms: number; end_ms: number }[],
+  themeTags: string[],
+): Promise<number> {
+  const keywords = pickKeywords(localWords, 3, 3);
+  const picks: { kw: typeof keywords[number]; pick: NonNullable<Awaited<ReturnType<typeof pickAnimationForKeyword>>> }[] = [];
+  for (const kw of keywords) {
+    const pick = await pickAnimationForKeyword(admin, kw.text, themeTags);
+    if (pick) picks.push({ kw, pick });
+  }
+  if (picks.length === 0) return 0;
+
+  const positions = gridPositions(picks.length);
+  const rows = picks.map(({ kw, pick }, i) => ({
+    scene_id: sceneId,
+    type: pick.type,
+    content: {
+      provider: pick.provider,
+      name: pick.name,
+      slug: pick.slug,
+      lottie_url: pick.lottie_url,
+      video_url: pick.video_url,
+      external_id: pick.external_id,
+      loop: true,
+      autoplay: true,
+      speed: 1,
+      opacity: 1,
+      rotation: 0,
+      color_support: pick.color_support,
+      tint: null,
+      remove_background: pick.provider === "iconscout",
+      word: kw.text,
+      occurrence: kw.occurrence,
+    },
+    position: positions[i],
+    z_index: i,
+  }));
+  const { error } = await admin.from("scene_elements").insert(rows);
+  if (error) {
+    console.error("seedScene insert error", error);
+    return 0;
+  }
+  return rows.length;
+}
+
+/**
+ * Auto-seed 3 keyword-bound animations per scene for a project.
+ * Library-first lookup; falls back to Iconscout. If `replace=true`, wipes
+ * existing scene_elements first.
+ */
+export const seedAnimationsForProject = createServerFn({ method: "POST" })
+  .inputValidator((d: { projectId: string; replace?: boolean }) =>
+    z.object({ projectId: z.string().uuid(), replace: z.boolean().optional() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const admin = getAdmin();
+
+    const { data: project } = await admin
+      .from("projects")
+      .select("theme")
+      .eq("id", data.projectId)
+      .single();
+    const themeTags = THEME_TAGS[project?.theme ?? "Whiteboard"] ?? [];
+
+    const { data: scenes } = await admin
+      .from("scenes")
+      .select("id, word_timings")
+      .eq("project_id", data.projectId)
+      .order("order_index");
+    const list = (scenes ?? []) as { id: string; word_timings: { text: string; start_ms: number; end_ms: number }[] | null }[];
+
+    if (data.replace) {
+      const ids = list.map((s) => s.id);
+      if (ids.length > 0) await admin.from("scene_elements").delete().in("scene_id", ids);
+    }
+
+    // Run scenes in parallel batches of 4 to keep load reasonable
+    let total = 0;
+    const BATCH = 4;
+    for (let i = 0; i < list.length; i += BATCH) {
+      const slice = list.slice(i, i + BATCH);
+      const results = await Promise.allSettled(
+        slice.map((s) => seedScene(admin, s.id, s.word_timings ?? [], themeTags)),
+      );
+      for (const r of results) if (r.status === "fulfilled") total += r.value;
+    }
+    return { sceneCount: list.length, elementsInserted: total };
+  });
+

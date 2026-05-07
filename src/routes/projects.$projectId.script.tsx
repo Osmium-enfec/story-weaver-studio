@@ -18,6 +18,7 @@ import { TextPanel, type TextRole, type TextRoleStyle } from "@/components/TextP
 import { PlaybackDialog } from "@/components/PlaybackDialog";
 import type { AnimationResult } from "@/lib/animation-providers";
 import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
+import { seedAnimationsForProject } from "@/server/voice.functions";
 import { proxyImageAsDataUrl } from "@/server/proxy-image.functions";
 import { CanvasAudioEditor } from "@/components/CanvasAudioEditor";
 
@@ -87,6 +88,7 @@ function ScriptCanvas() {
   const [canvasSize, setCanvasSize] = useState({ w: 1280, h: 720 });
   const [gridCanvases, setGridCanvases] = useState<Record<string, boolean>>({});
   const [rightTab, setRightTab] = useState<string>("animations");
+  const [isSeeding, setIsSeeding] = useState(false);
 
   const activeScene = scenes[activeIdx];
 
@@ -230,6 +232,35 @@ function ScriptCanvas() {
     }
   }
 
+  async function regenerateAnimations() {
+    if (isSeeding) return;
+    if (!confirm("Replace all canvas animations with fresh ones from your script keywords?")) return;
+    setIsSeeding(true);
+    try {
+      const res = await seedAnimationsForProject({ data: { projectId, replace: true } });
+      toast.success(`Added ${res.elementsInserted} animations across ${res.sceneCount} canvases`);
+      // Refetch elements
+      const { data: rows } = await supabase
+        .from("scenes")
+        .select("id")
+        .eq("project_id", projectId);
+      const ids = (rows ?? []).map((r) => r.id);
+      const { data: els } = await supabase
+        .from("scene_elements")
+        .select("*")
+        .in("scene_id", ids)
+        .order("z_index");
+      const byScene = new Map<string, PlacedElement[]>();
+      for (const id of ids) byScene.set(id, []);
+      for (const e of (els ?? []) as unknown as PlacedElement[]) byScene.get(e.scene_id)?.push(e);
+      setScenes((prev) => prev.map((s) => ({ ...s, elements: byScene.get(s.id) ?? [] })));
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setIsSeeding(false);
+    }
+  }
+
   useEffect(() => {
     toolbarStore.set([
       {
@@ -247,6 +278,13 @@ function ScriptCanvas() {
         },
       },
       {
+        label: isSeeding ? "Generating…" : "Auto-animate",
+        icon: "play",
+        variant: "outline",
+        disabled: isSeeding || isExporting,
+        onClick: regenerateAnimations,
+      },
+      {
         label: isExporting ? "Exporting…" : "Export",
         icon: "download",
         variant: "outline",
@@ -255,7 +293,7 @@ function ScriptCanvas() {
       },
     ]);
     return () => toolbarStore.clear();
-  }, [isPlaying, isExporting, activeScene?.id]);
+  }, [isPlaying, isExporting, isSeeding, activeScene?.id]);
 
   // Load all scenes + their elements
   useEffect(() => {
@@ -332,6 +370,33 @@ function ScriptCanvas() {
       setActiveIdx(0);
     })();
   }, [projectId]);
+
+  // Realtime: pick up newly-seeded scene_elements (auto-animate / transcribe seed)
+  useEffect(() => {
+    const sceneIds = scenes.map((s) => s.id);
+    if (sceneIds.length === 0) return;
+    const channel = supabase
+      .channel(`scene_elements_${projectId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "scene_elements" },
+        (payload) => {
+          const row = payload.new as unknown as PlacedElement;
+          if (!sceneIds.includes(row.scene_id)) return;
+          setScenes((prev) =>
+            prev.map((s) =>
+              s.id === row.scene_id && !s.elements.find((e) => e.id === row.id)
+                ? { ...s, elements: [...s.elements, row] }
+                : s,
+            ),
+          );
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [projectId, scenes.length]);
 
   const ratio = project.aspect_ratio;
   const aspect = ratio === "9:16" ? "9 / 16" : ratio === "1:1" ? "1 / 1" : "16 / 9";

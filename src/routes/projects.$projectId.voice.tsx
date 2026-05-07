@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Mic, Upload, Loader2, Wand2 } from "lucide-react";
-import { transcribeAndSplit } from "@/server/voice.functions";
+import { transcribeAndSplit, seedAnimationsForProject } from "@/server/voice.functions";
 
 export const Route = createFileRoute("/projects/$projectId/voice")({
   component: VoicePage,
@@ -85,7 +85,13 @@ function VoicePage() {
           targetSceneCount: target,
         },
       });
-      toast.success(`Created ${res.sceneCount} canvases from voice`);
+      setProgress("Adding animations to each canvas…");
+      try {
+        await seedAnimationsForProject({ data: { projectId } });
+      } catch (e) {
+        console.error("seed failed", e);
+      }
+      toast.success(`Created ${res.sceneCount} canvases with animations`);
       navigate({ to: "/projects/$projectId/script", params: { projectId } });
     } catch (e) {
       toast.error((e as Error).message);

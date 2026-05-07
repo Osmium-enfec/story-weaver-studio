@@ -16,7 +16,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Upload, Mic2, Loader2, X } from "lucide-react";
-import { transcribeAndSplit } from "@/server/voice.functions";
+import { transcribeAndSplit, seedAnimationsForProject } from "@/server/voice.functions";
 
 const COURSES: CourseType[] = ["Python", "Java", "Android", "Web", "DSA", "Database", "API", "Other"];
 const LEVELS: AudienceLevel[] = ["Beginner", "Intermediate", "Advanced"];
@@ -93,7 +93,13 @@ export function CreateProjectDialog({
         await transcribeAndSplit({
           data: { projectId: data.id, voiceUrl: pub.publicUrl, storagePath: path },
         });
-        toast.success("Voice transcribed and split into canvases");
+        setProgress("Adding animations to each canvas…");
+        try {
+          await seedAnimationsForProject({ data: { projectId: data.id } });
+        } catch (e) {
+          console.error("seed failed", e);
+        }
+        toast.success("Voice transcribed and animations added");
       } catch (e) {
         toast.error(`Voice setup failed: ${(e as Error).message}`);
       }
