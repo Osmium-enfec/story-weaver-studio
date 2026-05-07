@@ -586,7 +586,7 @@ function ScriptCanvas() {
         s.id === sceneId ? { ...s, elements: s.elements.map((e) => (e.id === id ? { ...e, position: safePosition } : e)) } : s,
       ),
     );
-    await supabase.from("scene_elements").update({ position: safePosition }).eq("id", id);
+    await supabase.from("scene_elements").update({ position: safePosition as unknown as never }).eq("id", id);
   }
 
   async function deleteElement(sceneId: string, id: string) {
