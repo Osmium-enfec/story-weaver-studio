@@ -190,7 +190,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       const finish = () => {
         if (cancelRef.current) return resolve();
         clearTimers();
-        unboundIdsBySeq.forEach((id) => availableIds.add(id));
+        scene.elements.forEach((el) => availableIds.add(el.id));
 
         const transitionAfterSequence = () => {
           if (cancelRef.current) return resolve();
