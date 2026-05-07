@@ -707,8 +707,8 @@ function ScriptCanvas() {
                     const parent = node.parentElement as HTMLElement | null;
                     if (!parent) return;
                     const apply = () => {
-                      const w = parent.clientWidth;
-                      node.style.transform = `scale(${w / 1280})`;
+                      const s = Math.min(parent.clientWidth / 1280, parent.clientHeight / 720);
+                      node.style.transform = `scale(${s})`;
                     };
                     apply();
                     const ro = new ResizeObserver(apply);
