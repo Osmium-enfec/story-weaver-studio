@@ -88,6 +88,7 @@ function ScriptCanvas() {
   const [canvasSize, setCanvasSize] = useState({ w: 1280, h: 720 });
   const [gridCanvases, setGridCanvases] = useState<Record<string, boolean>>({});
   const [rightTab, setRightTab] = useState<string>("animations");
+  const [isSeeding, setIsSeeding] = useState(false);
 
   const activeScene = scenes[activeIdx];
 
