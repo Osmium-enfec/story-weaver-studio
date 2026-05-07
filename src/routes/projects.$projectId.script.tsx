@@ -71,7 +71,7 @@ interface SceneRow {
 }
 
 const DEFAULT_BG: SceneBackground = { type: "color", value: "#ffffff" };
-import { DESIGN, cellRect, nextEmptyCellIndex } from "@/lib/grid";
+import { DESIGN, cellRect, clampRectToDesign, nextEmptyCellIndex } from "@/lib/grid";
 const DESIGN_CANVAS_SIZE = { w: DESIGN.w, h: DESIGN.h } as const;
 
 function ScriptCanvas() {
@@ -580,12 +580,13 @@ function ScriptCanvas() {
   }
 
   async function updateElement(sceneId: string, id: string, position: PlacedElement["position"]) {
+    const safePosition = clampRectToDesign(position);
     setScenes((prev) =>
       prev.map((s) =>
-        s.id === sceneId ? { ...s, elements: s.elements.map((e) => (e.id === id ? { ...e, position } : e)) } : s,
+        s.id === sceneId ? { ...s, elements: s.elements.map((e) => (e.id === id ? { ...e, position: safePosition } : e)) } : s,
       ),
     );
-    await supabase.from("scene_elements").update({ position }).eq("id", id);
+    await supabase.from("scene_elements").update({ position: safePosition }).eq("id", id);
   }
 
   async function deleteElement(sceneId: string, id: string) {
