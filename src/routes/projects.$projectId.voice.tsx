@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Mic, Upload, Loader2, Wand2 } from "lucide-react";
-import { transcribeAndSplit } from "@/server/voice.functions";
+import { transcribeAndSplit, seedAnimationsForProject } from "@/server/voice.functions";
 
 export const Route = createFileRoute("/projects/$projectId/voice")({
   component: VoicePage,
