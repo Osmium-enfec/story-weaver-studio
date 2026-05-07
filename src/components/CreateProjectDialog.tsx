@@ -93,7 +93,13 @@ export function CreateProjectDialog({
         await transcribeAndSplit({
           data: { projectId: data.id, voiceUrl: pub.publicUrl, storagePath: path },
         });
-        toast.success("Voice transcribed and split into canvases");
+        setProgress("Adding animations to each canvas…");
+        try {
+          await seedAnimationsForProject({ data: { projectId: data.id } });
+        } catch (e) {
+          console.error("seed failed", e);
+        }
+        toast.success("Voice transcribed and animations added");
       } catch (e) {
         toast.error(`Voice setup failed: ${(e as Error).message}`);
       }
