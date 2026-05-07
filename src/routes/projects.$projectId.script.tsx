@@ -706,12 +706,35 @@ function ScriptCanvas() {
               <div
                 ref={(el) => { canvasRefs.current[s.id] = el; }}
                 className="relative w-full overflow-hidden rounded-xl bg-white shadow-md"
-                style={{ aspectRatio: aspect }}
+                style={{ aspectRatio: `${DESIGN.w} / ${DESIGN.h}` }}
                 onMouseDown={(e) => {
                   if (e.target === e.currentTarget) setSelectedElementId(null);
                 }}
               >
-                <BackgroundLayer background={s.background} exportMode={isExporting} />
+                <div
+                  className="absolute left-1/2 top-1/2 origin-center"
+                  style={{ width: DESIGN.w, height: DESIGN.h }}
+                  ref={(node) => {
+                    if (!node) return;
+                    const parent = node.parentElement as HTMLElement | null;
+                    if (!parent) return;
+                    const apply = () => {
+                      const sc = Math.min(parent.clientWidth / DESIGN.w, parent.clientHeight / DESIGN.h);
+                      node.style.transform = `translate(-50%, -50%) scale(${sc})`;
+                    };
+                    apply();
+                    const ro = new ResizeObserver(apply);
+                    ro.observe(parent);
+                  }}
+                >
+                  <BackgroundLayer background={s.background} exportMode={isExporting} />
+                  {gridCanvases[s.id] && (
+                    <div className="pointer-events-none absolute inset-0 z-10 grid grid-cols-3 grid-rows-3">
+                      {Array.from({ length: 9 }).map((_, i) => (
+                        <div key={i} className="border border-primary/40" />
+                      ))}
+                    </div>
+                  )}
                 {gridCanvases[s.id] && (
                   <div className="pointer-events-none absolute inset-0 z-10 grid grid-cols-3 grid-rows-3">
                     {Array.from({ length: 9 }).map((_, i) => (
