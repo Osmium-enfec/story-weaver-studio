@@ -413,20 +413,8 @@ async function mirrorOne(
   }
 }
 
-// Place N elements (up to 9) into distinct cells of a 3x3 grid on a 1280x720 canvas.
-// Picks a spread-out subset so 3-5 elements feel balanced rather than clumped.
-const GRID_PATTERNS: Record<number, number[]> = {
-  1: [4],
-  2: [0, 8],
-  3: [0, 4, 8],
-  4: [0, 2, 6, 8],
-  5: [0, 2, 4, 6, 8],
-  6: [0, 1, 2, 6, 7, 8],
-  7: [0, 1, 2, 4, 6, 7, 8],
-  8: [0, 1, 2, 3, 5, 6, 7, 8],
-  9: [0, 1, 2, 3, 4, 5, 6, 7, 8],
-};
-
+// Place N elements (one per cell) into a 3x3 grid on a 1280x720 canvas.
+// Always fills cells in reading order (top-left → bottom-right), one element per cell.
 function gridPositions(n: number) {
   const CW = 1280;
   const CH = 720;
@@ -435,10 +423,11 @@ function gridPositions(n: number) {
   const cellW = CW / cols;
   const cellH = CH / rows;
   const pad = 16;
-  const slots = GRID_PATTERNS[Math.min(Math.max(n, 1), 9)] ?? GRID_PATTERNS[3];
-  return slots.slice(0, n).map((idx) => {
-    const r = Math.floor(idx / cols);
-    const c = idx % cols;
+  const total = cols * rows;
+  const count = Math.min(Math.max(n, 0), total);
+  return Array.from({ length: count }, (_, i) => {
+    const r = Math.floor(i / cols);
+    const c = i % cols;
     return {
       x: Math.round(c * cellW + pad),
       y: Math.round(r * cellH + pad),
