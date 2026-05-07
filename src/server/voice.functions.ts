@@ -184,8 +184,18 @@ export const transcribeAndSplit = createServerFn({ method: "POST" })
       })),
     }));
 
-    const { error: insErr } = await admin.from("scenes").insert(rows);
+    const { data: insertedScenes, error: insErr } = await admin
+      .from("scenes")
+      .insert(rows)
+      .select("id, order_index");
     if (insErr) throw new Error(`Failed to insert scenes: ${insErr.message}`);
+
+    // Auto-seed 3-5 keyword-bound animations per scene (best-effort, swallow failures)
+    try {
+      await seedSceneAnimations(admin, insertedScenes ?? [], scenes);
+    } catch (e) {
+      console.error("seedSceneAnimations failed", e);
+    }
 
     // Save the master voice track
     await admin.from("voice_tracks").insert({
@@ -287,3 +297,194 @@ export const transcribeClip = createServerFn({ method: "POST" })
 
     return { transcript: tr.text, durationMs: totalMs, wordCount: words.length };
   });
+
+// ---------------- keyword auto-seeding ----------------
+
+const STOPWORDS = new Set<string>([
+  "a","an","the","and","or","but","if","then","so","because","as","while","of","at","by","for",
+  "with","about","against","between","into","through","during","before","after","above","below",
+  "to","from","up","down","in","out","on","off","over","under","again","further","once","here",
+  "there","when","where","why","how","all","any","both","each","few","more","most","other","some",
+  "such","no","nor","not","only","own","same","than","too","very","can","will","just","should",
+  "now","is","am","are","was","were","be","been","being","have","has","had","having","do","does",
+  "did","doing","i","me","my","myself","we","our","ours","ourselves","you","your","yours","he",
+  "him","his","himself","she","her","hers","herself","it","its","itself","they","them","their",
+  "theirs","themselves","what","which","who","whom","this","that","these","those","would","could",
+  "shall","may","might","must","let","lets","like","also","really","actually","get","got","go",
+  "going","make","made","one","two","first","second","next","ok","okay","yeah","yes","no",
+]);
+
+function pickKeywords(
+  words: { text: string; start_ms: number; end_ms: number }[],
+  max = 5,
+  min = 3,
+): { text: string; start_ms: number; end_ms: number; occurrence: number }[] {
+  const seen = new Map<string, number>(); // lowercased -> count picked
+  const out: { text: string; start_ms: number; end_ms: number; occurrence: number }[] = [];
+  // First pass: prefer longer/distinct nouny words
+  const candidates = words
+    .map((w) => ({ ...w, clean: w.text.replace(/[^a-zA-Z0-9'-]/g, "").toLowerCase() }))
+    .filter((w) => w.clean.length >= 4 && !STOPWORDS.has(w.clean));
+  // Distribute roughly evenly across the scene
+  const step = Math.max(1, Math.floor(candidates.length / max));
+  for (let i = 0; i < candidates.length && out.length < max; i += step) {
+    const c = candidates[i];
+    const used = seen.get(c.clean) ?? 0;
+    seen.set(c.clean, used + 1);
+    out.push({ text: c.text, start_ms: c.start_ms, end_ms: c.end_ms, occurrence: used + 1 });
+  }
+  // Top up to min if needed using anything unused
+  if (out.length < min) {
+    for (const c of candidates) {
+      if (out.length >= min) break;
+      if (out.find((o) => o.start_ms === c.start_ms)) continue;
+      const used = seen.get(c.clean) ?? 0;
+      seen.set(c.clean, used + 1);
+      out.push({ text: c.text, start_ms: c.start_ms, end_ms: c.end_ms, occurrence: used + 1 });
+    }
+  }
+  return out;
+}
+
+async function iconscoutSearchOne(query: string): Promise<{
+  external_id: string;
+  uuid: string;
+  name: string;
+  slug: string;
+  preview_url: string;
+} | null> {
+  const id = process.env.ICONSCOUT_CLIENT_ID;
+  const secret = process.env.ICONSCOUT_CLIENT_SECRET;
+  if (!id || !secret) return null;
+  try {
+    const url = new URL("https://api.iconscout.com/v3/search");
+    url.searchParams.set("query", query);
+    url.searchParams.set("product_type", "item");
+    url.searchParams.set("asset", "lottie");
+    url.searchParams.set("per_page", "5");
+    const res = await fetch(url.toString(), {
+      headers: { "Client-ID": id, "Client-Secret": secret },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const items = (json?.response?.items?.data ?? []) as any[];
+    const free = items.find((it) => (it.price ?? 0) === 0) ?? items[0];
+    if (!free) return null;
+    return {
+      external_id: String(free.id),
+      uuid: free.uuid,
+      name: free.name,
+      slug: free.slug,
+      preview_url: free.urls?.thumb ?? free.urls?.png ?? "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function mirrorOne(
+  admin: ReturnType<typeof getAdmin>,
+  it: { external_id: string; uuid: string; name: string; slug: string; preview_url: string },
+): Promise<{ video_url: string | null; lottie_url: string | null } | null> {
+  if (!it.preview_url) return null;
+  const { data: existing } = await admin
+    .from("animation_components")
+    .select("video_url, lottie_url")
+    .eq("provider", "iconscout")
+    .eq("external_id", it.external_id)
+    .maybeSingle();
+  if (existing) return { video_url: existing.video_url, lottie_url: existing.lottie_url };
+
+  const ext = it.preview_url.includes(".json") ? "json" : "mp4";
+  const ct = ext === "json" ? "application/json" : "video/mp4";
+  const path = `iconscout/${it.external_id}.${ext}`;
+  try {
+    const res = await fetch(it.preview_url);
+    if (!res.ok) return null;
+    const buf = new Uint8Array(await res.arrayBuffer());
+    const up = await admin.storage.from("animation-cache").upload(path, buf, { contentType: ct, upsert: true });
+    if (up.error) return null;
+    const { data: pub } = admin.storage.from("animation-cache").getPublicUrl(path);
+    const row = {
+      slug: it.slug || `iconscout-${it.external_id}`,
+      name: it.name,
+      category: "Iconscout",
+      provider: "iconscout",
+      external_id: it.external_id,
+      video_url: ext === "mp4" ? pub.publicUrl : null,
+      lottie_url: ext === "json" ? pub.publicUrl : null,
+      thumbnail_url: pub.publicUrl,
+      color_support: "fixed",
+    };
+    await admin.from("animation_components").insert(row);
+    return { video_url: row.video_url, lottie_url: row.lottie_url };
+  } catch {
+    return null;
+  }
+}
+
+async function seedSceneAnimations(
+  admin: ReturnType<typeof getAdmin>,
+  insertedScenes: { id: string; order_index: number }[],
+  builtScenes: { text: string; start_ms: number; end_ms: number; words: WordTiming[] }[],
+) {
+  // Sort so order_index aligns with builtScenes order
+  const byOrder = [...insertedScenes].sort((a, b) => a.order_index - b.order_index);
+  const elementRows: any[] = [];
+
+  // Canvas reference size used in the editor
+  const CW = 1280;
+  const CH = 720;
+
+  for (let i = 0; i < byOrder.length; i++) {
+    const sceneId = byOrder[i].id;
+    const built = builtScenes[i];
+    if (!built) continue;
+    // Word timings are stored relative to scene start in the DB. The picker uses local words too.
+    const localWords = built.words.map((w) => ({
+      text: w.text,
+      start_ms: w.start_ms - built.start_ms,
+      end_ms: w.end_ms - built.start_ms,
+    }));
+    const keywords = pickKeywords(localWords, 5, 3);
+    let z = 0;
+    for (const kw of keywords) {
+      const found = await iconscoutSearchOne(kw.text);
+      if (!found) continue;
+      const mirrored = await mirrorOne(admin, found);
+      if (!mirrored) continue;
+      const w = Math.round(CW * 0.28);
+      const h = Math.round(CH * 0.28);
+      const x = Math.round((CW - w) / 2);
+      const y = Math.round((CH - h) / 2);
+      elementRows.push({
+        scene_id: sceneId,
+        type: "iconscout",
+        content: {
+          provider: "iconscout",
+          name: found.name,
+          slug: found.slug,
+          lottie_url: mirrored.lottie_url,
+          video_url: mirrored.video_url,
+          external_id: found.external_id,
+          loop: true,
+          autoplay: true,
+          speed: 1,
+          opacity: 1,
+          rotation: 0,
+          color_support: "fixed",
+          tint: null,
+          remove_background: true,
+          word: kw.text,
+          occurrence: kw.occurrence,
+        },
+        position: { x, y, w, h },
+        z_index: z++,
+      });
+    }
+  }
+
+  if (elementRows.length > 0) {
+    await admin.from("scene_elements").insert(elementRows);
+  }
+}
