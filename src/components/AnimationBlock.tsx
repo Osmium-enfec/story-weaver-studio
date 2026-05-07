@@ -131,6 +131,8 @@ export function AnimationBlockRenderer({
   const wrapperStyle: React.CSSProperties = {
     width: "100%",
     height: "100%",
+    boxSizing: "border-box",
+    padding: content.provider === "iconscout" ? "8%" : "4%",
     opacity: content.opacity ?? 1,
     transform: `rotate(${content.rotation ?? 0}deg)`,
     filter: combinedFilter,
@@ -194,10 +196,8 @@ export function AnimationBlockRenderer({
           muted
           playsInline
           style={{
-            width: "104%",
-            height: "104%",
-            marginLeft: "-2%",
-            marginTop: "-2%",
+            width: "100%",
+            height: "100%",
             objectFit: "contain",
             opacity: 0,
             animation: "anim-block-fade-in 180ms ease-out 80ms forwards",
