@@ -377,7 +377,9 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
                   const visible = !playing || revealedIds.has(el.id);
                   const isText =
                     el.type === "text" || typeof el.content.text === "string" || !!el.content.role;
-                  const rect = cellRect(idx);
+                  const p = el.position;
+                  const hasSaved = p && typeof p.w === "number" && typeof p.h === "number" && p.w > 0 && p.h > 0;
+                  const rect = hasSaved ? p : cellRect(idx);
                   return (
                     <div
                       key={el.id}
