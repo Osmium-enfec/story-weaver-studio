@@ -90,16 +90,27 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
 
   useEffect(() => {
     if (!open) return;
+    const node = stageRef.current;
+    if (!node) return;
     function update() {
-      const node = stageRef.current;
       if (!node) return;
       const rect = node.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
       const s = Math.min(rect.width / canvasSize.w, rect.height / canvasSize.h);
-      setScale(s || 1);
+      if (s > 0) setScale(s);
     }
     update();
+    const ro = new ResizeObserver(update);
+    ro.observe(node);
+    const raf1 = requestAnimationFrame(update);
+    const raf2 = requestAnimationFrame(() => requestAnimationFrame(update));
     window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+    return () => {
+      ro.disconnect();
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      window.removeEventListener("resize", update);
+    };
   }, [open, canvasSize.w, canvasSize.h]);
 
   function playScene(idx: number): Promise<void> {
