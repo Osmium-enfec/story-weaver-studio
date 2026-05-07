@@ -102,6 +102,7 @@ function ScriptCanvas() {
   const [playOpen, setPlayOpen] = useState(false);
   const canvasSize = DESIGN_CANVAS_SIZE;
   const [gridCanvases, setGridCanvases] = useState<Record<string, boolean>>({});
+  const [canvasScales, setCanvasScales] = useState<Record<string, number>>({});
   const [rightTab, setRightTab] = useState<string>("animations");
   const [isSeeding, setIsSeeding] = useState(false);
 
@@ -702,7 +703,7 @@ function ScriptCanvas() {
                 )}
               </div>
             </div>
-            <div className="flex justify-center bg-muted/30 p-4">
+             <div className="flex justify-center bg-muted/30 p-4">
               <div
                 ref={(el) => { canvasRefs.current[s.id] = el; }}
                 className="relative w-full overflow-hidden rounded-xl bg-white shadow-md"
@@ -721,6 +722,7 @@ function ScriptCanvas() {
                     const apply = () => {
                       const sc = Math.min(parent.clientWidth / DESIGN.w, parent.clientHeight / DESIGN.h);
                       node.style.transform = `translate(-50%, -50%) scale(${sc})`;
+                      setCanvasScales((prev) => (prev[s.id] === sc ? prev : { ...prev, [s.id]: sc }));
                     };
                     apply();
                     const ro = new ResizeObserver(apply);
@@ -739,6 +741,7 @@ function ScriptCanvas() {
                   <Rnd
                     key={el.id}
                     bounds="parent"
+                    scale={canvasScales[s.id] ?? 1}
                     size={{ width: el.position.w, height: el.position.h }}
                     position={{ x: el.position.x, y: el.position.y }}
                     onDragStop={(_, d) => {
