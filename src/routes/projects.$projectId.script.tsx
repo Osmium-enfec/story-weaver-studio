@@ -702,7 +702,7 @@ function ScriptCanvas() {
                 )}
               </div>
             </div>
-            <div className="flex justify-center bg-muted/30 p-4">
+             <div className="flex justify-center bg-muted/30 p-4">
               <div
                 ref={(el) => { canvasRefs.current[s.id] = el; }}
                 className="relative w-full overflow-hidden rounded-xl bg-white shadow-md"
@@ -721,6 +721,7 @@ function ScriptCanvas() {
                     const apply = () => {
                       const sc = Math.min(parent.clientWidth / DESIGN.w, parent.clientHeight / DESIGN.h);
                       node.style.transform = `translate(-50%, -50%) scale(${sc})`;
+                      setCanvasScales((prev) => (prev[s.id] === sc ? prev : { ...prev, [s.id]: sc }));
                     };
                     apply();
                     const ro = new ResizeObserver(apply);
