@@ -102,6 +102,7 @@ function ScriptCanvas() {
   const [playOpen, setPlayOpen] = useState(false);
   const canvasSize = DESIGN_CANVAS_SIZE;
   const [gridCanvases, setGridCanvases] = useState<Record<string, boolean>>({});
+  const [canvasScales, setCanvasScales] = useState<Record<string, number>>({});
   const [rightTab, setRightTab] = useState<string>("animations");
   const [isSeeding, setIsSeeding] = useState(false);
 
