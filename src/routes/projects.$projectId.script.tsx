@@ -777,31 +777,20 @@ function ScriptCanvas() {
           className="sticky flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
           style={{ top: "4.5rem", height: "calc(100vh - 5.5rem)" }}
         >
-          <Tabs defaultValue="sequence" className="flex h-full min-h-0 flex-col">
-            <TabsList className="m-3 grid shrink-0 grid-cols-5">
-              <TabsTrigger value="sequence" className="text-[11px]">Seq</TabsTrigger>
+          <Tabs defaultValue="animations" className="flex h-full min-h-0 flex-col">
+            <TabsList className="m-3 grid shrink-0 grid-cols-4">
               <TabsTrigger value="animations" className="text-[11px]">Anim</TabsTrigger>
               <TabsTrigger value="background" className="text-[11px]">BG</TabsTrigger>
               <TabsTrigger value="text" className="text-[11px]">Text</TabsTrigger>
               <TabsTrigger value="theme" className="text-[11px]">Theme</TabsTrigger>
             </TabsList>
-            <TabsContent value="sequence" className="m-0 flex min-h-0 flex-1 flex-col overflow-y-auto border-t border-border">
-              <div className="shrink-0 border-b border-border px-4 py-2">
-                <p className="text-xs text-muted-foreground">Canvas {activeIdx + 1} · play order</p>
-              </div>
-              {activeScene && (
-                <SequencePanel
-                  items={activeScene.elements.map((e) => ({ id: e.id, type: e.type, content: e.content }))}
-                  selectedId={selectedElementId}
-                  onSelect={setSelectedElementId}
-                  onReorder={(ids) => void reorderElements(activeScene.id, ids)}
-                  onRemove={(id) => void deleteElement(activeScene.id, id)}
-                />
-              )}
-            </TabsContent>
             <TabsContent value="animations" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
               <div className="shrink-0 border-b border-border px-4 py-2">
-                <p className="text-xs text-muted-foreground">Adds to Canvas {activeIdx + 1}</p>
+                <p className="text-xs text-muted-foreground">
+                  {selectedWord
+                    ? <>Adding to word · <span className="font-semibold text-primary">{selectedWord}</span></>
+                    : "Click + next to a word in the script first"}
+                </p>
               </div>
               <div className="min-h-0 flex-1 overflow-hidden">
                 <AnimationSearchPanel initialQuery={selectedWord ?? ""} onSelect={addAnimation} />
