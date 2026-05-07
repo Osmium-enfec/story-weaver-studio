@@ -71,6 +71,7 @@ interface SceneRow {
 }
 
 const DEFAULT_BG: SceneBackground = { type: "color", value: "#ffffff" };
+const DESIGN_CANVAS_SIZE = { w: 1280, h: 720 } as const;
 
 function ScriptCanvas() {
   const { projectId } = useParams({ from: "/projects/$projectId/script" });
@@ -85,7 +86,7 @@ function ScriptCanvas() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
-  const [canvasSize, setCanvasSize] = useState({ w: 1280, h: 720 });
+  const canvasSize = DESIGN_CANVAS_SIZE;
   const [gridCanvases, setGridCanvases] = useState<Record<string, boolean>>({});
   const [rightTab, setRightTab] = useState<string>("animations");
   const [isSeeding, setIsSeeding] = useState(false);
@@ -269,11 +270,6 @@ function ScriptCanvas() {
         variant: "default",
         disabled: isExporting,
         onClick: () => {
-          const node = canvasRefs.current[activeScene?.id ?? ""];
-          if (node) {
-            const r = node.getBoundingClientRect();
-            setCanvasSize({ w: Math.round(r.width), h: Math.round(r.height) });
-          }
           setPlayOpen(true);
         },
       },
