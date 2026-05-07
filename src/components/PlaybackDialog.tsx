@@ -108,15 +108,19 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       if (cancelRef.current) return resolve();
       const scene = scenes[idx];
       if (!scene) return resolve();
+      const orderedElements = [...scene.elements].sort((a, b) => {
+        const byOrder = (a.z_index ?? 0) - (b.z_index ?? 0);
+        return byOrder || a.id.localeCompare(b.id);
+      });
       setCurrentIdx(idx);
       clearTimers();
 
       // Build word→elements map for this scene, tracking occurrence.
-      // Sequence order = scene.elements order (already z_index-sorted upstream).
+      // Sequence order = the visible numbering/z_index order.
       const occurrenceCounter: Record<string, number> = {};
       const wordMap = new Map<string, string[]>();
       const unboundIdsBySeq: string[] = [];
-      for (const el of scene.elements) {
+      for (const el of orderedElements) {
         const w = el.content.word ? normalize(el.content.word) : "";
         if (!w) {
           unboundIdsBySeq.push(el.id);
@@ -141,7 +145,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
 
       const revealNextAvailable = () => {
         if (cancelRef.current) return;
-        const nextId = scene.elements[nextSequenceIndex]?.id;
+        const nextId = orderedElements[nextSequenceIndex]?.id;
         if (!nextId || !availableIds.has(nextId)) {
           flushingSequence = false;
           return;
@@ -154,7 +158,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
           return next;
         });
 
-        const followingId = scene.elements[nextSequenceIndex]?.id;
+        const followingId = orderedElements[nextSequenceIndex]?.id;
         if (followingId && availableIds.has(followingId)) {
           const t = setTimeout(revealNextAvailable, REVEAL_STEP_MS);
           timersRef.current.push(t);
@@ -190,11 +194,11 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       const finish = () => {
         if (cancelRef.current) return resolve();
         clearTimers();
-        scene.elements.forEach((el) => availableIds.add(el.id));
+        orderedElements.forEach((el) => availableIds.add(el.id));
 
         const transitionAfterSequence = () => {
           if (cancelRef.current) return resolve();
-          const nextId = scene.elements[nextSequenceIndex]?.id;
+          const nextId = orderedElements[nextSequenceIndex]?.id;
           if (nextId && availableIds.has(nextId)) {
             nextSequenceIndex += 1;
             setRevealedIds((prev) => {
