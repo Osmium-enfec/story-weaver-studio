@@ -184,8 +184,18 @@ export const transcribeAndSplit = createServerFn({ method: "POST" })
       })),
     }));
 
-    const { error: insErr } = await admin.from("scenes").insert(rows);
+    const { data: insertedScenes, error: insErr } = await admin
+      .from("scenes")
+      .insert(rows)
+      .select("id, order_index");
     if (insErr) throw new Error(`Failed to insert scenes: ${insErr.message}`);
+
+    // Auto-seed 3-5 keyword-bound animations per scene (best-effort, swallow failures)
+    try {
+      await seedSceneAnimations(admin, insertedScenes ?? [], scenes);
+    } catch (e) {
+      console.error("seedSceneAnimations failed", e);
+    }
 
     // Save the master voice track
     await admin.from("voice_tracks").insert({
