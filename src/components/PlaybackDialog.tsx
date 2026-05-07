@@ -8,6 +8,7 @@ import {
 import { BackgroundLayer, type SceneBackground } from "@/components/BackgroundPicker";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { cellRect } from "@/lib/grid";
 
 export interface PlaybackElement {
   id: string;
