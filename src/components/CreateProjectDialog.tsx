@@ -16,7 +16,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Upload, Mic2, Loader2, X } from "lucide-react";
-import { transcribeAndSplit } from "@/server/voice.functions";
+import { transcribeAndSplit, seedAnimationsForProject } from "@/server/voice.functions";
 
 const COURSES: CourseType[] = ["Python", "Java", "Android", "Web", "DSA", "Database", "API", "Other"];
 const LEVELS: AudienceLevel[] = ["Beginner", "Intermediate", "Advanced"];
