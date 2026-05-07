@@ -638,7 +638,7 @@ function ScriptCanvas() {
                     ))}
                   </div>
                 )}
-                {s.elements.map((el, elIdx) => (
+                {s.elements.map((el) => (
                   <Rnd
                     key={el.id}
                     bounds="parent"
@@ -662,14 +662,11 @@ function ScriptCanvas() {
                     data-canvas-element="true"
                   >
                     <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
-                      <span
-                        className={`pointer-events-none absolute -left-2 -top-2 z-20 flex h-5 min-w-[1.25rem] items-center gap-0.5 rounded-full px-1 text-[10px] font-semibold shadow ${
-                          el.content.word ? "bg-accent text-accent-foreground" : "bg-primary text-primary-foreground"
-                        }`}
-                      >
-                        {elIdx + 1}
-                        {el.content.word && <span aria-hidden>🔗</span>}
-                      </span>
+                      {el.content.word && (
+                        <span className="pointer-events-none absolute -left-2 -top-2 z-20 flex h-5 items-center gap-0.5 rounded-full bg-accent px-1.5 text-[10px] font-semibold text-accent-foreground shadow">
+                          🔗 {el.content.word}
+                        </span>
+                      )}
                       {el.type === "text" ? (
                         <TextBlockRenderer
                           content={el.content}
