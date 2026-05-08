@@ -529,6 +529,7 @@ function ScriptCanvas() {
     const newEl = data as unknown as PlacedElement;
     setScenes((prev) => prev.map((s) => (s.id === activeScene.id ? { ...s, elements: [...s.elements, newEl] } : s)));
     setSelectedElementId(newEl.id);
+    setRightTab("text");
   }
 
   async function addTextBlock(role: TextRole, style: TextRoleStyle, overrideText?: string) {
@@ -640,7 +641,18 @@ function ScriptCanvas() {
   }
 
   async function updateElementAnimation(sceneId: string, id: string, anim: AnimationBlockContent["text_animation"]) {
-    let nextContent: AnimationBlockContent | null = null;
+    await updateElementContent(sceneId, id, { text_animation: anim });
+    // Trigger a one-shot preview on the canvas so the user sees the animation immediately.
+    setAnimPreview((p) => ({ id, tick: (p?.id === id ? p.tick : 0) + 1 }));
+    if (animPreviewTimer.current) clearTimeout(animPreviewTimer.current);
+    const total = (anim?.duration ?? 600) + (anim?.delay ?? 0) + 200;
+    animPreviewTimer.current = setTimeout(() => setAnimPreview(null), total);
+  }
+
+  async function updateElementContent(sceneId: string, id: string, patch: Partial<AnimationBlockContent>) {
+    const current = scenes.find((s) => s.id === sceneId)?.elements.find((e) => e.id === id);
+    if (!current) return;
+    const nextContent: AnimationBlockContent = { ...current.content, ...patch };
     setScenes((prev) =>
       prev.map((s) =>
         s.id === sceneId
@@ -648,21 +660,13 @@ function ScriptCanvas() {
               ...s,
               elements: s.elements.map((e) => {
                 if (e.id !== id) return e;
-                nextContent = { ...e.content, text_animation: anim };
                 return { ...e, content: nextContent };
               }),
             }
           : s,
       ),
     );
-    if (nextContent) {
-      await supabase.from("scene_elements").update({ content: nextContent as unknown as never }).eq("id", id);
-    }
-    // Trigger a one-shot preview on the canvas so the user sees the animation immediately.
-    setAnimPreview((p) => ({ id, tick: (p?.id === id ? p.tick : 0) + 1 }));
-    if (animPreviewTimer.current) clearTimeout(animPreviewTimer.current);
-    const total = (anim?.duration ?? 600) + (anim?.delay ?? 0) + 200;
-    animPreviewTimer.current = setTimeout(() => setAnimPreview(null), total);
+    await supabase.from("scene_elements").update({ content: nextContent as unknown as never }).eq("id", id);
   }
 
   async function updateElementText(sceneId: string, id: string, text: string) {
@@ -837,7 +841,7 @@ function ScriptCanvas() {
                         h: parseInt(ref.style.height),
                       });
                     }}
-                    onMouseDown={() => { setActiveIdx(idx); setSelectedElementId(el.id); }}
+                    onMouseDown={() => { setActiveIdx(idx); setSelectedElementId(el.id); if (el.type === "text") setRightTab("text"); }}
                     className={`group/el rounded-lg border-2 ${
                       selectedElementId === el.id ? "border-primary" : "border-transparent hover:border-primary/40"
                     }`}
@@ -1027,8 +1031,9 @@ function ScriptCanvas() {
                   <TextPanel
                     onInsert={(role, style, text) => void addTextBlock(role, style, text)}
                     onInsertPair={(pair) => void addFontPair(pair)}
-                    selectedTextAnimation={sel ? (sel.content.text_animation ?? { type: "none", duration: 600, delay: 0, easing: "ease-out" }) : undefined}
+                    selectedTextContent={sel?.content}
                     onChangeSelectedAnimation={sel ? (v) => void updateElementAnimation(activeScene!.id, sel.id, v) : undefined}
+                    onChangeSelectedText={sel ? (patch) => void updateElementContent(activeScene!.id, sel.id, patch) : undefined}
                   />
                 );
               })()}

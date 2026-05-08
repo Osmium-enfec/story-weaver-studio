@@ -124,7 +124,7 @@ function RoleStyleEditor({
         onValueChange={(v) => { if (v !== "__custom__") onChange({ ...value, family: v, url: undefined }); }}
       >
         <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Font" /></SelectTrigger>
-        <SelectContent className="max-h-72">
+        <SelectContent className="max-h-72" data-keep-selection>
           {GOOGLE_FONTS.map((f) => (
             <SelectItem key={f} value={f} style={{ fontFamily: f }} onMouseEnter={() => ensureGoogleFont(f)}>
               {f}
@@ -208,7 +208,7 @@ function DefaultStyleTile({
             <Settings2 className="h-3.5 w-3.5" />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-72" align="end" onClick={(e) => e.stopPropagation()}>
+        <PopoverContent className="w-72" align="end" data-keep-selection onClick={(e) => e.stopPropagation()}>
           <p className="mb-2 text-xs font-semibold capitalize">{role} default</p>
           <RoleStyleEditor value={style} onChange={onChange} />
         </PopoverContent>
@@ -275,41 +275,89 @@ const ANIM_OPTIONS: { value: NonNullable<NonNullable<AnimationBlockContent["text
   { value: "word-reveal",  label: "Word by word" },
 ];
 
-function TextAnimationControl({
-  value,
-  onChange,
+function SelectedTextControl({
+  content,
+  animation,
+  onContentChange,
+  onAnimationChange,
 }: {
-  value: AnimationBlockContent["text_animation"];
-  onChange: (next: AnimationBlockContent["text_animation"]) => void;
+  content: AnimationBlockContent;
+  animation: AnimationBlockContent["text_animation"];
+  onContentChange: (patch: Partial<AnimationBlockContent>) => void;
+  onAnimationChange: (next: AnimationBlockContent["text_animation"]) => void;
 }) {
-  const v = value ?? { type: "none" as const, duration: 600, delay: 0, easing: "ease-out" };
-  const update = (patch: Partial<NonNullable<AnimationBlockContent["text_animation"]>>) =>
-    onChange({ type: v.type, duration: v.duration, delay: v.delay, easing: v.easing, ...patch });
+  const v = animation ?? { type: "none" as const, duration: 600, delay: 0, easing: "ease-out" };
+  const family = content.font_family || "Inter";
+  const isCustom = !GOOGLE_FONTS.includes(family as typeof GOOGLE_FONTS[number]);
+  useEffect(() => { ensureGoogleFont(family); }, [family]);
+  const updateAnim = (patch: Partial<NonNullable<AnimationBlockContent["text_animation"]>>) =>
+    onAnimationChange({ type: v.type, duration: v.duration, delay: v.delay, easing: v.easing, ...patch });
   return (
-    <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Selected text · animation</p>
-      <Select value={v.type} onValueChange={(t) => update({ type: t as typeof v.type })}>
-        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          {ANIM_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-        </SelectContent>
-      </Select>
-      {v.type !== "none" && (
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <Label className="text-[10px] text-muted-foreground">Duration (ms)</Label>
-            <Input type="number" min={100} max={5000} step={50} value={v.duration ?? 600}
-              onChange={(e) => update({ duration: Number(e.target.value) || 600 })}
-              className="h-8 text-xs" />
+    <div className="space-y-3">
+      <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Selected text · animation</p>
+        <Select value={v.type} onValueChange={(t) => updateAnim({ type: t as typeof v.type })}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent data-keep-selection>
+            {ANIM_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {v.type !== "none" && (
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Duration (ms)</Label>
+              <Input type="number" min={100} max={5000} step={50} value={v.duration ?? 600}
+                onChange={(e) => updateAnim({ duration: Number(e.target.value) || 600 })}
+                className="h-8 text-xs" />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Delay (ms)</Label>
+              <Input type="number" min={0} max={10000} step={50} value={v.delay ?? 0}
+                onChange={(e) => updateAnim({ delay: Number(e.target.value) || 0 })}
+                className="h-8 text-xs" />
+            </div>
           </div>
-          <div>
-            <Label className="text-[10px] text-muted-foreground">Delay (ms)</Label>
-            <Input type="number" min={0} max={10000} step={50} value={v.delay ?? 0}
-              onChange={(e) => update({ delay: Number(e.target.value) || 0 })}
-              className="h-8 text-xs" />
-          </div>
+        )}
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Font & text settings</p>
+        <Select
+          value={isCustom ? "__custom__" : family}
+          onValueChange={(next) => { if (next !== "__custom__") { ensureGoogleFont(next); onContentChange({ font_family: next }); } }}
+        >
+          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Font" /></SelectTrigger>
+          <SelectContent className="max-h-72" data-keep-selection>
+            {GOOGLE_FONTS.map((f) => (
+              <SelectItem key={f} value={f} style={{ fontFamily: f }} onMouseEnter={() => ensureGoogleFont(f)}>{f}</SelectItem>
+            ))}
+            {isCustom && <SelectItem value="__custom__">{family} (custom)</SelectItem>}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-2">
+          <Label className="flex items-center gap-1 text-[10px] text-muted-foreground"><Palette className="h-3 w-3" /> Color</Label>
+          <input type="color" value={content.color || "#0f172a"}
+            onChange={(e) => onContentChange({ color: e.target.value })}
+            className="h-7 w-10 cursor-pointer rounded border border-border bg-transparent" />
+          <Input value={content.color || "#0f172a"}
+            onChange={(e) => onContentChange({ color: e.target.value })}
+            className="h-7 flex-1 text-xs" />
         </div>
-      )}
+        <div className="grid grid-cols-3 gap-2">
+          <div><Label className="text-[10px] text-muted-foreground">Size</Label><Input type="number" min={8} max={240} value={content.font_size ?? 24} onChange={(e) => onContentChange({ font_size: Number(e.target.value) || 24 })} className="h-8 text-xs" /></div>
+          <div><Label className="text-[10px] text-muted-foreground">Weight</Label><Input type="number" min={100} max={900} step={100} value={content.font_weight ?? 400} onChange={(e) => onContentChange({ font_weight: Number(e.target.value) || 400 })} className="h-8 text-xs" /></div>
+          <div><Label className="text-[10px] text-muted-foreground">Line ht</Label><Input type="number" min={0.8} max={3} step={0.1} value={content.line_height ?? 1.4} onChange={(e) => onContentChange({ line_height: Number(e.target.value) || 1.4 })} className="h-8 text-xs" /></div>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div><Label className="text-[10px] text-muted-foreground">Opacity</Label><Input type="number" min={0} max={1} step={0.05} value={content.opacity ?? 1} onChange={(e) => onContentChange({ opacity: Number(e.target.value) })} className="h-8 text-xs" /></div>
+          <div><Label className="text-[10px] text-muted-foreground">Rotate</Label><Input type="number" min={-180} max={180} value={content.rotation ?? 0} onChange={(e) => onContentChange({ rotation: Number(e.target.value) || 0 })} className="h-8 text-xs" /></div>
+          <div><Label className="text-[10px] text-muted-foreground">Spacing</Label><Input type="number" min={-5} max={20} step={0.5} value={content.letter_spacing ?? 0} onChange={(e) => onContentChange({ letter_spacing: Number(e.target.value) || 0 })} className="h-8 text-xs" /></div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Button type="button" size="sm" variant={content.italic ? "default" : "outline"} className="h-8 text-xs" onClick={() => onContentChange({ italic: !content.italic })}>Italic</Button>
+          <Button type="button" size="sm" variant={content.text_transform === "uppercase" ? "default" : "outline"} className="h-8 text-xs" onClick={() => onContentChange({ text_transform: content.text_transform === "uppercase" ? "none" : "uppercase" })}>Uppercase</Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -318,16 +366,20 @@ function TextAnimationControl({
 export function TextPanel({
   onInsert,
   onInsertPair,
-  selectedTextAnimation,
+  selectedTextContent,
   onChangeSelectedAnimation,
+  onChangeSelectedText,
 }: {
   onInsert: (role: TextRole, style: TextRoleStyle, text?: string) => void;
   onInsertPair?: (pair: FontPair) => void;
-  selectedTextAnimation?: AnimationBlockContent["text_animation"];
+  selectedTextContent?: AnimationBlockContent;
   onChangeSelectedAnimation?: (v: AnimationBlockContent["text_animation"]) => void;
+  onChangeSelectedText?: (patch: Partial<AnimationBlockContent>) => void;
 }) {
   const [roles, setRoles] = useState<TextRoles>(DEFAULT_ROLES);
+  const [activeSubTab, setActiveSubTab] = useState("styles");
   useEffect(() => { setRoles(loadTextRoles()); }, []);
+  useEffect(() => { if (selectedTextContent) setActiveSubTab("animate"); }, [selectedTextContent]);
 
   const update = (role: TextRole, v: TextRoleStyle) => {
     ensureGoogleFont(v.family);
@@ -336,11 +388,11 @@ export function TextPanel({
     saveTextRoles(next);
   };
 
-  const hasSelection = !!onChangeSelectedAnimation && selectedTextAnimation !== undefined;
+  const hasSelection = !!selectedTextContent && !!onChangeSelectedText;
 
   return (
     <div className="p-3" data-keep-selection>
-      <Tabs defaultValue="styles" className="w-full">
+      <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="styles" className="text-[11px]">Styles</TabsTrigger>
           <TabsTrigger value="combos" className="text-[11px]">Combos</TabsTrigger>
@@ -382,7 +434,12 @@ export function TextPanel({
 
         <TabsContent value="animate" className="mt-3">
           {hasSelection ? (
-            <TextAnimationControl value={selectedTextAnimation} onChange={onChangeSelectedAnimation!} />
+            <SelectedTextControl
+              content={selectedTextContent!}
+              animation={selectedTextContent!.text_animation}
+              onContentChange={onChangeSelectedText!}
+              onAnimationChange={onChangeSelectedAnimation ?? ((next) => onChangeSelectedText!({ text_animation: next }))}
+            />
           ) : (
             <div className="rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center">
               <p className="text-sm font-medium">No text selected</p>
