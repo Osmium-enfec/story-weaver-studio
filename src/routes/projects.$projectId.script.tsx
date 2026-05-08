@@ -529,6 +529,7 @@ function ScriptCanvas() {
     const newEl = data as unknown as PlacedElement;
     setScenes((prev) => prev.map((s) => (s.id === activeScene.id ? { ...s, elements: [...s.elements, newEl] } : s)));
     setSelectedElementId(newEl.id);
+    setRightTab("text");
   }
 
   async function addTextBlock(role: TextRole, style: TextRoleStyle, overrideText?: string) {
@@ -840,7 +841,7 @@ function ScriptCanvas() {
                         h: parseInt(ref.style.height),
                       });
                     }}
-                    onMouseDown={() => { setActiveIdx(idx); setSelectedElementId(el.id); }}
+                    onMouseDown={() => { setActiveIdx(idx); setSelectedElementId(el.id); if (el.type === "text") setRightTab("text"); }}
                     className={`group/el rounded-lg border-2 ${
                       selectedElementId === el.id ? "border-primary" : "border-transparent hover:border-primary/40"
                     }`}
