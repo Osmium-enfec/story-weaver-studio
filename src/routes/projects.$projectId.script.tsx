@@ -642,6 +642,44 @@ function ScriptCanvas() {
     toast.success(`Added "${pair.label}" font pair`);
   }
 
+  async function addShape(shape: ShapeType) {
+    if (!activeScene) return;
+    const used = activeScene.elements.map((e) => e.position);
+    const cell = cellRect(nextEmptyCellIndex(used));
+    const isLine = shape.includes("line") || shape.startsWith("arrow");
+    const position = isLine
+      ? { x: cell.x + 36, y: cell.y + Math.round(cell.h / 2) - 18, w: Math.max(180, cell.w - 72), h: 36 }
+      : { x: cell.x + Math.round((cell.w - 140) / 2), y: cell.y + Math.round((cell.h - 140) / 2), w: 140, h: 140 };
+    const content: AnimationBlockContent = {
+      provider: "internal",
+      name: shape.replace(/-/g, " "),
+      shape_type: shape,
+      color: "#111827",
+      tint: "#111827",
+      color_support: "custom",
+      opacity: 1,
+      rotation: 0,
+      shape_stroke_width: 7,
+    };
+    const { data, error } = await supabase
+      .from("scene_elements")
+      .insert({
+        scene_id: activeScene.id,
+        type: "shape",
+        content: content as unknown as never,
+        position: clampRectToDesign(position),
+        z_index: activeScene.elements.length,
+      })
+      .select("*")
+      .single();
+    if (error) { toast.error(error.message); return; }
+    const newEl = data as unknown as PlacedElement;
+    setScenes((prev) => prev.map((s) => (s.id === activeScene.id ? { ...s, elements: [...s.elements, newEl] } : s)));
+    setSelectedElementId(newEl.id);
+    setRightTab("animations");
+    setAnimationSubTab("shapes");
+  }
+
   async function updateElementAnimation(sceneId: string, id: string, anim: AnimationBlockContent["text_animation"]) {
     await updateElementContent(sceneId, id, { text_animation: anim });
     // Trigger a one-shot preview on the canvas so the user sees the animation immediately.
