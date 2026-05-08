@@ -376,3 +376,31 @@ export function TextPanel({
     </div>
   );
 }
+
+// Backward-compat export used by ThemeBuilder.
+export function TextRoleEditor({
+  label, value, onChange, onInsert,
+}: {
+  label: string;
+  value: TextRoleStyle;
+  onChange: (v: TextRoleStyle) => void;
+  onInsert?: () => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-md border border-border p-3">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs font-medium">{label}</Label>
+        {onInsert && (
+          <Button size="sm" variant="secondary" className="h-7 gap-1 text-[11px]" onClick={onInsert}>
+            <Type className="h-3 w-3" /> Add to canvas
+          </Button>
+        )}
+      </div>
+      <RoleStyleEditor value={value} onChange={onChange} />
+      <p className="truncate text-xs"
+        style={{ fontFamily: value.family, color: value.color, fontWeight: value.weight }}>
+        Preview: {value.family}
+      </p>
+    </div>
+  );
+}
