@@ -26,12 +26,14 @@ const SHAPES: { type: ShapeType; label: string }[] = [
 ];
 
 export function ShapePanel({
+  mode = "both",
   selectedShapeContent,
   selectedShapeSize,
   onInsertShape,
   onChangeSelectedShape,
   onChangeSelectedShapeSize,
 }: {
+  mode?: "insert" | "edit" | "both";
   selectedShapeContent?: AnimationBlockContent;
   selectedShapeSize?: { w: number; h: number };
   onInsertShape: (shape: ShapeType) => void;
@@ -40,9 +42,12 @@ export function ShapePanel({
 }) {
   const color = selectedShapeContent?.color || "#111827";
   const strokeWidth = selectedShapeContent?.shape_stroke_width ?? 7;
+  const showInsert = mode === "insert" || mode === "both";
+  const showEdit = mode === "edit" || mode === "both";
 
   return (
     <div className="space-y-4 p-3" data-keep-selection>
+      {showInsert && (
       <div>
         <p className="mb-2 text-sm font-semibold">Basic shapes</p>
         <div className="grid grid-cols-3 gap-2">
@@ -59,8 +64,9 @@ export function ShapePanel({
           ))}
         </div>
       </div>
+      )}
 
-      {selectedShapeContent?.shape_type && onChangeSelectedShape ? (
+      {showEdit && (selectedShapeContent?.shape_type && onChangeSelectedShape ? (
         <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-3">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Selected shape</p>
           <div className="grid grid-cols-6 gap-1.5">
@@ -136,11 +142,13 @@ export function ShapePanel({
           <p className="text-sm font-medium">No shape selected</p>
           <p className="mt-1 text-xs text-muted-foreground">Add or select a shape to edit its color, type, and size.</p>
         </div>
-      )}
+      ))}
 
-      <Button type="button" variant="secondary" className="w-full" onClick={() => onInsertShape("square")}>
-        Add square
-      </Button>
+      {showInsert && (
+        <Button type="button" variant="secondary" className="w-full" onClick={() => onInsertShape("square")}>
+          Add square
+        </Button>
+      )}
     </div>
   );
 }
