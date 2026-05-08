@@ -1161,6 +1161,7 @@ function ScriptCanvas() {
                   <TextPanel
                     onInsert={(role, style, text) => void addTextBlock(role, style, text)}
                     onInsertPair={(pair) => void addFontPair(pair)}
+                    onInsertBanner={(preset) => void addBanner(preset)}
                     selectedTextContent={sel?.content}
                     onChangeSelectedAnimation={sel ? (v) => void updateElementAnimation(activeScene!.id, sel.id, v) : undefined}
                     onChangeSelectedText={sel ? (patch) => void updateElementContent(activeScene!.id, sel.id, patch) : undefined}
