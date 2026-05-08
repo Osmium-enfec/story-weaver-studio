@@ -69,13 +69,13 @@ export interface AnimationBlockContent {
   };
 }
 
-const TEXT_ANIM_CLASS: Record<string, string> = {
-  fade: "animate-fade-in",
-  "slide-up": "animate-text-slide-up",
-  "slide-left": "animate-slide-in-right",
-  "slide-right": "animate-text-slide-right",
-  scale: "animate-scale-in",
-  bounce: "animate-text-bounce",
+const TEXT_ANIM_KEYFRAME: Record<string, string> = {
+  fade: "text-fade-in",
+  "slide-up": "text-slide-up",
+  "slide-left": "text-slide-left",
+  "slide-right": "text-slide-right",
+  scale: "text-scale-in",
+  bounce: "text-bounce",
 };
 
 export function TextBlockRenderer({
@@ -118,7 +118,7 @@ export function TextBlockRenderer({
 
   const anim = content.text_animation;
   const animKey = animating && anim && anim.type !== "none" ? anim.type : null;
-  const animClass = animKey ? TEXT_ANIM_CLASS[animKey] || "" : "";
+  const animName = animKey ? TEXT_ANIM_KEYFRAME[animKey] || "" : "";
   const animDuration = anim?.duration ?? 600;
   const animDelay = anim?.delay ?? 0;
   const animEasing = anim?.easing ?? "ease-out";
@@ -165,8 +165,9 @@ export function TextBlockRenderer({
         suppressContentEditableWarning
         onBlur={(e) => onChange?.(e.currentTarget.innerText)}
         onMouseDown={(e) => { if (editable) e.stopPropagation(); }}
-        className={`outline-none ${!isStaggered && animClass ? animClass : ""}`}
+        className="outline-none"
         style={{
+          ["--text-render-scale" as string]: scale,
           fontFamily: content.font_family || "Inter",
           fontSize: baseSize + "px",
           fontWeight: content.font_weight ?? 400,
@@ -180,10 +181,7 @@ export function TextBlockRenderer({
           transformOrigin: "center center",
           transform: `scale(${scale})`,
           display: "inline-block",
-          animationDuration: !isStaggered && animClass ? `${animDuration}ms` : undefined,
-          animationDelay: !isStaggered && animClass ? `${animDelay}ms` : undefined,
-          animationTimingFunction: !isStaggered && animClass ? animEasing : undefined,
-          animationFillMode: !isStaggered && animClass ? "both" : undefined,
+          animation: !isStaggered && animName ? `${animName} ${animDuration}ms ${animEasing} ${animDelay}ms both` : undefined,
         }}
       >
         {isStaggered ? renderStaggered() : text}
