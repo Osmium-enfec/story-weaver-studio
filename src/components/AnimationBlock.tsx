@@ -70,6 +70,13 @@ export interface AnimationBlockContent {
   // simple vector shapes
   shape_type?: ShapeType;
   shape_stroke_width?: number;
+  // text "banner / sticker" background (renders behind text inside the same block)
+  text_bg_color?: string | null;
+  text_bg_padding_x?: number;
+  text_bg_padding_y?: number;
+  text_bg_radius?: number;
+  text_bg_border_color?: string | null;
+  text_bg_border_width?: number;
 }
 
 export type ShapeType =
