@@ -640,6 +640,15 @@ function ScriptCanvas() {
   }
 
   async function updateElementAnimation(sceneId: string, id: string, anim: AnimationBlockContent["text_animation"]) {
+    await updateElementContent(sceneId, id, { text_animation: anim });
+    // Trigger a one-shot preview on the canvas so the user sees the animation immediately.
+    setAnimPreview((p) => ({ id, tick: (p?.id === id ? p.tick : 0) + 1 }));
+    if (animPreviewTimer.current) clearTimeout(animPreviewTimer.current);
+    const total = (anim?.duration ?? 600) + (anim?.delay ?? 0) + 200;
+    animPreviewTimer.current = setTimeout(() => setAnimPreview(null), total);
+  }
+
+  async function updateElementContent(sceneId: string, id: string, patch: Partial<AnimationBlockContent>) {
     let nextContent: AnimationBlockContent | null = null;
     setScenes((prev) =>
       prev.map((s) =>
@@ -648,7 +657,7 @@ function ScriptCanvas() {
               ...s,
               elements: s.elements.map((e) => {
                 if (e.id !== id) return e;
-                nextContent = { ...e.content, text_animation: anim };
+                nextContent = { ...e.content, ...patch };
                 return { ...e, content: nextContent };
               }),
             }
@@ -658,11 +667,6 @@ function ScriptCanvas() {
     if (nextContent) {
       await supabase.from("scene_elements").update({ content: nextContent as unknown as never }).eq("id", id);
     }
-    // Trigger a one-shot preview on the canvas so the user sees the animation immediately.
-    setAnimPreview((p) => ({ id, tick: (p?.id === id ? p.tick : 0) + 1 }));
-    if (animPreviewTimer.current) clearTimeout(animPreviewTimer.current);
-    const total = (anim?.duration ?? 600) + (anim?.delay ?? 0) + 200;
-    animPreviewTimer.current = setTimeout(() => setAnimPreview(null), total);
   }
 
   async function updateElementText(sceneId: string, id: string, text: string) {
