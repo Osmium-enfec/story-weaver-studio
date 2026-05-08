@@ -396,8 +396,8 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
                         height: `${(rect.h / canvasSize.h) * 100}%`,
                         zIndex: el.z_index,
                         opacity: visible ? 1 : 0,
-                        transform: visible ? "scale(1)" : "scale(0.92)",
-                        transition: "opacity 350ms ease, transform 350ms ease",
+                        transform: visible && !isText ? "scale(1)" : !isText ? "scale(0.92)" : undefined,
+                        transition: isText ? "opacity 150ms ease" : "opacity 350ms ease, transform 350ms ease",
                         overflow: "hidden",
                       }}
                     >
