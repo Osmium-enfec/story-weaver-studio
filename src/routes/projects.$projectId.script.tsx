@@ -106,6 +106,8 @@ function ScriptCanvas() {
   const [canvasScales, setCanvasScales] = useState<Record<string, number>>({});
   const [rightTab, setRightTab] = useState<string>("animations");
   const [isSeeding, setIsSeeding] = useState(false);
+  const [animPreview, setAnimPreview] = useState<{ id: string; tick: number } | null>(null);
+  const animPreviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeScene = scenes[activeIdx];
 
@@ -655,6 +657,11 @@ function ScriptCanvas() {
     if (nextContent) {
       await supabase.from("scene_elements").update({ content: nextContent as unknown as never }).eq("id", id);
     }
+    // Trigger a one-shot preview on the canvas so the user sees the animation immediately.
+    setAnimPreview((p) => ({ id, tick: (p?.id === id ? p.tick : 0) + 1 }));
+    if (animPreviewTimer.current) clearTimeout(animPreviewTimer.current);
+    const total = (anim?.duration ?? 600) + (anim?.delay ?? 0) + 200;
+    animPreviewTimer.current = setTimeout(() => setAnimPreview(null), total);
   }
 
   async function updateElementText(sceneId: string, id: string, text: string) {
@@ -843,8 +850,10 @@ function ScriptCanvas() {
                       )}
                       {el.type === "text" ? (
                         <TextBlockRenderer
+                          key={animPreview?.id === el.id ? `anim-${animPreview.tick}` : "static"}
                           content={el.content}
                           editable={selectedElementId === el.id}
+                          animating={isPlaying || animPreview?.id === el.id}
                           onChange={(text) => void updateElementText(s.id, el.id, text)}
                         />
                       ) : (
