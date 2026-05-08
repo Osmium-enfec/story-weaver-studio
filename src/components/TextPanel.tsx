@@ -366,16 +366,20 @@ function SelectedTextControl({
 export function TextPanel({
   onInsert,
   onInsertPair,
-  selectedTextAnimation,
+  selectedTextContent,
   onChangeSelectedAnimation,
+  onChangeSelectedText,
 }: {
   onInsert: (role: TextRole, style: TextRoleStyle, text?: string) => void;
   onInsertPair?: (pair: FontPair) => void;
-  selectedTextAnimation?: AnimationBlockContent["text_animation"];
+  selectedTextContent?: AnimationBlockContent;
   onChangeSelectedAnimation?: (v: AnimationBlockContent["text_animation"]) => void;
+  onChangeSelectedText?: (patch: Partial<AnimationBlockContent>) => void;
 }) {
   const [roles, setRoles] = useState<TextRoles>(DEFAULT_ROLES);
+  const [activeSubTab, setActiveSubTab] = useState("styles");
   useEffect(() => { setRoles(loadTextRoles()); }, []);
+  useEffect(() => { if (selectedTextContent) setActiveSubTab("animate"); }, [selectedTextContent?.text, selectedTextContent?.role]);
 
   const update = (role: TextRole, v: TextRoleStyle) => {
     ensureGoogleFont(v.family);
@@ -384,11 +388,11 @@ export function TextPanel({
     saveTextRoles(next);
   };
 
-  const hasSelection = !!onChangeSelectedAnimation && selectedTextAnimation !== undefined;
+  const hasSelection = !!selectedTextContent && !!onChangeSelectedText;
 
   return (
     <div className="p-3" data-keep-selection>
-      <Tabs defaultValue="styles" className="w-full">
+      <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="styles" className="text-[11px]">Styles</TabsTrigger>
           <TabsTrigger value="combos" className="text-[11px]">Combos</TabsTrigger>
@@ -430,7 +434,12 @@ export function TextPanel({
 
         <TabsContent value="animate" className="mt-3">
           {hasSelection ? (
-            <TextAnimationControl value={selectedTextAnimation} onChange={onChangeSelectedAnimation!} />
+            <SelectedTextControl
+              content={selectedTextContent!}
+              animation={selectedTextContent!.text_animation}
+              onContentChange={onChangeSelectedText!}
+              onAnimationChange={onChangeSelectedAnimation ?? ((next) => onChangeSelectedText!({ text_animation: next }))}
+            />
           ) : (
             <div className="rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center">
               <p className="text-sm font-medium">No text selected</p>
