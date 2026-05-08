@@ -379,7 +379,7 @@ export function TextPanel({
   const [roles, setRoles] = useState<TextRoles>(DEFAULT_ROLES);
   const [activeSubTab, setActiveSubTab] = useState("styles");
   useEffect(() => { setRoles(loadTextRoles()); }, []);
-  useEffect(() => { if (selectedTextContent) setActiveSubTab("animate"); }, [selectedTextContent?.text, selectedTextContent?.role]);
+  useEffect(() => { if (selectedTextContent) setActiveSubTab("animate"); }, [selectedTextContent]);
 
   const update = (role: TextRole, v: TextRoleStyle) => {
     ensureGoogleFont(v.family);
