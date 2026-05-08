@@ -677,7 +677,7 @@ function ScriptCanvas() {
     setScenes((prev) => prev.map((s) => (s.id === activeScene.id ? { ...s, elements: [...s.elements, newEl] } : s)));
     setSelectedElementId(newEl.id);
     setRightTab("animations");
-    setAnimationSubTab("shapes");
+    setAnimationSubTab("shape-edit");
   }
 
   async function updateElementAnimation(sceneId: string, id: string, anim: AnimationBlockContent["text_animation"]) {
