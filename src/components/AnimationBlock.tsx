@@ -57,16 +57,37 @@ export interface AnimationBlockContent {
   font_weight?: number;
   line_height?: number;
   color?: string;
+  letter_spacing?: number;
+  italic?: boolean;
+  text_transform?: "none" | "uppercase";
+  // text animation
+  text_animation?: {
+    type: "none" | "fade" | "slide-up" | "slide-left" | "slide-right" | "scale" | "typewriter" | "word-reveal" | "bounce";
+    duration?: number; // ms
+    delay?: number;    // ms
+    easing?: string;
+  };
 }
+
+const TEXT_ANIM_CLASS: Record<string, string> = {
+  fade: "animate-fade-in",
+  "slide-up": "animate-text-slide-up",
+  "slide-left": "animate-slide-in-right",
+  "slide-right": "animate-text-slide-right",
+  scale: "animate-scale-in",
+  bounce: "animate-text-bounce",
+};
 
 export function TextBlockRenderer({
   content,
   editable,
   onChange,
+  animating,
 }: {
   content: AnimationBlockContent;
   editable?: boolean;
   onChange?: (text: string) => void;
+  animating?: boolean;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const innerRef = useRef<HTMLDivElement | null>(null);
@@ -95,6 +116,40 @@ export function TextBlockRenderer({
     return () => ro.disconnect();
   }, [text, baseSize, content.font_family, content.font_weight, content.line_height]);
 
+  const anim = content.text_animation;
+  const animKey = animating && anim && anim.type !== "none" ? anim.type : null;
+  const animClass = animKey ? TEXT_ANIM_CLASS[animKey] || "" : "";
+  const animDuration = anim?.duration ?? 600;
+  const animDelay = anim?.delay ?? 0;
+  const animEasing = anim?.easing ?? "ease-out";
+  const isStaggered = animKey === "typewriter" || animKey === "word-reveal";
+
+  // Build staggered children for typewriter/word-reveal.
+  const renderStaggered = () => {
+    if (!animKey) return text;
+    const units = animKey === "typewriter" ? Array.from(text) : text.split(/(\s+)/);
+    const visible = units.filter((u) => animKey === "typewriter" || u.trim().length > 0).length || 1;
+    const per = animDuration / visible;
+    let i = 0;
+    return units.map((u, idx) => {
+      const isVisibleUnit = animKey === "typewriter" || u.trim().length > 0;
+      const styleAnim: React.CSSProperties = isVisibleUnit
+        ? {
+            display: "inline-block",
+            opacity: 0,
+            animation: `text-unit-in ${per}ms ${animEasing} ${animDelay + i * per}ms forwards`,
+            whiteSpace: "pre",
+          }
+        : { whiteSpace: "pre" };
+      if (isVisibleUnit) i++;
+      return (
+        <span key={idx} style={styleAnim}>
+          {u}
+        </span>
+      );
+    });
+  };
+
   return (
     <div
       ref={wrapRef}
@@ -110,21 +165,28 @@ export function TextBlockRenderer({
         suppressContentEditableWarning
         onBlur={(e) => onChange?.(e.currentTarget.innerText)}
         onMouseDown={(e) => { if (editable) e.stopPropagation(); }}
-        className="outline-none"
+        className={`outline-none ${!isStaggered && animClass ? animClass : ""}`}
         style={{
           fontFamily: content.font_family || "Inter",
           fontSize: baseSize + "px",
           fontWeight: content.font_weight ?? 400,
+          fontStyle: content.italic ? "italic" : "normal",
           lineHeight: content.line_height ?? 1.4,
           color: content.color || "#0f172a",
+          letterSpacing: content.letter_spacing ? `${content.letter_spacing}px` : undefined,
+          textTransform: content.text_transform === "uppercase" ? "uppercase" : "none",
           cursor: editable ? "text" : "default",
           whiteSpace: "pre",
           transformOrigin: "center center",
           transform: `scale(${scale})`,
           display: "inline-block",
+          animationDuration: !isStaggered && animClass ? `${animDuration}ms` : undefined,
+          animationDelay: !isStaggered && animClass ? `${animDelay}ms` : undefined,
+          animationTimingFunction: !isStaggered && animClass ? animEasing : undefined,
+          animationFillMode: !isStaggered && animClass ? "both" : undefined,
         }}
       >
-        {text}
+        {isStaggered ? renderStaggered() : text}
       </div>
     </div>
   );

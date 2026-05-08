@@ -3,8 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
-import { Type, Palette } from "lucide-react";
+import { Settings2, Palette, Type } from "lucide-react";
+import { FONT_PAIRS, type FontPair } from "@/lib/font-pairs";
+import type { AnimationBlockContent } from "@/components/AnimationBlock";
 
 export interface TextRoleStyle {
   family: string;
@@ -25,43 +28,12 @@ export interface TextRoles {
 
 // Curated Google Fonts list available out of the box.
 export const GOOGLE_FONTS = [
-  "Poppins",
-  "Inter",
-  "Roboto",
-  "Open Sans",
-  "Lato",
-  "Montserrat",
-  "Raleway",
-  "Nunito",
-  "Oswald",
-  "Source Sans 3",
-  "Work Sans",
-  "Plus Jakarta Sans",
-  "DM Sans",
-  "Manrope",
-  "Quicksand",
-  "Rubik",
-  "Mulish",
-  "Karla",
-  "Playfair Display",
-  "Merriweather",
-  "Lora",
-  "PT Serif",
-  "EB Garamond",
-  "Cormorant Garamond",
-  "Bebas Neue",
-  "Anton",
-  "Archivo Black",
-  "Pacifico",
-  "Caveat",
-  "Dancing Script",
-  "Shadows Into Light",
-  "Permanent Marker",
-  "JetBrains Mono",
-  "Fira Code",
-  "IBM Plex Sans",
-  "IBM Plex Serif",
-  "IBM Plex Mono",
+  "Poppins", "Inter", "Roboto", "Open Sans", "Lato", "Montserrat", "Raleway", "Nunito",
+  "Oswald", "Source Sans 3", "Work Sans", "Plus Jakarta Sans", "DM Sans", "Manrope",
+  "Quicksand", "Rubik", "Mulish", "Karla", "Playfair Display", "Merriweather", "Lora",
+  "PT Serif", "EB Garamond", "Cormorant Garamond", "Bebas Neue", "Anton", "Archivo Black",
+  "Pacifico", "Caveat", "Dancing Script", "Shadows Into Light", "Permanent Marker",
+  "JetBrains Mono", "Fira Code", "IBM Plex Sans", "IBM Plex Serif", "IBM Plex Mono",
 ] as const;
 
 const loadedGoogleFonts = new Set<string>();
@@ -74,7 +46,7 @@ export function ensureGoogleFont(family: string) {
   const link = document.createElement("link");
   link.id = id;
   link.rel = "stylesheet";
-  link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:wght@300;400;500;600;700;800;900&display=swap`;
+  link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,700&display=swap`;
   document.head.appendChild(link);
 }
 
@@ -90,7 +62,6 @@ export function loadTextRoles(): TextRoles {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      // preload defaults
       Object.values(DEFAULT_ROLES).forEach((r) => ensureGoogleFont(r.family));
       return DEFAULT_ROLES;
     }
@@ -111,19 +82,15 @@ export function saveTextRoles(r: TextRoles) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(r)); } catch { /* noop */ }
 }
 
-export function TextRoleEditor({
-  label,
+// ---------- Style editor (popover) ----------
+function RoleStyleEditor({
   value,
   onChange,
-  onInsert,
 }: {
-  label: string;
   value: TextRoleStyle;
   onChange: (v: TextRoleStyle) => void;
-  onInsert?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
-
   useEffect(() => { ensureGoogleFont(value.family); }, [value.family]);
 
   const upload = async (file: File) => {
@@ -134,7 +101,6 @@ export function TextRoleEditor({
       if (error) throw error;
       const { data } = supabase.storage.from("scene-backgrounds").getPublicUrl(path);
       const family = file.name.replace(/\.[^.]+$/, "");
-      // inject @font-face for custom uploaded font
       const styleId = `cf-${family.replace(/\s+/g, "-")}`;
       if (!document.getElementById(styleId)) {
         const style = document.createElement("style");
@@ -151,25 +117,12 @@ export function TextRoleEditor({
   const isCustom = !!value.url || !GOOGLE_FONTS.includes(value.family as typeof GOOGLE_FONTS[number]);
 
   return (
-    <div className="space-y-2 rounded-md border border-border p-3">
-      <div className="flex items-center justify-between">
-        <Label className="text-xs font-medium">{label}</Label>
-        {onInsert && (
-          <Button size="sm" variant="secondary" className="h-7 gap-1 text-[11px]" onClick={onInsert}>
-            <Type className="h-3 w-3" /> Add to canvas
-          </Button>
-        )}
-      </div>
+    <div className="space-y-2">
       <Select
         value={isCustom ? "__custom__" : value.family}
-        onValueChange={(v) => {
-          if (v === "__custom__") return;
-          onChange({ ...value, family: v, url: undefined });
-        }}
+        onValueChange={(v) => { if (v !== "__custom__") onChange({ ...value, family: v, url: undefined }); }}
       >
-        <SelectTrigger className="h-8 text-xs">
-          <SelectValue placeholder="Choose font" />
-        </SelectTrigger>
+        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Font" /></SelectTrigger>
         <SelectContent className="max-h-72">
           {GOOGLE_FONTS.map((f) => (
             <SelectItem key={f} value={f} style={{ fontFamily: f }} onMouseEnter={() => ensureGoogleFont(f)}>
@@ -200,35 +153,179 @@ export function TextRoleEditor({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <Label className="flex items-center gap-1 text-[10px] text-muted-foreground">
-          <Palette className="h-3 w-3" /> Color
-        </Label>
-        <input
-          type="color"
-          value={value.color || "#0f172a"}
+        <Label className="flex items-center gap-1 text-[10px] text-muted-foreground"><Palette className="h-3 w-3" /> Color</Label>
+        <input type="color" value={value.color || "#0f172a"}
           onChange={(e) => onChange({ ...value, color: e.target.value })}
-          className="h-7 w-10 cursor-pointer rounded border border-border bg-transparent"
-        />
+          className="h-7 w-10 cursor-pointer rounded border border-border bg-transparent" />
         <Input value={value.color || "#0f172a"}
           onChange={(e) => onChange({ ...value, color: e.target.value })}
           className="h-7 flex-1 text-xs" />
       </div>
       <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border px-2 py-1.5 text-[11px] text-muted-foreground hover:bg-muted/40">
-        <span>{busy ? "Uploading..." : value.url ? "Replace custom font" : "Upload .ttf / .otf / .woff"}</span>
+        <span>{busy ? "Uploading…" : value.url ? "Replace custom font" : "Upload .ttf / .otf / .woff"}</span>
         <input type="file" className="hidden" accept=".ttf,.otf,.woff,.woff2,font/*" disabled={busy}
           onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.currentTarget.value = ""; }} />
       </label>
-      <p className="truncate text-xs"
-        style={{ fontFamily: value.family, color: value.color, fontWeight: value.weight }}>
-        Preview: {value.family}
-      </p>
     </div>
   );
 }
 
-export function TextPanel({ onInsert }: { onInsert: (role: TextRole, style: TextRoleStyle) => void }) {
-  const [roles, setRoles] = useState<TextRoles>(DEFAULT_ROLES);
+// ---------- Canva-style default text style tile ----------
+function DefaultStyleTile({
+  role, style, onInsert, onChange, sample,
+}: {
+  role: TextRole;
+  style: TextRoleStyle;
+  onInsert: () => void;
+  onChange: (v: TextRoleStyle) => void;
+  sample: string;
+}) {
+  return (
+    <div
+      onClick={onInsert}
+      className="group relative cursor-pointer rounded-2xl border border-border bg-card px-4 py-5 transition hover:border-primary hover:shadow-md"
+    >
+      <div
+        className="truncate"
+        style={{
+          fontFamily: style.family,
+          fontWeight: style.weight ?? 400,
+          fontSize: Math.min(style.size, role === "heading" ? 36 : role === "subheading" ? 22 : 16),
+          color: style.color,
+          lineHeight: 1.1,
+        }}
+      >
+        {sample}
+      </div>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            onClick={(e) => e.stopPropagation()}
+            title="Edit default style"
+            className="absolute right-2 top-2 rounded-md p-1 text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:bg-muted"
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-72" align="end" onClick={(e) => e.stopPropagation()}>
+          <p className="mb-2 text-xs font-semibold capitalize">{role} default</p>
+          <RoleStyleEditor value={style} onChange={onChange} />
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
 
+// ---------- Font pair card ----------
+function PairCard({ pair, onInsert }: { pair: FontPair; onInsert: () => void }) {
+  useEffect(() => { ensureGoogleFont(pair.heading.family); ensureGoogleFont(pair.body.family); }, [pair]);
+  const isDarkSwatch = (pair.swatch || "").startsWith("#1") || (pair.swatch || "").startsWith("#0");
+  return (
+    <button
+      onClick={onInsert}
+      className="group flex aspect-square flex-col items-center justify-center overflow-hidden rounded-xl border border-border p-3 text-center transition hover:border-primary hover:shadow-md"
+      style={{ background: pair.swatch || "#f5f5f4" }}
+    >
+      <div
+        className="leading-none"
+        style={{
+          fontFamily: pair.heading.family,
+          fontWeight: pair.heading.weight,
+          color: pair.heading.color,
+          fontStyle: pair.heading.italic ? "italic" : "normal",
+          letterSpacing: pair.heading.letterSpacing ? `${pair.heading.letterSpacing}px` : undefined,
+          textTransform: pair.heading.transform === "uppercase" ? "uppercase" : "none",
+          fontSize: 28,
+        }}
+      >
+        {pair.label}
+      </div>
+      <div
+        className="mt-1 leading-none"
+        style={{
+          fontFamily: pair.body.family,
+          fontWeight: pair.body.weight,
+          color: pair.body.color,
+          fontStyle: pair.body.italic ? "italic" : "normal",
+          letterSpacing: pair.body.letterSpacing ? `${pair.body.letterSpacing}px` : undefined,
+          textTransform: pair.body.transform === "uppercase" ? "uppercase" : "none",
+          fontSize: 12,
+        }}
+      >
+        {pair.vibe}
+      </div>
+      <span className={`mt-2 text-[10px] uppercase tracking-wide ${isDarkSwatch ? "text-white/60" : "text-muted-foreground"}`}>
+        Click to add
+      </span>
+    </button>
+  );
+}
+
+// ---------- Text animation control (for selected element) ----------
+const ANIM_OPTIONS: { value: NonNullable<NonNullable<AnimationBlockContent["text_animation"]>["type"]>; label: string }[] = [
+  { value: "none",         label: "None" },
+  { value: "fade",         label: "Fade in" },
+  { value: "slide-up",     label: "Slide up" },
+  { value: "slide-left",   label: "Slide left" },
+  { value: "slide-right",  label: "Slide right" },
+  { value: "scale",        label: "Scale in" },
+  { value: "bounce",       label: "Bounce" },
+  { value: "typewriter",   label: "Typewriter" },
+  { value: "word-reveal",  label: "Word by word" },
+];
+
+function TextAnimationControl({
+  value,
+  onChange,
+}: {
+  value: AnimationBlockContent["text_animation"];
+  onChange: (next: AnimationBlockContent["text_animation"]) => void;
+}) {
+  const v = value ?? { type: "none" as const, duration: 600, delay: 0, easing: "ease-out" };
+  const update = (patch: Partial<NonNullable<AnimationBlockContent["text_animation"]>>) =>
+    onChange({ type: v.type, duration: v.duration, delay: v.delay, easing: v.easing, ...patch });
+  return (
+    <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Selected text · animation</p>
+      <Select value={v.type} onValueChange={(t) => update({ type: t as typeof v.type })}>
+        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {ANIM_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      {v.type !== "none" && (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-[10px] text-muted-foreground">Duration (ms)</Label>
+            <Input type="number" min={100} max={5000} step={50} value={v.duration ?? 600}
+              onChange={(e) => update({ duration: Number(e.target.value) || 600 })}
+              className="h-8 text-xs" />
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground">Delay (ms)</Label>
+            <Input type="number" min={0} max={10000} step={50} value={v.delay ?? 0}
+              onChange={(e) => update({ delay: Number(e.target.value) || 0 })}
+              className="h-8 text-xs" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- Main panel ----------
+export function TextPanel({
+  onInsert,
+  onInsertPair,
+  selectedTextAnimation,
+  onChangeSelectedAnimation,
+}: {
+  onInsert: (role: TextRole, style: TextRoleStyle, text?: string) => void;
+  onInsertPair?: (pair: FontPair) => void;
+  selectedTextAnimation?: AnimationBlockContent["text_animation"];
+  onChangeSelectedAnimation?: (v: AnimationBlockContent["text_animation"]) => void;
+}) {
+  const [roles, setRoles] = useState<TextRoles>(DEFAULT_ROLES);
   useEffect(() => { setRoles(loadTextRoles()); }, []);
 
   const update = (role: TextRole, v: TextRoleStyle) => {
@@ -239,19 +336,71 @@ export function TextPanel({ onInsert }: { onInsert: (role: TextRole, style: Text
   };
 
   return (
-    <div className="space-y-3 p-3">
-      <p className="text-[11px] text-muted-foreground">
-        Click "Add to canvas" to insert as an editable text box. Words in your script bind the same way as animations.
+    <div className="space-y-4 p-3">
+      {onChangeSelectedAnimation && selectedTextAnimation !== undefined && (
+        <TextAnimationControl value={selectedTextAnimation} onChange={onChangeSelectedAnimation} />
+      )}
+
+      <div>
+        <p className="mb-2 text-sm font-semibold">Default text styles</p>
+        <div className="space-y-2">
+          <DefaultStyleTile
+            role="heading" style={roles.heading} sample="Add a heading"
+            onInsert={() => onInsert("heading", roles.heading, "Add a heading")}
+            onChange={(v) => update("heading", v)}
+          />
+          <DefaultStyleTile
+            role="subheading" style={roles.subheading} sample="Add a subheading"
+            onInsert={() => onInsert("subheading", roles.subheading, "Add a subheading")}
+            onChange={(v) => update("subheading", v)}
+          />
+          <DefaultStyleTile
+            role="paragraph" style={roles.paragraph} sample="Add a little bit of body text"
+            onInsert={() => onInsert("paragraph", roles.paragraph, "Add a little bit of body text")}
+            onChange={(v) => update("paragraph", v)}
+          />
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-semibold">Font combinations</p>
+        <div className="grid grid-cols-2 gap-2">
+          {FONT_PAIRS.map((p) => (
+            <PairCard key={p.id} pair={p} onInsert={() => onInsertPair?.(p)} />
+          ))}
+        </div>
+        <p className="mt-2 text-[10px] text-muted-foreground">
+          Click a combination to add a heading + body pair to the canvas.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Backward-compat export used by ThemeBuilder.
+export function TextRoleEditor({
+  label, value, onChange, onInsert,
+}: {
+  label: string;
+  value: TextRoleStyle;
+  onChange: (v: TextRoleStyle) => void;
+  onInsert?: () => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-md border border-border p-3">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs font-medium">{label}</Label>
+        {onInsert && (
+          <Button size="sm" variant="secondary" className="h-7 gap-1 text-[11px]" onClick={onInsert}>
+            <Type className="h-3 w-3" /> Add to canvas
+          </Button>
+        )}
+      </div>
+      <RoleStyleEditor value={value} onChange={onChange} />
+      <p className="truncate text-xs"
+        style={{ fontFamily: value.family, color: value.color, fontWeight: value.weight }}>
+        Preview: {value.family}
       </p>
-      <TextRoleEditor label="Heading" value={roles.heading}
-        onChange={(v) => update("heading", v)}
-        onInsert={() => onInsert("heading", roles.heading)} />
-      <TextRoleEditor label="Sub-heading" value={roles.subheading}
-        onChange={(v) => update("subheading", v)}
-        onInsert={() => onInsert("subheading", roles.subheading)} />
-      <TextRoleEditor label="Paragraph" value={roles.paragraph}
-        onChange={(v) => update("paragraph", v)}
-        onInsert={() => onInsert("paragraph", roles.paragraph)} />
     </div>
   );
 }

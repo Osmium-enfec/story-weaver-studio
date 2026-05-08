@@ -15,6 +15,7 @@ import { AnimationBlockRenderer, TextBlockRenderer, measureTextSize, type Animat
 import { BackgroundPicker, BackgroundLayer, type SceneBackground } from "@/components/BackgroundPicker";
 import { ThemeBuilder } from "@/components/ThemeBuilder";
 import { TextPanel, type TextRole, type TextRoleStyle } from "@/components/TextPanel";
+import type { FontPair } from "@/lib/font-pairs";
 import { PlaybackDialog } from "@/components/PlaybackDialog";
 import type { AnimationResult } from "@/lib/animation-providers";
 import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
@@ -527,17 +528,14 @@ function ScriptCanvas() {
     setSelectedElementId(newEl.id);
   }
 
-  async function addTextBlock(role: TextRole, style: TextRoleStyle) {
+  async function addTextBlock(role: TextRole, style: TextRoleStyle, overrideText?: string) {
     if (!activeScene) return;
-    if (!selectedWord) {
-      toast.error("Click + next to a word in the script first");
-      return;
-    }
     const node = canvasRefs.current[activeScene.id];
     if (!node) return;
     const cellIdx = nextEmptyCellIndex(activeScene.elements.map((e) => e.position));
     const cell = cellRect(cellIdx);
-    const textValue = selectedWord ?? (role === "heading" ? "Heading" : role === "subheading" ? "Sub-heading" : "Paragraph text");
+    const placeholder = role === "heading" ? "Add a heading" : role === "subheading" ? "Add a subheading" : "Add a little bit of body text";
+    const textValue = overrideText ?? selectedWord ?? placeholder;
     const natural = measureTextSize(textValue, {
       fontFamily: style.family,
       fontSize: style.size,
@@ -548,12 +546,11 @@ function ScriptCanvas() {
     const y = cell.y;
     const w = Math.min(natural.w, cell.w);
     const h = Math.min(natural.h, cell.h);
-    const placeholder = role === "heading" ? "Heading" : role === "subheading" ? "Sub-heading" : "Paragraph text";
     const content: AnimationBlockContent = {
       provider: "internal",
       name: role,
       role,
-      text: selectedWord ?? placeholder,
+      text: textValue,
       font_family: style.family,
       font_size: style.size,
       font_weight: style.weight,
@@ -581,6 +578,83 @@ function ScriptCanvas() {
     const newEl = data as unknown as PlacedElement;
     setScenes((prev) => prev.map((s) => (s.id === activeScene.id ? { ...s, elements: [...s.elements, newEl] } : s)));
     setSelectedElementId(newEl.id);
+  }
+
+  async function addFontPair(pair: FontPair) {
+    if (!activeScene) return;
+    const node = canvasRefs.current[activeScene.id];
+    if (!node) return;
+    // Place heading + body stacked in two adjacent cells.
+    const used = activeScene.elements.map((e) => e.position);
+    const headingCell = cellRect(nextEmptyCellIndex(used));
+    const bodyCell = cellRect(nextEmptyCellIndex([...used, headingCell]));
+
+    const items: { text: string; size: number; cell: { x: number; y: number; w: number; h: number }; cfg: FontPair["heading"] | FontPair["body"]; role: TextRole }[] = [
+      { text: pair.label,  size: 56, cell: headingCell, cfg: pair.heading, role: "heading" },
+      { text: pair.vibe,   size: 22, cell: bodyCell,    cfg: pair.body,    role: "subheading" },
+    ];
+
+    for (const it of items) {
+      const natural = measureTextSize(it.text, {
+        fontFamily: it.cfg.family, fontSize: it.size, fontWeight: it.cfg.weight, lineHeight: 1.2,
+      });
+      const w = Math.min(natural.w, it.cell.w);
+      const h = Math.min(natural.h, it.cell.h);
+      const content: AnimationBlockContent = {
+        provider: "internal",
+        name: it.role,
+        role: it.role,
+        text: it.text,
+        font_family: it.cfg.family,
+        font_size: it.size,
+        font_weight: it.cfg.weight,
+        line_height: 1.2,
+        color: it.cfg.color,
+        italic: it.cfg.italic,
+        letter_spacing: it.cfg.letterSpacing,
+        text_transform: it.cfg.transform === "uppercase" ? "uppercase" : "none",
+        opacity: 1,
+        rotation: 0,
+        word: null,
+        occurrence: null,
+      };
+      const { data, error } = await supabase
+        .from("scene_elements")
+        .insert({
+          scene_id: activeScene.id,
+          type: "text",
+          content: content as unknown as never,
+          position: { x: it.cell.x, y: it.cell.y, w, h },
+          z_index: activeScene.elements.length,
+        })
+        .select("*")
+        .single();
+      if (error) { toast.error(error.message); return; }
+      const newEl = data as unknown as PlacedElement;
+      setScenes((prev) => prev.map((s) => (s.id === activeScene.id ? { ...s, elements: [...s.elements, newEl] } : s)));
+    }
+    toast.success(`Added "${pair.label}" font pair`);
+  }
+
+  async function updateElementAnimation(sceneId: string, id: string, anim: AnimationBlockContent["text_animation"]) {
+    let nextContent: AnimationBlockContent | null = null;
+    setScenes((prev) =>
+      prev.map((s) =>
+        s.id === sceneId
+          ? {
+              ...s,
+              elements: s.elements.map((e) => {
+                if (e.id !== id) return e;
+                nextContent = { ...e.content, text_animation: anim };
+                return { ...e, content: nextContent };
+              }),
+            }
+          : s,
+      ),
+    );
+    if (nextContent) {
+      await supabase.from("scene_elements").update({ content: nextContent as unknown as never }).eq("id", id);
+    }
   }
 
   async function updateElementText(sceneId: string, id: string, text: string) {
@@ -937,7 +1011,17 @@ function ScriptCanvas() {
               )}
             </TabsContent>
             <TabsContent value="text" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
-              <TextPanel onInsert={(role, style) => void addTextBlock(role, style)} />
+              {(() => {
+                const sel = activeScene?.elements.find((e) => e.id === selectedElementId && e.type === "text");
+                return (
+                  <TextPanel
+                    onInsert={(role, style, text) => void addTextBlock(role, style, text)}
+                    onInsertPair={(pair) => void addFontPair(pair)}
+                    selectedTextAnimation={sel ? (sel.content.text_animation ?? { type: "none", duration: 600, delay: 0, easing: "ease-out" }) : undefined}
+                    onChangeSelectedAnimation={sel ? (v) => void updateElementAnimation(activeScene!.id, sel.id, v) : undefined}
+                  />
+                );
+              })()}
             </TabsContent>
             <TabsContent value="theme" className="m-0 min-h-0 flex-1 overflow-hidden border-t border-border">
               <ThemeBuilder
