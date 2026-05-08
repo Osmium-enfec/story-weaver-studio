@@ -70,6 +70,13 @@ export interface AnimationBlockContent {
   // simple vector shapes
   shape_type?: ShapeType;
   shape_stroke_width?: number;
+  // text "banner / sticker" background (renders behind text inside the same block)
+  text_bg_color?: string | null;
+  text_bg_padding_x?: number;
+  text_bg_padding_y?: number;
+  text_bg_radius?: number;
+  text_bg_border_color?: string | null;
+  text_bg_border_width?: number;
 }
 
 export type ShapeType =
@@ -231,6 +238,14 @@ export function TextBlockRenderer({
           transformOrigin: "center center",
           transform: `scale(${scale})`,
           display: "inline-block",
+          background: content.text_bg_color || undefined,
+          padding: content.text_bg_color
+            ? `${content.text_bg_padding_y ?? 12}px ${content.text_bg_padding_x ?? 24}px`
+            : undefined,
+          borderRadius: content.text_bg_color ? (content.text_bg_radius ?? 4) : undefined,
+          border: content.text_bg_border_color && (content.text_bg_border_width ?? 0) > 0
+            ? `${content.text_bg_border_width}px solid ${content.text_bg_border_color}`
+            : undefined,
           animation: !isStaggered && animName ? `${animName} ${animDuration}ms ${animEasing} ${animDelay}ms both` : undefined,
         }}
       >

@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { Settings2, Palette, Type } from "lucide-react";
 import { FONT_PAIRS, type FontPair } from "@/lib/font-pairs";
+import { BANNER_PRESETS, type BannerPreset } from "@/lib/banner-presets";
 import type { AnimationBlockContent } from "@/components/AnimationBlock";
 
 export interface TextRoleStyle {
@@ -262,7 +263,39 @@ function PairCard({ pair, onInsert }: { pair: FontPair; onInsert: () => void }) 
   );
 }
 
-// ---------- Text animation control (for selected element) ----------
+// ---------- Banner / sticker preset card ----------
+function BannerCard({ preset, onInsert }: { preset: BannerPreset; onInsert: () => void }) {
+  useEffect(() => { ensureGoogleFont(preset.font_family); }, [preset.font_family]);
+  return (
+    <button
+      onClick={onInsert}
+      className="group flex h-20 w-full items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/20 p-3 transition hover:border-primary hover:shadow-md"
+    >
+      <span
+        className="inline-block whitespace-nowrap"
+        style={{
+          background: preset.bg_color,
+          color: preset.text_color,
+          fontFamily: preset.font_family,
+          fontWeight: preset.font_weight,
+          fontStyle: preset.italic ? "italic" : "normal",
+          letterSpacing: preset.letter_spacing ? `${preset.letter_spacing}px` : undefined,
+          textTransform: preset.transform === "uppercase" ? "uppercase" : "none",
+          padding: `${(preset.padding_y ?? 12) * 0.45}px ${(preset.padding_x ?? 24) * 0.45}px`,
+          borderRadius: preset.radius,
+          border: preset.border_color && preset.border_width
+            ? `${Math.max(1, Math.round(preset.border_width * 0.5))}px solid ${preset.border_color}`
+            : undefined,
+          fontSize: 14,
+          lineHeight: 1,
+        }}
+      >
+        {preset.label}
+      </span>
+    </button>
+  );
+}
+
 const ANIM_OPTIONS: { value: NonNullable<NonNullable<AnimationBlockContent["text_animation"]>["type"]>; label: string }[] = [
   { value: "none",         label: "None" },
   { value: "fade",         label: "Fade in" },
@@ -366,12 +399,14 @@ function SelectedTextControl({
 export function TextPanel({
   onInsert,
   onInsertPair,
+  onInsertBanner,
   selectedTextContent,
   onChangeSelectedAnimation,
   onChangeSelectedText,
 }: {
   onInsert: (role: TextRole, style: TextRoleStyle, text?: string) => void;
   onInsertPair?: (pair: FontPair) => void;
+  onInsertBanner?: (preset: BannerPreset) => void;
   selectedTextContent?: AnimationBlockContent;
   onChangeSelectedAnimation?: (v: AnimationBlockContent["text_animation"]) => void;
   onChangeSelectedText?: (patch: Partial<AnimationBlockContent>) => void;
@@ -393,9 +428,10 @@ export function TextPanel({
   return (
     <div className="p-3" data-keep-selection>
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="styles" className="text-[11px]">Styles</TabsTrigger>
           <TabsTrigger value="combos" className="text-[11px]">Combos</TabsTrigger>
+          <TabsTrigger value="banners" className="text-[11px]">Banners</TabsTrigger>
           <TabsTrigger value="animate" className="text-[11px]">Animate</TabsTrigger>
         </TabsList>
 
@@ -429,6 +465,18 @@ export function TextPanel({
           </div>
           <p className="mt-2 text-[10px] text-muted-foreground">
             Click a combination to add a heading + body pair to the canvas.
+          </p>
+        </TabsContent>
+
+        <TabsContent value="banners" className="mt-3">
+          <p className="mb-2 text-sm font-semibold">Sticker banners</p>
+          <div className="grid grid-cols-1 gap-2">
+            {BANNER_PRESETS.map((b) => (
+              <BannerCard key={b.id} preset={b} onInsert={() => onInsertBanner?.(b)} />
+            ))}
+          </div>
+          <p className="mt-2 text-[10px] text-muted-foreground">
+            Click a banner to add it to the canvas — colors and text stay editable in Animate.
           </p>
         </TabsContent>
 
