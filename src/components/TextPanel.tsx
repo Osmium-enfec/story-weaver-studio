@@ -339,7 +339,7 @@ export function TextPanel({
   const hasSelection = !!onChangeSelectedAnimation && selectedTextAnimation !== undefined;
 
   return (
-    <div className="p-3">
+    <div className="p-3" data-keep-selection>
       <Tabs defaultValue="styles" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="styles" className="text-[11px]">Styles</TabsTrigger>
