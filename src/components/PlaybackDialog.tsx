@@ -135,7 +135,12 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         wordMap.set(key, arr);
       }
 
-      setRevealedIds(new Set());
+      // Reveal all elements that aren't bound to a spoken word right away
+      // so their entrance animations play in sync with the scene start.
+      const autoReveal = scene.elements
+        .filter((el) => !el.content.word)
+        .map((el) => el.id);
+      setRevealedIds(new Set(autoReveal));
 
       const reveal = (ids: string | string[]) => {
         const incoming = Array.isArray(ids) ? ids : [ids];
