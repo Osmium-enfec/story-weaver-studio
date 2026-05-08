@@ -185,6 +185,7 @@ function ScriptCanvas() {
       const target = e.target as HTMLElement | null;
       if (!target) return;
       if (target.closest("[data-canvas-element]")) return;
+      if (target.closest("[data-keep-selection]")) return;
       setSelectedElementId(null);
     }
     document.addEventListener("mousedown", onDocMouseDown);
