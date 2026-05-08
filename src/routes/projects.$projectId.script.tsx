@@ -106,6 +106,8 @@ function ScriptCanvas() {
   const [canvasScales, setCanvasScales] = useState<Record<string, number>>({});
   const [rightTab, setRightTab] = useState<string>("animations");
   const [isSeeding, setIsSeeding] = useState(false);
+  const [animPreview, setAnimPreview] = useState<{ id: string; tick: number } | null>(null);
+  const animPreviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeScene = scenes[activeIdx];
 
