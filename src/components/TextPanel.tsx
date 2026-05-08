@@ -428,9 +428,10 @@ export function TextPanel({
   return (
     <div className="p-3" data-keep-selection>
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="styles" className="text-[11px]">Styles</TabsTrigger>
           <TabsTrigger value="combos" className="text-[11px]">Combos</TabsTrigger>
+          <TabsTrigger value="banners" className="text-[11px]">Banners</TabsTrigger>
           <TabsTrigger value="animate" className="text-[11px]">Animate</TabsTrigger>
         </TabsList>
 
