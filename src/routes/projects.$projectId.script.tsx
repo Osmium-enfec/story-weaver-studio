@@ -1037,9 +1037,10 @@ function ScriptCanvas() {
             </TabsList>
             <TabsContent value="animations" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
               <Tabs value={animationSubTab} onValueChange={setAnimationSubTab} className="flex h-full min-h-0 flex-col">
-                <TabsList className="m-3 grid shrink-0 grid-cols-2">
+                <TabsList className="m-3 grid shrink-0 grid-cols-3">
                   <TabsTrigger value="search" className="text-[11px]">Search</TabsTrigger>
                   <TabsTrigger value="shapes" className="text-[11px]">Shapes</TabsTrigger>
+                  <TabsTrigger value="shape-edit" className="text-[11px]">Edit</TabsTrigger>
                 </TabsList>
                 <TabsContent value="search" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
                   <div className="shrink-0 border-b border-border px-4 py-2">
@@ -1054,10 +1055,14 @@ function ScriptCanvas() {
                   </div>
                 </TabsContent>
                 <TabsContent value="shapes" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
+                  <ShapePanel mode="insert" onInsertShape={(shape) => void addShape(shape)} />
+                </TabsContent>
+                <TabsContent value="shape-edit" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
                   {(() => {
                     const sel = activeScene?.elements.find((e) => e.id === selectedElementId && e.type === "shape");
                     return (
                       <ShapePanel
+                        mode="edit"
                         selectedShapeContent={sel?.content}
                         selectedShapeSize={sel?.position ? { w: sel.position.w, h: sel.position.h } : undefined}
                         onInsertShape={(shape) => void addShape(shape)}
