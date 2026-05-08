@@ -643,6 +643,62 @@ function ScriptCanvas() {
     toast.success(`Added "${pair.label}" font pair`);
   }
 
+  async function addBanner(preset: BannerPreset) {
+    if (!activeScene) return;
+    const used = activeScene.elements.map((e) => e.position);
+    const cell = cellRect(nextEmptyCellIndex(used));
+    const fontSize = 56;
+    const natural = measureTextSize(preset.label, {
+      fontFamily: preset.font_family, fontSize, fontWeight: preset.font_weight, lineHeight: 1.1,
+    });
+    const padX = preset.padding_x ?? 28;
+    const padY = preset.padding_y ?? 14;
+    const w = Math.min(natural.w + padX * 2 + 16, cell.w);
+    const h = Math.min(natural.h + padY * 2 + 16, cell.h);
+    const x = cell.x + Math.round((cell.w - w) / 2);
+    const y = cell.y + Math.round((cell.h - h) / 2);
+    const content: AnimationBlockContent = {
+      provider: "internal",
+      name: "banner",
+      role: "heading",
+      text: preset.label,
+      font_family: preset.font_family,
+      font_size: fontSize,
+      font_weight: preset.font_weight,
+      line_height: 1.1,
+      color: preset.text_color,
+      italic: preset.italic,
+      letter_spacing: preset.letter_spacing,
+      text_transform: preset.transform === "uppercase" ? "uppercase" : "none",
+      opacity: 1,
+      rotation: 0,
+      word: null,
+      occurrence: null,
+      text_bg_color: preset.bg_color,
+      text_bg_padding_x: padX,
+      text_bg_padding_y: padY,
+      text_bg_radius: preset.radius,
+      text_bg_border_color: preset.border_color ?? null,
+      text_bg_border_width: preset.border_width,
+    };
+    const { data, error } = await supabase
+      .from("scene_elements")
+      .insert({
+        scene_id: activeScene.id,
+        type: "text",
+        content: content as unknown as never,
+        position: { x, y, w, h },
+        z_index: activeScene.elements.length,
+      })
+      .select("*")
+      .single();
+    if (error) { toast.error(error.message); return; }
+    const newEl = data as unknown as PlacedElement;
+    setScenes((prev) => prev.map((s) => (s.id === activeScene.id ? { ...s, elements: [...s.elements, newEl] } : s)));
+    setSelectedElementId(newEl.id);
+    toast.success(`Added "${preset.label}" banner`);
+  }
+
   async function addShape(shape: ShapeType) {
     if (!activeScene) return;
     const used = activeScene.elements.map((e) => e.position);
