@@ -649,7 +649,9 @@ function ScriptCanvas() {
   }
 
   async function updateElementContent(sceneId: string, id: string, patch: Partial<AnimationBlockContent>) {
-    let nextContent: AnimationBlockContent | null = null;
+    const current = scenes.find((s) => s.id === sceneId)?.elements.find((e) => e.id === id);
+    if (!current) return;
+    const nextContent: AnimationBlockContent = { ...current.content, ...patch };
     setScenes((prev) =>
       prev.map((s) =>
         s.id === sceneId
@@ -657,16 +659,13 @@ function ScriptCanvas() {
               ...s,
               elements: s.elements.map((e) => {
                 if (e.id !== id) return e;
-                nextContent = { ...e.content, ...patch };
                 return { ...e, content: nextContent };
               }),
             }
           : s,
       ),
     );
-    if (nextContent) {
-      await supabase.from("scene_elements").update({ content: nextContent as unknown as never }).eq("id", id);
-    }
+    await supabase.from("scene_elements").update({ content: nextContent as unknown as never }).eq("id", id);
   }
 
   async function updateElementText(sceneId: string, id: string, text: string) {
