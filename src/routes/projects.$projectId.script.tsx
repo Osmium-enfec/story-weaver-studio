@@ -11,10 +11,11 @@ import { toast } from "sonner";
 import { Trash2, Plus, Eraser, Grid3x3, Minus } from "lucide-react";
 import { toolbarStore } from "@/components/toolbar-store";
 import { AnimationSearchPanel } from "@/components/AnimationSearchPanel";
-import { AnimationBlockRenderer, TextBlockRenderer, measureTextSize, type AnimationBlockContent } from "@/components/AnimationBlock";
+import { AnimationBlockRenderer, TextBlockRenderer, measureTextSize, type AnimationBlockContent, type ShapeType } from "@/components/AnimationBlock";
 import { BackgroundPicker, BackgroundLayer, type SceneBackground } from "@/components/BackgroundPicker";
 import { ThemeBuilder } from "@/components/ThemeBuilder";
 import { TextPanel, type TextRole, type TextRoleStyle } from "@/components/TextPanel";
+import { ShapePanel } from "@/components/ShapePanel";
 import type { FontPair } from "@/lib/font-pairs";
 import { PlaybackDialog } from "@/components/PlaybackDialog";
 import type { AnimationResult } from "@/lib/animation-providers";
@@ -105,6 +106,7 @@ function ScriptCanvas() {
   const [gridCanvases, setGridCanvases] = useState<Record<string, boolean>>({});
   const [canvasScales, setCanvasScales] = useState<Record<string, number>>({});
   const [rightTab, setRightTab] = useState<string>("animations");
+  const [animationSubTab, setAnimationSubTab] = useState<string>("search");
   const [isSeeding, setIsSeeding] = useState(false);
   const [animPreview, setAnimPreview] = useState<{ id: string; tick: number } | null>(null);
   const animPreviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -640,6 +642,44 @@ function ScriptCanvas() {
     toast.success(`Added "${pair.label}" font pair`);
   }
 
+  async function addShape(shape: ShapeType) {
+    if (!activeScene) return;
+    const used = activeScene.elements.map((e) => e.position);
+    const cell = cellRect(nextEmptyCellIndex(used));
+    const isLine = shape.includes("line") || shape.startsWith("arrow");
+    const position = isLine
+      ? { x: cell.x + 36, y: cell.y + Math.round(cell.h / 2) - 18, w: Math.max(180, cell.w - 72), h: 36 }
+      : { x: cell.x + Math.round((cell.w - 140) / 2), y: cell.y + Math.round((cell.h - 140) / 2), w: 140, h: 140 };
+    const content: AnimationBlockContent = {
+      provider: "internal",
+      name: shape.replace(/-/g, " "),
+      shape_type: shape,
+      color: "#111827",
+      tint: "#111827",
+      color_support: "custom",
+      opacity: 1,
+      rotation: 0,
+      shape_stroke_width: 7,
+    };
+    const { data, error } = await supabase
+      .from("scene_elements")
+      .insert({
+        scene_id: activeScene.id,
+        type: "shape",
+        content: content as unknown as never,
+        position: clampRectToDesign(position) as unknown as never,
+        z_index: activeScene.elements.length,
+      })
+      .select("*")
+      .single();
+    if (error) { toast.error(error.message); return; }
+    const newEl = data as unknown as PlacedElement;
+    setScenes((prev) => prev.map((s) => (s.id === activeScene.id ? { ...s, elements: [...s.elements, newEl] } : s)));
+    setSelectedElementId(newEl.id);
+    setRightTab("animations");
+    setAnimationSubTab("shapes");
+  }
+
   async function updateElementAnimation(sceneId: string, id: string, anim: AnimationBlockContent["text_animation"]) {
     await updateElementContent(sceneId, id, { text_animation: anim });
     // Trigger a one-shot preview on the canvas so the user sees the animation immediately.
@@ -841,7 +881,12 @@ function ScriptCanvas() {
                         h: parseInt(ref.style.height),
                       });
                     }}
-                    onMouseDown={() => { setActiveIdx(idx); setSelectedElementId(el.id); if (el.type === "text") setRightTab("text"); }}
+                    onMouseDown={() => {
+                      setActiveIdx(idx);
+                      setSelectedElementId(el.id);
+                      if (el.type === "text") setRightTab("text");
+                      if (el.type === "shape") { setRightTab("animations"); setAnimationSubTab("shapes"); }
+                    }}
                     className={`group/el rounded-lg border-2 ${
                       selectedElementId === el.id ? "border-primary" : "border-transparent hover:border-primary/40"
                     }`}
@@ -990,16 +1035,38 @@ function ScriptCanvas() {
               <TabsTrigger value="theme" className="text-[11px]">Theme</TabsTrigger>
             </TabsList>
             <TabsContent value="animations" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
-              <div className="shrink-0 border-b border-border px-4 py-2">
-                <p className="text-xs text-muted-foreground">
-                  {selectedWord
-                    ? <>Adding to word · <span className="font-semibold text-primary">{selectedWord}</span></>
-                    : "Click + next to a word in the script first"}
-                </p>
-              </div>
-              <div className="min-h-0 flex-1 overflow-hidden">
-                <AnimationSearchPanel initialQuery={selectedWord ?? ""} onSelect={addAnimation} />
-              </div>
+              <Tabs value={animationSubTab} onValueChange={setAnimationSubTab} className="flex h-full min-h-0 flex-col">
+                <TabsList className="m-3 grid shrink-0 grid-cols-2">
+                  <TabsTrigger value="search" className="text-[11px]">Search</TabsTrigger>
+                  <TabsTrigger value="shapes" className="text-[11px]">Shapes</TabsTrigger>
+                </TabsList>
+                <TabsContent value="search" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
+                  <div className="shrink-0 border-b border-border px-4 py-2">
+                    <p className="text-xs text-muted-foreground">
+                      {selectedWord
+                        ? <>Adding to word · <span className="font-semibold text-primary">{selectedWord}</span></>
+                        : "Click + next to a word in the script first"}
+                    </p>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-hidden">
+                    <AnimationSearchPanel initialQuery={selectedWord ?? ""} onSelect={addAnimation} />
+                  </div>
+                </TabsContent>
+                <TabsContent value="shapes" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
+                  {(() => {
+                    const sel = activeScene?.elements.find((e) => e.id === selectedElementId && e.type === "shape");
+                    return (
+                      <ShapePanel
+                        selectedShapeContent={sel?.content}
+                        selectedShapeSize={sel?.position ? { w: sel.position.w, h: sel.position.h } : undefined}
+                        onInsertShape={(shape) => void addShape(shape)}
+                        onChangeSelectedShape={sel ? (patch) => void updateElementContent(activeScene!.id, sel.id, patch) : undefined}
+                        onChangeSelectedShapeSize={sel ? (size) => void updateElement(activeScene!.id, sel.id, { ...sel.position, ...size }) : undefined}
+                      />
+                    );
+                  })()}
+                </TabsContent>
+              </Tabs>
             </TabsContent>
             <TabsContent value="background" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
               {activeScene && (

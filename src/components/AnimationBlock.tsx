@@ -67,6 +67,56 @@ export interface AnimationBlockContent {
     delay?: number;    // ms
     easing?: string;
   };
+  // simple vector shapes
+  shape_type?: ShapeType;
+  shape_stroke_width?: number;
+}
+
+export type ShapeType =
+  | "line" | "dashed-line" | "dotted-line" | "arrow-right" | "arrow-left" | "arrow-up" | "arrow-down"
+  | "square" | "rounded-square" | "circle" | "triangle" | "inverted-triangle"
+  | "pentagon" | "hexagon" | "octagon" | "star-4" | "star-5" | "star-8";
+
+function regularPolygonPoints(sides: number, radius = 42, rotation = -90) {
+  return Array.from({ length: sides }, (_, i) => {
+    const a = ((rotation + (360 / sides) * i) * Math.PI) / 180;
+    return `${50 + Math.cos(a) * radius},${50 + Math.sin(a) * radius}`;
+  }).join(" ");
+}
+
+function starPoints(points: number, outer = 44, inner = 24, rotation = -90) {
+  return Array.from({ length: points * 2 }, (_, i) => {
+    const r = i % 2 === 0 ? outer : inner;
+    const a = ((rotation + (180 / points) * i) * Math.PI) / 180;
+    return `${50 + Math.cos(a) * r},${50 + Math.sin(a) * r}`;
+  }).join(" ");
+}
+
+export function ShapeGlyph({ type, color = "#111827", strokeWidth = 7 }: { type: ShapeType; color?: string; strokeWidth?: number }) {
+  const strokeProps = { stroke: color, strokeWidth, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  const fillProps = { fill: color };
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full" aria-hidden>
+      {type === "line" && <line x1="8" y1="50" x2="92" y2="50" {...strokeProps} />}
+      {type === "dashed-line" && <line x1="8" y1="50" x2="92" y2="50" strokeDasharray="14 10" {...strokeProps} />}
+      {type === "dotted-line" && <line x1="8" y1="50" x2="92" y2="50" strokeDasharray="2 9" {...strokeProps} />}
+      {type === "arrow-right" && <><line x1="8" y1="50" x2="82" y2="50" {...strokeProps} /><polyline points="68,30 92,50 68,70" fill="none" {...strokeProps} /></>}
+      {type === "arrow-left" && <><line x1="92" y1="50" x2="18" y2="50" {...strokeProps} /><polyline points="32,30 8,50 32,70" fill="none" {...strokeProps} /></>}
+      {type === "arrow-up" && <><line x1="50" y1="92" x2="50" y2="18" {...strokeProps} /><polyline points="30,32 50,8 70,32" fill="none" {...strokeProps} /></>}
+      {type === "arrow-down" && <><line x1="50" y1="8" x2="50" y2="82" {...strokeProps} /><polyline points="30,68 50,92 70,68" fill="none" {...strokeProps} /></>}
+      {type === "square" && <rect x="8" y="8" width="84" height="84" {...fillProps} />}
+      {type === "rounded-square" && <rect x="8" y="8" width="84" height="84" rx="12" ry="12" {...fillProps} />}
+      {type === "circle" && <ellipse cx="50" cy="50" rx="42" ry="42" {...fillProps} />}
+      {type === "triangle" && <polygon points="50,8 92,92 8,92" {...fillProps} />}
+      {type === "inverted-triangle" && <polygon points="8,8 92,8 50,92" {...fillProps} />}
+      {type === "pentagon" && <polygon points={regularPolygonPoints(5)} {...fillProps} />}
+      {type === "hexagon" && <polygon points={regularPolygonPoints(6, 43, -90)} {...fillProps} />}
+      {type === "octagon" && <polygon points={regularPolygonPoints(8)} {...fillProps} />}
+      {type === "star-4" && <polygon points="50,6 62,38 94,50 62,62 50,94 38,62 6,50 38,38" {...fillProps} />}
+      {type === "star-5" && <polygon points={starPoints(5)} {...fillProps} />}
+      {type === "star-8" && <polygon points={starPoints(8, 44, 30)} {...fillProps} />}
+    </svg>
+  );
 }
 
 const TEXT_ANIM_KEYFRAME: Record<string, string> = {
@@ -259,6 +309,18 @@ export function AnimationBlockRenderer({
     transform: `rotate(${content.rotation ?? 0}deg)`,
     filter: combinedFilter,
   };
+
+  if (content.shape_type) {
+    return (
+      <div style={wrapperStyle} className="pointer-events-none flex h-full w-full items-center justify-center">
+        <ShapeGlyph
+          type={content.shape_type}
+          color={content.color || content.tint || "#111827"}
+          strokeWidth={content.shape_stroke_width ?? 7}
+        />
+      </div>
+    );
+  }
 
   if (exportMode && (isLottie || (content.provider === "iconscout" && content.video_url))) {
     return (

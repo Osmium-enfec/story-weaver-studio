@@ -402,7 +402,11 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
                       }}
                     >
                       {isText ? (
-                        <TextBlockRenderer content={el.content} animating />
+                        <TextBlockRenderer
+                          key={`${el.id}-${playing ? "playing" : "idle"}-${visible ? "visible" : "hidden"}`}
+                          content={el.content}
+                          animating={playing && visible}
+                        />
                       ) : (
                         <AnimationBlockRenderer content={el.content} />
                       )}
