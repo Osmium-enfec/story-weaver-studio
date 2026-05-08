@@ -124,7 +124,7 @@ function RoleStyleEditor({
         onValueChange={(v) => { if (v !== "__custom__") onChange({ ...value, family: v, url: undefined }); }}
       >
         <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Font" /></SelectTrigger>
-        <SelectContent className="max-h-72">
+        <SelectContent className="max-h-72" data-keep-selection>
           {GOOGLE_FONTS.map((f) => (
             <SelectItem key={f} value={f} style={{ fontFamily: f }} onMouseEnter={() => ensureGoogleFont(f)}>
               {f}
@@ -208,7 +208,7 @@ function DefaultStyleTile({
             <Settings2 className="h-3.5 w-3.5" />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-72" align="end" onClick={(e) => e.stopPropagation()}>
+        <PopoverContent className="w-72" align="end" data-keep-selection onClick={(e) => e.stopPropagation()}>
           <p className="mb-2 text-xs font-semibold capitalize">{role} default</p>
           <RoleStyleEditor value={style} onChange={onChange} />
         </PopoverContent>
@@ -298,7 +298,7 @@ function SelectedTextControl({
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Selected text · animation</p>
         <Select value={v.type} onValueChange={(t) => updateAnim({ type: t as typeof v.type })}>
           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
+          <SelectContent data-keep-selection>
             {ANIM_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
           </SelectContent>
         </Select>
@@ -327,7 +327,7 @@ function SelectedTextControl({
           onValueChange={(next) => { if (next !== "__custom__") { ensureGoogleFont(next); onContentChange({ font_family: next }); } }}
         >
           <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Font" /></SelectTrigger>
-          <SelectContent className="max-h-72">
+          <SelectContent className="max-h-72" data-keep-selection>
             {GOOGLE_FONTS.map((f) => (
               <SelectItem key={f} value={f} style={{ fontFamily: f }} onMouseEnter={() => ensureGoogleFont(f)}>{f}</SelectItem>
             ))}
