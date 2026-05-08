@@ -881,7 +881,12 @@ function ScriptCanvas() {
                         h: parseInt(ref.style.height),
                       });
                     }}
-                    onMouseDown={() => { setActiveIdx(idx); setSelectedElementId(el.id); if (el.type === "text") setRightTab("text"); }}
+                    onMouseDown={() => {
+                      setActiveIdx(idx);
+                      setSelectedElementId(el.id);
+                      if (el.type === "text") setRightTab("text");
+                      if (el.type === "shape") { setRightTab("animations"); setAnimationSubTab("shapes"); }
+                    }}
                     className={`group/el rounded-lg border-2 ${
                       selectedElementId === el.id ? "border-primary" : "border-transparent hover:border-primary/40"
                     }`}
@@ -1030,16 +1035,38 @@ function ScriptCanvas() {
               <TabsTrigger value="theme" className="text-[11px]">Theme</TabsTrigger>
             </TabsList>
             <TabsContent value="animations" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
-              <div className="shrink-0 border-b border-border px-4 py-2">
-                <p className="text-xs text-muted-foreground">
-                  {selectedWord
-                    ? <>Adding to word · <span className="font-semibold text-primary">{selectedWord}</span></>
-                    : "Click + next to a word in the script first"}
-                </p>
-              </div>
-              <div className="min-h-0 flex-1 overflow-hidden">
-                <AnimationSearchPanel initialQuery={selectedWord ?? ""} onSelect={addAnimation} />
-              </div>
+              <Tabs value={animationSubTab} onValueChange={setAnimationSubTab} className="flex h-full min-h-0 flex-col">
+                <TabsList className="m-3 grid shrink-0 grid-cols-2">
+                  <TabsTrigger value="search" className="text-[11px]">Search</TabsTrigger>
+                  <TabsTrigger value="shapes" className="text-[11px]">Shapes</TabsTrigger>
+                </TabsList>
+                <TabsContent value="search" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
+                  <div className="shrink-0 border-b border-border px-4 py-2">
+                    <p className="text-xs text-muted-foreground">
+                      {selectedWord
+                        ? <>Adding to word · <span className="font-semibold text-primary">{selectedWord}</span></>
+                        : "Click + next to a word in the script first"}
+                    </p>
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-hidden">
+                    <AnimationSearchPanel initialQuery={selectedWord ?? ""} onSelect={addAnimation} />
+                  </div>
+                </TabsContent>
+                <TabsContent value="shapes" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
+                  {(() => {
+                    const sel = activeScene?.elements.find((e) => e.id === selectedElementId && e.type === "shape");
+                    return (
+                      <ShapePanel
+                        selectedShapeContent={sel?.content}
+                        selectedShapeSize={sel?.position ? { w: sel.position.w, h: sel.position.h } : undefined}
+                        onInsertShape={(shape) => void addShape(shape)}
+                        onChangeSelectedShape={sel ? (patch) => void updateElementContent(activeScene!.id, sel.id, patch) : undefined}
+                        onChangeSelectedShapeSize={sel ? (size) => void updateElement(activeScene!.id, sel.id, { ...sel.position, ...size }) : undefined}
+                      />
+                    );
+                  })()}
+                </TabsContent>
+              </Tabs>
             </TabsContent>
             <TabsContent value="background" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
               {activeScene && (
