@@ -1011,7 +1011,17 @@ function ScriptCanvas() {
               )}
             </TabsContent>
             <TabsContent value="text" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
-              <TextPanel onInsert={(role, style) => void addTextBlock(role, style)} />
+              {(() => {
+                const sel = activeScene?.elements.find((e) => e.id === selectedElementId && e.type === "text");
+                return (
+                  <TextPanel
+                    onInsert={(role, style, text) => void addTextBlock(role, style, text)}
+                    onInsertPair={(pair) => void addFontPair(pair)}
+                    selectedTextAnimation={sel ? (sel.content.text_animation ?? { type: "none", duration: 600, delay: 0, easing: "ease-out" }) : undefined}
+                    onChangeSelectedAnimation={sel ? (v) => void updateElementAnimation(activeScene!.id, sel.id, v) : undefined}
+                  />
+                );
+              })()}
             </TabsContent>
             <TabsContent value="theme" className="m-0 min-h-0 flex-1 overflow-hidden border-t border-border">
               <ThemeBuilder
