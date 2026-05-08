@@ -850,8 +850,10 @@ function ScriptCanvas() {
                       )}
                       {el.type === "text" ? (
                         <TextBlockRenderer
+                          key={animPreview?.id === el.id ? `anim-${animPreview.tick}` : "static"}
                           content={el.content}
                           editable={selectedElementId === el.id}
+                          animating={isPlaying || animPreview?.id === el.id}
                           onChange={(text) => void updateElementText(s.id, el.id, text)}
                         />
                       ) : (
