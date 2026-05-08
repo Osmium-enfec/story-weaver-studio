@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { Settings2, Palette, Type } from "lucide-react";
 import { FONT_PAIRS, type FontPair } from "@/lib/font-pairs";
@@ -335,44 +336,63 @@ export function TextPanel({
     saveTextRoles(next);
   };
 
+  const hasSelection = !!onChangeSelectedAnimation && selectedTextAnimation !== undefined;
+
   return (
-    <div className="space-y-4 p-3">
-      {onChangeSelectedAnimation && selectedTextAnimation !== undefined && (
-        <TextAnimationControl value={selectedTextAnimation} onChange={onChangeSelectedAnimation} />
-      )}
+    <div className="p-3">
+      <Tabs defaultValue="styles" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="styles" className="text-[11px]">Styles</TabsTrigger>
+          <TabsTrigger value="combos" className="text-[11px]">Combos</TabsTrigger>
+          <TabsTrigger value="animate" className="text-[11px]">Animate</TabsTrigger>
+        </TabsList>
 
-      <div>
-        <p className="mb-2 text-sm font-semibold">Default text styles</p>
-        <div className="space-y-2">
-          <DefaultStyleTile
-            role="heading" style={roles.heading} sample="Add a heading"
-            onInsert={() => onInsert("heading", roles.heading, "Add a heading")}
-            onChange={(v) => update("heading", v)}
-          />
-          <DefaultStyleTile
-            role="subheading" style={roles.subheading} sample="Add a subheading"
-            onInsert={() => onInsert("subheading", roles.subheading, "Add a subheading")}
-            onChange={(v) => update("subheading", v)}
-          />
-          <DefaultStyleTile
-            role="paragraph" style={roles.paragraph} sample="Add a little bit of body text"
-            onInsert={() => onInsert("paragraph", roles.paragraph, "Add a little bit of body text")}
-            onChange={(v) => update("paragraph", v)}
-          />
-        </div>
-      </div>
+        <TabsContent value="styles" className="mt-3">
+          <p className="mb-2 text-sm font-semibold">Default text styles</p>
+          <div className="space-y-2">
+            <DefaultStyleTile
+              role="heading" style={roles.heading} sample="Add a heading"
+              onInsert={() => onInsert("heading", roles.heading, "Add a heading")}
+              onChange={(v) => update("heading", v)}
+            />
+            <DefaultStyleTile
+              role="subheading" style={roles.subheading} sample="Add a subheading"
+              onInsert={() => onInsert("subheading", roles.subheading, "Add a subheading")}
+              onChange={(v) => update("subheading", v)}
+            />
+            <DefaultStyleTile
+              role="paragraph" style={roles.paragraph} sample="Add a little bit of body text"
+              onInsert={() => onInsert("paragraph", roles.paragraph, "Add a little bit of body text")}
+              onChange={(v) => update("paragraph", v)}
+            />
+          </div>
+        </TabsContent>
 
-      <div>
-        <p className="mb-2 text-sm font-semibold">Font combinations</p>
-        <div className="grid grid-cols-2 gap-2">
-          {FONT_PAIRS.map((p) => (
-            <PairCard key={p.id} pair={p} onInsert={() => onInsertPair?.(p)} />
-          ))}
-        </div>
-        <p className="mt-2 text-[10px] text-muted-foreground">
-          Click a combination to add a heading + body pair to the canvas.
-        </p>
-      </div>
+        <TabsContent value="combos" className="mt-3">
+          <p className="mb-2 text-sm font-semibold">Font combinations</p>
+          <div className="grid grid-cols-2 gap-2">
+            {FONT_PAIRS.map((p) => (
+              <PairCard key={p.id} pair={p} onInsert={() => onInsertPair?.(p)} />
+            ))}
+          </div>
+          <p className="mt-2 text-[10px] text-muted-foreground">
+            Click a combination to add a heading + body pair to the canvas.
+          </p>
+        </TabsContent>
+
+        <TabsContent value="animate" className="mt-3">
+          {hasSelection ? (
+            <TextAnimationControl value={selectedTextAnimation} onChange={onChangeSelectedAnimation!} />
+          ) : (
+            <div className="rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center">
+              <p className="text-sm font-medium">No text selected</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Click a text element on the canvas, then come back here to choose its entrance animation.
+              </p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
