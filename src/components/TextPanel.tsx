@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { Settings2, Palette, Type } from "lucide-react";
 import { FONT_PAIRS, type FontPair } from "@/lib/font-pairs";
+import { BANNER_PRESETS, type BannerPreset } from "@/lib/banner-presets";
 import type { AnimationBlockContent } from "@/components/AnimationBlock";
 
 export interface TextRoleStyle {
