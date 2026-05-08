@@ -468,6 +468,18 @@ export function TextPanel({
           </p>
         </TabsContent>
 
+        <TabsContent value="banners" className="mt-3">
+          <p className="mb-2 text-sm font-semibold">Sticker banners</p>
+          <div className="grid grid-cols-1 gap-2">
+            {BANNER_PRESETS.map((b) => (
+              <BannerCard key={b.id} preset={b} onInsert={() => onInsertBanner?.(b)} />
+            ))}
+          </div>
+          <p className="mt-2 text-[10px] text-muted-foreground">
+            Click a banner to add it to the canvas — colors and text stay editable in Animate.
+          </p>
+        </TabsContent>
+
         <TabsContent value="animate" className="mt-3">
           {hasSelection ? (
             <SelectedTextControl
