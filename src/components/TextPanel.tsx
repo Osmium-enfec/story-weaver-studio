@@ -399,12 +399,14 @@ function SelectedTextControl({
 export function TextPanel({
   onInsert,
   onInsertPair,
+  onInsertBanner,
   selectedTextContent,
   onChangeSelectedAnimation,
   onChangeSelectedText,
 }: {
   onInsert: (role: TextRole, style: TextRoleStyle, text?: string) => void;
   onInsertPair?: (pair: FontPair) => void;
+  onInsertBanner?: (preset: BannerPreset) => void;
   selectedTextContent?: AnimationBlockContent;
   onChangeSelectedAnimation?: (v: AnimationBlockContent["text_animation"]) => void;
   onChangeSelectedText?: (patch: Partial<AnimationBlockContent>) => void;
