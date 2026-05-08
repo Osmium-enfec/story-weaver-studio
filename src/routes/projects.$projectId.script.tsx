@@ -984,6 +984,7 @@ function ScriptCanvas() {
                       setActiveIdx(idx);
                       setSelectedWord(w);
                       setRightTab("animations");
+                      setAnimationSubTab("search");
                     }}
                     onRemoveForWord={(w) => {
                       const lower = w.toLowerCase();
