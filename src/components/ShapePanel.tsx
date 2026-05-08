@@ -142,11 +142,13 @@ export function ShapePanel({
           <p className="text-sm font-medium">No shape selected</p>
           <p className="mt-1 text-xs text-muted-foreground">Add or select a shape to edit its color, type, and size.</p>
         </div>
-      )}
+      ))}
 
-      <Button type="button" variant="secondary" className="w-full" onClick={() => onInsertShape("square")}>
-        Add square
-      </Button>
+      {showInsert && (
+        <Button type="button" variant="secondary" className="w-full" onClick={() => onInsertShape("square")}>
+          Add square
+        </Button>
+      )}
     </div>
   );
 }
