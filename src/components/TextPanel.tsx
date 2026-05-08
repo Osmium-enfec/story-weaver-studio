@@ -263,7 +263,39 @@ function PairCard({ pair, onInsert }: { pair: FontPair; onInsert: () => void }) 
   );
 }
 
-// ---------- Text animation control (for selected element) ----------
+// ---------- Banner / sticker preset card ----------
+function BannerCard({ preset, onInsert }: { preset: BannerPreset; onInsert: () => void }) {
+  useEffect(() => { ensureGoogleFont(preset.font_family); }, [preset.font_family]);
+  return (
+    <button
+      onClick={onInsert}
+      className="group flex h-20 w-full items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/20 p-3 transition hover:border-primary hover:shadow-md"
+    >
+      <span
+        className="inline-block whitespace-nowrap"
+        style={{
+          background: preset.bg_color,
+          color: preset.text_color,
+          fontFamily: preset.font_family,
+          fontWeight: preset.font_weight,
+          fontStyle: preset.italic ? "italic" : "normal",
+          letterSpacing: preset.letter_spacing ? `${preset.letter_spacing}px` : undefined,
+          textTransform: preset.transform === "uppercase" ? "uppercase" : "none",
+          padding: `${(preset.padding_y ?? 12) * 0.45}px ${(preset.padding_x ?? 24) * 0.45}px`,
+          borderRadius: preset.radius,
+          border: preset.border_color && preset.border_width
+            ? `${Math.max(1, Math.round(preset.border_width * 0.5))}px solid ${preset.border_color}`
+            : undefined,
+          fontSize: 14,
+          lineHeight: 1,
+        }}
+      >
+        {preset.label}
+      </span>
+    </button>
+  );
+}
+
 const ANIM_OPTIONS: { value: NonNullable<NonNullable<AnimationBlockContent["text_animation"]>["type"]>; label: string }[] = [
   { value: "none",         label: "None" },
   { value: "fade",         label: "Fade in" },
