@@ -238,6 +238,14 @@ export function TextBlockRenderer({
           transformOrigin: "center center",
           transform: `scale(${scale})`,
           display: "inline-block",
+          background: content.text_bg_color || undefined,
+          padding: content.text_bg_color
+            ? `${content.text_bg_padding_y ?? 12}px ${content.text_bg_padding_x ?? 24}px`
+            : undefined,
+          borderRadius: content.text_bg_color ? (content.text_bg_radius ?? 4) : undefined,
+          border: content.text_bg_border_color && (content.text_bg_border_width ?? 0) > 0
+            ? `${content.text_bg_border_width}px solid ${content.text_bg_border_color}`
+            : undefined,
           animation: !isStaggered && animName ? `${animName} ${animDuration}ms ${animEasing} ${animDelay}ms both` : undefined,
         }}
       >
