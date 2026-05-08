@@ -15,6 +15,7 @@ import { AnimationBlockRenderer, TextBlockRenderer, measureTextSize, type Animat
 import { BackgroundPicker, BackgroundLayer, type SceneBackground } from "@/components/BackgroundPicker";
 import { ThemeBuilder } from "@/components/ThemeBuilder";
 import { TextPanel, type TextRole, type TextRoleStyle } from "@/components/TextPanel";
+import type { FontPair } from "@/lib/font-pairs";
 import { PlaybackDialog } from "@/components/PlaybackDialog";
 import type { AnimationResult } from "@/lib/animation-providers";
 import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
