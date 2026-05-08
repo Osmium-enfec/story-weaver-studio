@@ -57,16 +57,37 @@ export interface AnimationBlockContent {
   font_weight?: number;
   line_height?: number;
   color?: string;
+  letter_spacing?: number;
+  italic?: boolean;
+  text_transform?: "none" | "uppercase";
+  // text animation
+  text_animation?: {
+    type: "none" | "fade" | "slide-up" | "slide-left" | "slide-right" | "scale" | "typewriter" | "word-reveal" | "bounce";
+    duration?: number; // ms
+    delay?: number;    // ms
+    easing?: string;
+  };
 }
+
+const TEXT_ANIM_CLASS: Record<string, string> = {
+  fade: "animate-fade-in",
+  "slide-up": "animate-text-slide-up",
+  "slide-left": "animate-slide-in-right",
+  "slide-right": "animate-text-slide-right",
+  scale: "animate-scale-in",
+  bounce: "animate-text-bounce",
+};
 
 export function TextBlockRenderer({
   content,
   editable,
   onChange,
+  animating,
 }: {
   content: AnimationBlockContent;
   editable?: boolean;
   onChange?: (text: string) => void;
+  animating?: boolean;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const innerRef = useRef<HTMLDivElement | null>(null);
