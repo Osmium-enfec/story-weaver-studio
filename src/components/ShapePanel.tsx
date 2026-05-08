@@ -26,12 +26,14 @@ const SHAPES: { type: ShapeType; label: string }[] = [
 ];
 
 export function ShapePanel({
+  mode = "both",
   selectedShapeContent,
   selectedShapeSize,
   onInsertShape,
   onChangeSelectedShape,
   onChangeSelectedShapeSize,
 }: {
+  mode?: "insert" | "edit" | "both";
   selectedShapeContent?: AnimationBlockContent;
   selectedShapeSize?: { w: number; h: number };
   onInsertShape: (shape: ShapeType) => void;
@@ -40,9 +42,12 @@ export function ShapePanel({
 }) {
   const color = selectedShapeContent?.color || "#111827";
   const strokeWidth = selectedShapeContent?.shape_stroke_width ?? 7;
+  const showInsert = mode === "insert" || mode === "both";
+  const showEdit = mode === "edit" || mode === "both";
 
   return (
     <div className="space-y-4 p-3" data-keep-selection>
+      {showInsert && (
       <div>
         <p className="mb-2 text-sm font-semibold">Basic shapes</p>
         <div className="grid grid-cols-3 gap-2">
@@ -59,8 +64,9 @@ export function ShapePanel({
           ))}
         </div>
       </div>
+      )}
 
-      {selectedShapeContent?.shape_type && onChangeSelectedShape ? (
+      {showEdit && (selectedShapeContent?.shape_type && onChangeSelectedShape ? (
         <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-3">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Selected shape</p>
           <div className="grid grid-cols-6 gap-1.5">
