@@ -667,7 +667,7 @@ function ScriptCanvas() {
         scene_id: activeScene.id,
         type: "shape",
         content: content as unknown as never,
-        position: clampRectToDesign(position),
+        position: clampRectToDesign(position) as unknown as never,
         z_index: activeScene.elements.length,
       })
       .select("*")
