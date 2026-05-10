@@ -1173,6 +1173,19 @@ function ScriptCanvas() {
               <ThemeBuilder
                 onApplyBackground={(bg) => void updateBackground(bg, true)}
                 onInsertText={(role, style) => void addTextBlock(role, style)}
+                onApplyColor={(hex) => {
+                  if (!activeScene || !selectedElementId) {
+                    toast.message("Select a text or shape first to apply this color.");
+                    return;
+                  }
+                  const el = activeScene.elements.find((e) => e.id === selectedElementId);
+                  if (!el) return;
+                  const patch: Partial<AnimationBlockContent> =
+                    el.type === "shape"
+                      ? { color: hex, tint: hex }
+                      : { color: hex };
+                  void updateElementContent(activeScene.id, el.id, patch);
+                }}
                 onInsertMedia={(item) => {
                   const isLottie = item.kind === "animation" || /\.(lottie|json)$/i.test(item.name);
                   const isVideo = item.kind === "video";
