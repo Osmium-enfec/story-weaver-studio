@@ -390,6 +390,27 @@ function ScriptCanvas() {
     })();
   }, [projectId]);
 
+  // Consume the theme chosen in CreateProjectDialog (one-shot per project)
+  const themeConsumedRef = useRef(false);
+  useEffect(() => {
+    if (themeConsumedRef.current) return;
+    if (scenes.length === 0) return;
+    const pending = consumePendingTheme(projectId);
+    if (!pending) { themeConsumedRef.current = true; return; }
+    themeConsumedRef.current = true;
+    void (async () => {
+      const bg = await applyPendingTheme(pending);
+      if (!bg) return;
+      setScenes((prev) => prev.map((s) => ({ ...s, background: bg })));
+      const ids = scenes.map((s) => s.id);
+      await supabase
+        .from("scenes")
+        .update({ background: bg as unknown as never })
+        .in("id", ids);
+      toast.success("Theme applied to all canvases");
+    })();
+  }, [projectId, scenes]);
+
   // Realtime: pick up newly-seeded scene_elements (auto-animate / transcribe seed)
   useEffect(() => {
     const sceneIds = scenes.map((s) => s.id);
