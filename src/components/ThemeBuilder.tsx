@@ -296,11 +296,14 @@ export function ThemeBuilder({
   onApplyBackground,
   onInsertText,
   onInsertMedia,
+  onApplyColor,
 }: {
   onApplyBackground?: (bg: SceneBackground) => void;
   onInsertText?: (role: TextRole, style: TextRoleStyle) => void;
   onInsertMedia?: (item: ThemeMediaInsert) => void;
+  onApplyColor?: (hex: string) => void;
 } = {}) {
+  const [showFirebase, setShowFirebase] = useState(false);
   const [themes, setThemes] = useState<ThemeData[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [, setLoading] = useState(true);
