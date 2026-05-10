@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import { Upload, Trash2, Image as ImageIcon, Video, Sparkles, ChevronLeft, Plus, Palette } from "lucide-react";
+import { Upload, Trash2, Image as ImageIcon, Video, Sparkles, ChevronLeft, Plus, Palette, Flame } from "lucide-react";
+import { FirebaseThemePanel } from "@/components/FirebaseThemePanel";
 import type { SceneBackground } from "@/components/BackgroundPicker";
 import type { TextRole, TextRoleStyle } from "@/components/TextPanel";
 import { TextRoleEditor } from "@/components/TextPanel";
@@ -295,11 +296,14 @@ export function ThemeBuilder({
   onApplyBackground,
   onInsertText,
   onInsertMedia,
+  onApplyColor,
 }: {
   onApplyBackground?: (bg: SceneBackground) => void;
   onInsertText?: (role: TextRole, style: TextRoleStyle) => void;
   onInsertMedia?: (item: ThemeMediaInsert) => void;
+  onApplyColor?: (hex: string) => void;
 } = {}) {
+  const [showFirebase, setShowFirebase] = useState(false);
   const [themes, setThemes] = useState<ThemeData[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [, setLoading] = useState(true);
@@ -346,6 +350,18 @@ export function ThemeBuilder({
     await supabase.from("user_themes").delete().eq("id", id);
   };
 
+  if (showFirebase) {
+    return (
+      <FirebaseThemePanel
+        onBack={() => setShowFirebase(false)}
+        onApplyBackground={onApplyBackground}
+        onInsertMedia={onInsertMedia}
+        onInsertText={onInsertText}
+        onApplyColor={onApplyColor}
+      />
+    );
+  }
+
   if (active) {
     return (
       <ThemeEditor
@@ -365,6 +381,21 @@ export function ThemeBuilder({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto p-3">
+      <Label className="mb-2 text-xs">Built-in themes</Label>
+      <button
+        type="button"
+        onClick={() => setShowFirebase(true)}
+        className="mb-3 flex items-center gap-2 rounded-md border border-border bg-gradient-to-r from-[#ffb404]/15 via-[#f67e00]/15 to-[#e13900]/15 px-3 py-2 text-left text-xs hover:border-primary"
+      >
+        <span className="grid h-6 w-6 place-items-center rounded-md bg-gradient-to-br from-[#ffb404] via-[#f67e00] to-[#e13900] text-white">
+          <Flame className="h-3.5 w-3.5" />
+        </span>
+        <span className="flex-1">
+          <span className="font-semibold">Firebase</span>
+          <span className="ml-1 text-[10px] text-muted-foreground">Poppins · 4 colors · 5 BGs · 2 cards</span>
+        </span>
+      </button>
+
       <Label className="mb-2 text-xs">Saved themes</Label>
       {themes.length === 0 ? (
         <div className="rounded-md border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
