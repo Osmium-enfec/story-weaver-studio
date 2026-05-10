@@ -104,6 +104,7 @@ function ScriptCanvas() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
+  const [previewSceneId, setPreviewSceneId] = useState<string | null>(null);
   const canvasSize = DESIGN_CANVAS_SIZE;
   const [gridCanvases, setGridCanvases] = useState<Record<string, boolean>>({});
   const [canvasScales, setCanvasScales] = useState<Record<string, number>>({});
