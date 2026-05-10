@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Trash2, Plus, Eraser, Grid3x3, Minus } from "lucide-react";
+import { Trash2, Plus, Eraser, Grid3x3, Minus, Play, ArrowUpToLine, ArrowDownToLine } from "lucide-react";
 import { toolbarStore } from "@/components/toolbar-store";
 import { AnimationSearchPanel } from "@/components/AnimationSearchPanel";
 import { AnimationBlockRenderer, TextBlockRenderer, measureTextSize, type AnimationBlockContent, type ShapeType } from "@/components/AnimationBlock";
@@ -104,6 +104,7 @@ function ScriptCanvas() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
+  const [previewSceneId, setPreviewSceneId] = useState<string | null>(null);
   const canvasSize = DESIGN_CANVAS_SIZE;
   const [gridCanvases, setGridCanvases] = useState<Record<string, boolean>>({});
   const [canvasScales, setCanvasScales] = useState<Record<string, number>>({});
@@ -480,12 +481,63 @@ function ScriptCanvas() {
     setActiveIdx(scenes.length);
   }
 
+  async function insertCanvasAt(targetIdx: number) {
+    const order_index = targetIdx;
+    // Shift existing scenes at or after targetIdx
+    const toShift = scenes.filter((_, i) => i >= targetIdx);
+    await Promise.all(
+      toShift.map((s) => supabase.from("scenes").update({ order_index: s.order_index + 1 }).eq("id", s.id)),
+    );
+    const { data, error } = await supabase
+      .from("scenes")
+      .insert({
+        project_id: projectId,
+        order_index,
+        narration: "",
+        visual_brief: "",
+        detected_concepts: [],
+        duration_ms: 8000,
+      })
+      .select("id, order_index, background, narration")
+      .single();
+    if (error) return toast.error(error.message);
+    const r = data as { id: string; order_index: number; background: SceneBackground | null; narration: string | null };
+    const newScene = {
+      id: r.id,
+      order_index: r.order_index,
+      background: r.background ?? DEFAULT_BG,
+      narration: r.narration ?? "",
+      elements: [],
+      voice_url: null,
+      voice_start_ms: null,
+      voice_end_ms: null,
+      word_timings: [],
+      voice_trim_start_ms: 0,
+      voice_trim_end_ms: null,
+      voice_cuts: [],
+      voice_volume: 1,
+      voice_fade_in_ms: 0,
+      voice_fade_out_ms: 0,
+    };
+    setScenes((prev) => {
+      const next = [...prev];
+      next.splice(targetIdx, 0, newScene);
+      return next.map((s, i) => ({ ...s, order_index: i }));
+    });
+    setActiveIdx(targetIdx);
+  }
+
   async function deleteCanvas(idx: number) {
     if (scenes.length <= 1) return toast.error("At least one canvas required");
     const s = scenes[idx];
     await supabase.from("scenes").delete().eq("id", s.id);
     setScenes((prev) => prev.filter((_, i) => i !== idx));
     setActiveIdx((cur) => Math.max(0, Math.min(cur, scenes.length - 2)));
+  }
+
+  function previewCanvas(sceneId: string) {
+    setPreviewSceneId(sceneId);
+    setPlayOpen(true);
   }
 
   async function addAnimation(a: AnimationResult) {
@@ -890,6 +942,33 @@ function ScriptCanvas() {
                 <Button
                   size="sm"
                   variant="ghost"
+                  className="h-7 gap-1 text-xs"
+                  onClick={(e) => { e.stopPropagation(); void insertCanvasAt(idx); }}
+                  title="Add canvas above"
+                >
+                  <ArrowUpToLine className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 gap-1 text-xs"
+                  onClick={(e) => { e.stopPropagation(); void insertCanvasAt(idx + 1); }}
+                  title="Add canvas below"
+                >
+                  <ArrowDownToLine className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 gap-1 text-xs"
+                  onClick={(e) => { e.stopPropagation(); previewCanvas(s.id); }}
+                  title="Preview this canvas"
+                >
+                  <Play className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
                   className={`h-7 gap-1 text-xs ${gridCanvases[s.id] ? "text-primary" : ""}`}
                   onClick={(e) => { e.stopPropagation(); setGridCanvases((p) => ({ ...p, [s.id]: !p[s.id] })); }}
                   title="Toggle 3×3 grid"
@@ -1231,9 +1310,9 @@ function ScriptCanvas() {
 
       <PlaybackDialog
         open={playOpen}
-        onOpenChange={setPlayOpen}
-        script={scenes.map((s) => s.narration).filter(Boolean).join("\n\n")}
-        scenes={scenes.map((s) => ({
+        onOpenChange={(o) => { setPlayOpen(o); if (!o) setPreviewSceneId(null); }}
+        script={(previewSceneId ? scenes.filter((s) => s.id === previewSceneId) : scenes).map((s) => s.narration).filter(Boolean).join("\n\n")}
+        scenes={(previewSceneId ? scenes.filter((s) => s.id === previewSceneId) : scenes).map((s) => ({
           id: s.id,
           background: s.background,
           narration: s.narration,
