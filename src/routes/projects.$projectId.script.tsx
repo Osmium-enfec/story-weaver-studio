@@ -942,6 +942,33 @@ function ScriptCanvas() {
                 <Button
                   size="sm"
                   variant="ghost"
+                  className="h-7 gap-1 text-xs"
+                  onClick={(e) => { e.stopPropagation(); void insertCanvasAt(idx); }}
+                  title="Add canvas above"
+                >
+                  <ArrowUpToLine className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 gap-1 text-xs"
+                  onClick={(e) => { e.stopPropagation(); void insertCanvasAt(idx + 1); }}
+                  title="Add canvas below"
+                >
+                  <ArrowDownToLine className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 gap-1 text-xs"
+                  onClick={(e) => { e.stopPropagation(); previewCanvas(s.id); }}
+                  title="Preview this canvas"
+                >
+                  <Play className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
                   className={`h-7 gap-1 text-xs ${gridCanvases[s.id] ? "text-primary" : ""}`}
                   onClick={(e) => { e.stopPropagation(); setGridCanvases((p) => ({ ...p, [s.id]: !p[s.id] })); }}
                   title="Toggle 3×3 grid"
