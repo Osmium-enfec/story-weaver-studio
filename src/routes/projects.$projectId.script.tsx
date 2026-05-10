@@ -24,6 +24,7 @@ import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
 import { seedAnimationsForProject } from "@/server/voice.functions";
 import { proxyImageAsDataUrl } from "@/server/proxy-image.functions";
 import { CanvasAudioEditor } from "@/components/CanvasAudioEditor";
+import { applyPendingTheme, consumePendingTheme } from "@/lib/pending-theme";
 
 async function inlineAllImages(root: HTMLElement) {
   const imgs = Array.from(root.querySelectorAll("img"));
