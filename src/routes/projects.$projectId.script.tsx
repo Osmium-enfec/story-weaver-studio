@@ -1310,9 +1310,9 @@ function ScriptCanvas() {
 
       <PlaybackDialog
         open={playOpen}
-        onOpenChange={setPlayOpen}
-        script={scenes.map((s) => s.narration).filter(Boolean).join("\n\n")}
-        scenes={scenes.map((s) => ({
+        onOpenChange={(o) => { setPlayOpen(o); if (!o) setPreviewSceneId(null); }}
+        script={(previewSceneId ? scenes.filter((s) => s.id === previewSceneId) : scenes).map((s) => s.narration).filter(Boolean).join("\n\n")}
+        scenes={(previewSceneId ? scenes.filter((s) => s.id === previewSceneId) : scenes).map((s) => ({
           id: s.id,
           background: s.background,
           narration: s.narration,
