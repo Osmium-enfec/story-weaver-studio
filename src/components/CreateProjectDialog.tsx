@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { WORKSPACE_ID, type AspectRatio, type AudienceLevel, type CourseType, type ThemeName, type VoiceMode } from "@/lib/db-types";
+import { WORKSPACE_ID, type AspectRatio, type VoiceMode } from "@/lib/db-types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,14 +15,14 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Upload, Mic2, Loader2, X } from "lucide-react";
+import { Upload, Mic2, Loader2, X, Flame, Palette } from "lucide-react";
 import { transcribeAndSplit, seedAnimationsForProject } from "@/server/voice.functions";
+import { setPendingTheme, type PendingTheme } from "@/lib/pending-theme";
 
-const COURSES: CourseType[] = ["Python", "Java", "Android", "Web", "DSA", "Database", "API", "Other"];
-const LEVELS: AudienceLevel[] = ["Beginner", "Intermediate", "Advanced"];
 const RATIOS: AspectRatio[] = ["16:9", "9:16", "1:1"];
-const THEMES: ThemeName[] = ["Whiteboard", "Dark Code", "Flat Modern", "Android UI", "Classroom"];
 const ACCEPT = "audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/mp4,audio/m4a,audio/x-m4a,audio/webm";
+
+interface SavedThemeOption { id: string; name: string }
 
 export function CreateProjectDialog({
   open,
@@ -34,10 +34,10 @@ export function CreateProjectDialog({
   onCreated?: () => void;
 }) {
   const [title, setTitle] = useState("");
-  const [course, setCourse] = useState<CourseType>("Python");
-  const [level, setLevel] = useState<AudienceLevel>("Beginner");
   const [ratio, setRatio] = useState<AspectRatio>("16:9");
-  const [theme, setTheme] = useState<ThemeName>("Whiteboard");
+  // themeKey: "none" | "firebase" | "saved:<id>"
+  const [themeKey, setThemeKey] = useState<string>("firebase");
+  const [savedThemes, setSavedThemes] = useState<SavedThemeOption[]>([]);
   const [voice, setVoice] = useState<VoiceMode>("no_voice");
   const [voiceFile, setVoiceFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -45,10 +45,27 @@ export function CreateProjectDialog({
   const fileRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (!open) return;
+    void (async () => {
+      const { data } = await supabase
+        .from("user_themes")
+        .select("id, name")
+        .order("created_at", { ascending: true });
+      setSavedThemes((data ?? []).map((r) => ({ id: r.id, name: r.name })));
+    })();
+  }, [open]);
+
   function pickFile(f: File | null) {
     if (!f) return;
     if (f.size > 25 * 1024 * 1024) return toast.error("Max 25MB");
     setVoiceFile(f);
+  }
+
+  function themeFromKey(): PendingTheme {
+    if (themeKey === "firebase") return { kind: "firebase" };
+    if (themeKey.startsWith("saved:")) return { kind: "saved", themeId: themeKey.slice(6) };
+    return { kind: "none" };
   }
 
   async function submit() {
@@ -63,11 +80,12 @@ export function CreateProjectDialog({
       .insert({
         workspace_id: WORKSPACE_ID,
         title: title.trim(),
-        course_type: course,
-        audience_level: level,
         aspect_ratio: ratio,
-        theme,
         voice_mode: voice,
+        // legacy required-ish columns kept at sensible defaults
+        course_type: "Other",
+        audience_level: "Beginner",
+        theme: "Whiteboard",
       })
       .select()
       .single();
@@ -77,7 +95,9 @@ export function CreateProjectDialog({
       return toast.error(error?.message ?? "Failed to create project");
     }
 
-    // If they picked a voice file, upload + transcribe before navigating
+    // Hand the chosen theme off to the script route on next mount.
+    setPendingTheme(data.id, themeFromKey());
+
     if (voice === "upload_voice" && voiceFile) {
       try {
         setProgress("Uploading voice…");
@@ -120,7 +140,7 @@ export function CreateProjectDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Create New Video</DialogTitle>
-          <DialogDescription>Set up the basics. You can change everything later.</DialogDescription>
+          <DialogDescription>Pick a title, format, voice, and theme — change anything later.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <Field label="Video title">
@@ -131,40 +151,72 @@ export function CreateProjectDialog({
               autoFocus
             />
           </Field>
+
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Course type">
-              <SimpleSelect value={course} onChange={(v) => setCourse(v as CourseType)} options={COURSES} />
-            </Field>
-            <Field label="Audience level">
-              <SimpleSelect value={level} onChange={(v) => setLevel(v as AudienceLevel)} options={LEVELS} />
-            </Field>
             <Field label="Aspect ratio">
-              <SimpleSelect value={ratio} onChange={(v) => setRatio(v as AspectRatio)} options={RATIOS} />
+              <Select value={ratio} onValueChange={(v) => setRatio(v as AspectRatio)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {RATIOS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </Field>
-            <Field label="Theme">
-              <SimpleSelect value={theme} onChange={(v) => setTheme(v as ThemeName)} options={THEMES} />
+
+            <Field label="Voice">
+              <Select
+                value={voice}
+                onValueChange={(v) => {
+                  setVoice(v as VoiceMode);
+                  if (v !== "upload_voice") setVoiceFile(null);
+                }}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="upload_voice">Upload voice now</SelectItem>
+                  <SelectItem value="ai_voice">Generate AI voice later</SelectItem>
+                  <SelectItem value="no_voice">No voice for now</SelectItem>
+                </SelectContent>
+              </Select>
             </Field>
           </div>
-          <Field label="Voice">
-            <SimpleSelect
-              value={voice}
-              onChange={(v) => {
-                setVoice(v as VoiceMode);
-                if (v !== "upload_voice") setVoiceFile(null);
-              }}
-              options={[
-                { value: "upload_voice", label: "Upload voice now" },
-                { value: "ai_voice", label: "Generate AI voice later" },
-                { value: "no_voice", label: "No voice for now" },
-              ]}
-            />
+
+          <Field label="Theme">
+            <Select value={themeKey} onValueChange={setThemeKey}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full border border-border bg-muted" /> No theme</span>
+                </SelectItem>
+                <SelectItem value="firebase">
+                  <span className="flex items-center gap-2">
+                    <span className="grid h-4 w-4 place-items-center rounded-sm bg-gradient-to-br from-[#ffb404] via-[#f67e00] to-[#e13900] text-white">
+                      <Flame className="h-2.5 w-2.5" />
+                    </span>
+                    Firebase (built-in)
+                  </span>
+                </SelectItem>
+                {savedThemes.length > 0 && (
+                  <>
+                    <div className="px-2 pb-1 pt-2 text-[10px] uppercase tracking-wide text-muted-foreground">My themes</div>
+                    {savedThemes.map((t) => (
+                      <SelectItem key={t.id} value={`saved:${t.id}`}>
+                        <span className="flex items-center gap-2"><Palette className="h-3.5 w-3.5 text-muted-foreground" /> {t.name}</span>
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              The theme's background, fonts, and colors will be applied to every new scene.
+            </p>
           </Field>
 
           {voice === "upload_voice" && (
             <div className="rounded-lg border border-dashed border-border bg-muted/30 p-3">
               {voiceFile ? (
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
                     <Mic2 className="h-4 w-4 shrink-0 text-primary" />
                     <span className="truncate text-sm">{voiceFile.name}</span>
                     <span className="text-xs text-muted-foreground">
@@ -219,33 +271,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <Label className="text-sm">{label}</Label>
       {children}
     </div>
-  );
-}
-
-function SimpleSelect({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: readonly string[] | { value: string; label: string }[];
-}) {
-  const opts = (options as Array<string | { value: string; label: string }>).map((o) =>
-    typeof o === "string" ? { value: o, label: o } : o,
-  );
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {opts.map((o) => (
-          <SelectItem key={o.value} value={o.value}>
-            {o.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }
