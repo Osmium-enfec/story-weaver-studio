@@ -594,14 +594,33 @@ export const seedAnimationsForProject = createServerFn({ method: "POST" })
 
     const { data: scenes } = await admin
       .from("scenes")
-      .select("id, word_timings")
+      .select("id, narration, duration_ms, word_timings")
       .eq("project_id", data.projectId)
       .order("order_index");
-    const list = (scenes ?? []) as { id: string; word_timings: { text: string; start_ms: number; end_ms: number }[] | null }[];
+    const list = (scenes ?? []) as {
+      id: string;
+      narration: string | null;
+      duration_ms: number | null;
+      word_timings: { text: string; start_ms: number; end_ms: number }[] | null;
+    }[];
 
     if (data.replace) {
       const ids = list.map((s) => s.id);
       if (ids.length > 0) await admin.from("scene_elements").delete().in("scene_id", ids);
+    }
+
+    // Synthesize approximate word timings from narration text when none exist
+    // (e.g. user pasted script but hasn't generated voice yet).
+    function fakeTimings(narration: string, durationMs: number) {
+      const tokens = (narration || "").split(/\s+/).filter(Boolean);
+      if (tokens.length === 0) return [];
+      const total = durationMs && durationMs > 0 ? durationMs : tokens.length * 400;
+      const per = total / tokens.length;
+      return tokens.map((text, i) => ({
+        text: text.replace(/[^\p{L}\p{N}'-]/gu, ""),
+        start_ms: Math.round(i * per),
+        end_ms: Math.round((i + 1) * per),
+      })).filter((w) => w.text.length > 0);
     }
 
     // Run scenes in parallel batches of 4 to keep load reasonable
@@ -610,7 +629,12 @@ export const seedAnimationsForProject = createServerFn({ method: "POST" })
     for (let i = 0; i < list.length; i += BATCH) {
       const slice = list.slice(i, i + BATCH);
       const results = await Promise.allSettled(
-        slice.map((s) => seedScene(admin, s.id, s.word_timings ?? [], themeTags)),
+        slice.map((s) => {
+          const wt = s.word_timings && s.word_timings.length > 0
+            ? s.word_timings
+            : fakeTimings(s.narration ?? "", s.duration_ms ?? 0);
+          return seedScene(admin, s.id, wt, themeTags);
+        }),
       );
       for (const r of results) if (r.status === "fulfilled") total += r.value;
     }
