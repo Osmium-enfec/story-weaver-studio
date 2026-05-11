@@ -59,33 +59,53 @@ export function IconscoutMirrorPanel() {
   }, [refreshStats]);
 
   async function mirrorOne(q: string) {
+    if (modes.length === 0) {
+      toast.warning("Pick at least one asset type to mirror");
+      return;
+    }
     setRunning(true);
-    setLog((l) => [`Mirroring "${q}"…`, ...l]);
+    setLog((l) => [`Mirroring "${q}" (${modes.join(", ")})…`, ...l]);
+    let totalMirrored = 0;
+    let totalSkipped = 0;
+    let totalErrors = 0;
+    let lastError: string | null = null;
     try {
-      const res = await bulkMirrorIconscout({
-        data: { query: q, category: q, limit, mode },
-      });
-      const success = res.mirrored > 0;
-      const msg = `${success ? "✓" : "⚠"} "${q}": +${res.mirrored} mirrored, ${res.skipped} skipped${res.errors.length ? `, ${res.errors.length} errors` : ""}`;
-      setLog((l) => [msg, ...l]);
+      for (const m of modes) {
+        // eslint-disable-next-line no-await-in-loop
+        const res = await bulkMirrorIconscout({
+          data: { query: q, category: q, limit, mode: m },
+        });
+        totalMirrored += res.mirrored;
+        totalSkipped += res.skipped;
+        totalErrors += res.errors.length;
+        setLog((l) => [
+          `  • ${m}: +${res.mirrored} mirrored, ${res.skipped} skipped${res.errors.length ? `, ${res.errors.length} errors` : ""}`,
+          ...l,
+        ]);
+      }
+      const success = totalMirrored > 0;
+      setLog((l) => [
+        `${success ? "✓" : "⚠"} "${q}": +${totalMirrored} mirrored, ${totalSkipped} skipped${totalErrors ? `, ${totalErrors} errors` : ""}`,
+        ...l,
+      ]);
       setLastResult({
         ok: true,
         query: q,
-        mirrored: res.mirrored,
-        skipped: res.skipped,
-        errors: res.errors.length,
+        mirrored: totalMirrored,
+        skipped: totalSkipped,
+        errors: totalErrors,
       });
       if (success) {
-        toast.success(`Mirrored ${res.mirrored} "${q}" assets locally`);
+        toast.success(`Mirrored ${totalMirrored} "${q}" assets locally`);
       } else {
-        toast.warning(`No new assets mirrored for "${q}" (${res.skipped} skipped)`);
+        toast.warning(`No new assets mirrored for "${q}" (${totalSkipped} skipped)`);
       }
       await refreshStats();
     } catch (e) {
-      const message = (e as Error).message;
-      setLog((l) => [`✗ "${q}": ${message}`, ...l]);
-      setLastResult({ ok: false, query: q, message });
-      toast.error(`Failed to mirror "${q}": ${message}`);
+      lastError = (e as Error).message;
+      setLog((l) => [`✗ "${q}": ${lastError}`, ...l]);
+      setLastResult({ ok: false, query: q, message: lastError ?? "Unknown error" });
+      toast.error(`Failed to mirror "${q}": ${lastError}`);
     } finally {
       setRunning(false);
     }
