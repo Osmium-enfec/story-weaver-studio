@@ -358,7 +358,9 @@ async function iconscoutSearchOne(query: string): Promise<{
     if (!res.ok) return null;
     const json = await res.json();
     const items = (json?.response?.items?.data ?? []) as any[];
-    const free = items.find((it) => (it.price ?? 0) === 0) ?? items[0];
+    const freeItems = items.filter((it) => (it.price ?? 0) === 0);
+    const pool = (freeItems.length ? freeItems : items).slice(0, 5);
+    const free = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
     if (!free) return null;
     return {
       external_id: String(free.id),
