@@ -110,6 +110,10 @@ export function LocalMediaPanel() {
     });
   }, [items, query, activeCategory]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
