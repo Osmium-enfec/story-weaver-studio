@@ -20,7 +20,12 @@ interface CategoryStat {
 export function IconscoutMirrorPanel() {
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(20);
-  const [mode, setMode] = useState<"mp4" | "palettes" | "icon" | "illustration" | "3d">("mp4");
+  type Mode = "mp4" | "palettes" | "icon" | "illustration" | "3d";
+  const [modes, setModes] = useState<Mode[]>(["mp4"]);
+  const toggleMode = (m: Mode) =>
+    setModes((curr) =>
+      curr.includes(m) ? curr.filter((x) => x !== m) : [...curr, m],
+    );
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [total, setTotal] = useState<number>(0);
