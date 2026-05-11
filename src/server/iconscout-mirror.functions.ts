@@ -18,10 +18,10 @@ const BUCKET = "animation-cache";
 // Index 0 = original (no recolor).
 export const ICONSCOUT_PALETTES: { id: string; name: string; colors: string[] }[] = [
   { id: "original", name: "Original", colors: [] },
-  { id: "warm",     name: "Warm",     colors: ["#FF7A45", "#52C41A", "#1677FF", "#722ED1"] },
-  { id: "pastel",   name: "Pastel",   colors: ["#9254DE", "#D4B106", "#EB2F96", "#13C2C2"] },
-  { id: "primary",  name: "Primary",  colors: ["#2F54EB", "#F5222D", "#FAAD14", "#52C41A"] },
-  { id: "candy",    name: "Candy",    colors: ["#36CFC9", "#FF7875", "#BAE637", "#FF85C0"] },
+  { id: "warm", name: "Warm", colors: ["#FF7A45", "#52C41A", "#1677FF", "#722ED1"] },
+  { id: "pastel", name: "Pastel", colors: ["#9254DE", "#D4B106", "#EB2F96", "#13C2C2"] },
+  { id: "primary", name: "Primary", colors: ["#2F54EB", "#F5222D", "#FAAD14", "#52C41A"] },
+  { id: "candy", name: "Candy", colors: ["#36CFC9", "#FF7875", "#BAE637", "#FF85C0"] },
 ];
 
 function getAdmin() {
@@ -79,7 +79,10 @@ async function downloadToBucket(
 // ---------- Lottie color helpers ----------
 
 function rgbToHex(r: number, g: number, b: number) {
-  const to = (n: number) => Math.max(0, Math.min(255, Math.round(n * 255))).toString(16).padStart(2, "0");
+  const to = (n: number) =>
+    Math.max(0, Math.min(255, Math.round(n * 255)))
+      .toString(16)
+      .padStart(2, "0");
   return `#${to(r)}${to(g)}${to(b)}`.toUpperCase();
 }
 function hexToRgb01(hex: string): [number, number, number] {
@@ -229,6 +232,7 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
     const pages = Math.ceil(data.limit / perPage);
     let mirrored = 0;
     let skipped = 0;
+    let processed = 0;
     const errors: string[] = [];
 
     outer: for (let p = 1; p <= pages; p++) {
@@ -242,24 +246,24 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
       if (!items.length) break;
 
       for (const it of items) {
-        if (mirrored + skipped >= data.limit) break outer;
+        if (processed >= data.limit) break outer;
         const externalId = String(it.id);
-
-        // Already mirrored? (check by external_id prefix to cover palette variants)
-        const { data: existing } = await admin
-          .from("animation_components")
-          .select("id")
-          .eq("provider", "iconscout")
-          .like("external_id", `${externalId}%`)
-          .limit(1)
-          .maybeSingle();
-        if (existing) {
-          skipped++;
-          continue;
-        }
+        processed++;
 
         try {
           if (data.mode === "mp4") {
+            const { data: existingMp4 } = await admin
+              .from("animation_components")
+              .select("id")
+              .eq("provider", "iconscout")
+              .eq("external_id", externalId)
+              .limit(1)
+              .maybeSingle();
+            if (existingMp4) {
+              skipped++;
+              continue;
+            }
+
             const previewUrl = pickMp4Url(it);
             if (!previewUrl) {
               skipped++;
@@ -280,6 +284,21 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
             if (error) throw error;
             mirrored++;
           } else {
+            // palettes mode — MP4 rows do not count; only skip variants already present.
+            const variantIds = ICONSCOUT_PALETTES.map((palette) => `${externalId}__${palette.id}`);
+            const { data: existingVariants } = await admin
+              .from("animation_components")
+              .select("external_id")
+              .eq("provider", "iconscout")
+              .in("external_id", variantIds);
+            const existingVariantIds = new Set(
+              (existingVariants ?? []).map((row) => row.external_id),
+            );
+            if (existingVariantIds.size === ICONSCOUT_PALETTES.length) {
+              skipped++;
+              continue;
+            }
+
             // palettes mode — need Lottie JSON
             const lottieUrl = pickLottieUrl(it);
             if (!lottieUrl) {
@@ -294,8 +313,11 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
 
             for (let i = 0; i < ICONSCOUT_PALETTES.length; i++) {
               const palette = ICONSCOUT_PALETTES[i];
-              const variant = palette.colors.length ? recolorLottie(lottie, palette.colors) : lottie;
+              const variant = palette.colors.length
+                ? recolorLottie(lottie, palette.colors)
+                : lottie;
               const variantId = `${externalId}__${palette.id}`;
+              if (existingVariantIds.has(variantId)) continue;
               const path = `iconscout/${externalId}/${palette.id}.json`;
               const buf = new TextEncoder().encode(JSON.stringify(variant));
               const publicUrl = await uploadBuffer(admin, buf, path, "application/json");
