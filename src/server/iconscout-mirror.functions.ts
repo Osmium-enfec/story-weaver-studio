@@ -255,7 +255,9 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
         query: z.string().min(1).max(100),
         category: z.string().default("Iconscout"),
         limit: z.number().int().min(1).max(100).default(30),
-        mode: z.enum(["mp4", "palettes"]).default("mp4"),
+        // mp4 = lottie preview MP4 (free), palettes = lottie JSON + recolor (paid),
+        // icon / illustration / 3d = static PNG thumb (free).
+        mode: z.enum(["mp4", "palettes", "icon", "illustration", "3d"]).default("mp4"),
       })
       .parse(d),
   )
@@ -268,10 +270,16 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
     let processed = 0;
     const errors: string[] = [];
 
+    const searchAsset: "lottie" | "icon" | "illustration" | "3d" =
+      data.mode === "icon" || data.mode === "illustration" || data.mode === "3d"
+        ? data.mode
+        : "lottie";
+    const isStatic = searchAsset !== "lottie";
+
     outer: for (let p = 1; p <= pages; p++) {
       let items: any[];
       try {
-        items = await iconscoutSearch(data.query, p, perPage);
+        items = await iconscoutSearch(data.query, p, perPage, searchAsset);
       } catch (e) {
         errors.push((e as Error).message);
         break;
