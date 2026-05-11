@@ -228,12 +228,21 @@ export function IconscoutMirrorPanel() {
             className="h-9 w-20"
           />
           <Button
+            variant="outline"
+            onClick={() => query.trim() && browseSearch(query.trim())}
+            disabled={browsing || !query.trim()}
+            className="h-9 gap-1"
+          >
+            {browsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            Browse
+          </Button>
+          <Button
             onClick={() => query.trim() && mirrorOne(query.trim())}
             disabled={running || !query.trim()}
             className="h-9 gap-1"
           >
             {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Mirror
+            Mirror all
           </Button>
         </div>
 
