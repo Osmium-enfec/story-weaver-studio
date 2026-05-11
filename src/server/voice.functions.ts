@@ -579,8 +579,12 @@ async function seedScene(
  * existing scene_elements first.
  */
 export const seedAnimationsForProject = createServerFn({ method: "POST" })
-  .inputValidator((d: { projectId: string; replace?: boolean }) =>
-    z.object({ projectId: z.string().uuid(), replace: z.boolean().optional() }).parse(d),
+  .inputValidator((d: { projectId: string; replace?: boolean; sceneId?: string }) =>
+    z.object({
+      projectId: z.string().uuid(),
+      replace: z.boolean().optional(),
+      sceneId: z.string().uuid().optional(),
+    }).parse(d),
   )
   .handler(async ({ data }) => {
     const admin = getAdmin();
