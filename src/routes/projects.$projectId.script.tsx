@@ -897,7 +897,21 @@ function ScriptCanvas() {
     );
   }
 
-  async function toggleElementBackground(sceneId: string, id: string) {
+  async function moveElementLayer(sceneId: string, id: string, direction: "forward" | "backward") {
+    const scene = scenes.find((s) => s.id === sceneId);
+    if (!scene) return;
+    const sorted = [...scene.elements].sort((a, b) => a.z_index - b.z_index);
+    const idx = sorted.findIndex((e) => e.id === id);
+    if (idx < 0) return;
+    const swapWith = direction === "forward" ? idx + 1 : idx - 1;
+    if (swapWith < 0 || swapWith >= sorted.length) return;
+    [sorted[idx], sorted[swapWith]] = [sorted[swapWith], sorted[idx]];
+    const next = sorted.map((e, i) => ({ ...e, z_index: i }));
+    setScenes((prev) => prev.map((s) => (s.id === sceneId ? { ...s, elements: next } : s)));
+    await Promise.all(
+      next.map((e) => supabase.from("scene_elements").update({ z_index: e.z_index }).eq("id", e.id)),
+    );
+  }
     let nextContent: AnimationBlockContent | null = null;
     setScenes((prev) =>
       prev.map((s) =>
