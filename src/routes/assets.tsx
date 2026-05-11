@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Image, Film, Music, Code2, Sparkles, Download } from "lucide-react";
+import { Image, Film, Music, Code2, Sparkles, Download, HardDrive } from "lucide-react";
 import { IconscoutMirrorPanel } from "@/components/IconscoutMirrorPanel";
+import { LocalMediaPanel } from "@/components/LocalMediaPanel";
 
 export const Route = createFileRoute("/assets")({ component: Assets });
 
 const TABS = [
+  { key: "local", label: "Local Media", icon: HardDrive },
   { key: "uploaded", label: "Uploaded Media", icon: Image },
   { key: "components", label: "Programming Components", icon: Code2 },
   { key: "lottie", label: "Lottie Library", icon: Sparkles },
