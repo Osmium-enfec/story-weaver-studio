@@ -157,23 +157,25 @@ export function IconscoutMirrorPanel() {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-md border border-border bg-muted/30 p-2 text-xs">
           <span className="font-medium text-muted-foreground">Mirror as:</span>
           {([
-            ["mp4", "Lottie MP4", "free"],
-            ["palettes", "Lottie + 5 palettes", "paid API"],
-            ["icon", "Icons (PNG)", "free"],
-            ["illustration", "Illustrations (PNG)", "free"],
-            ["3d", "3D (PNG)", "free"],
-          ] as const).map(([value, label, tag]) => (
-            <label key={value} className="flex items-center gap-1.5 cursor-pointer">
+            ["mp4", "Lottie MP4", "free", false],
+            ["palettes", "Lottie + 5 palettes", "paid API — coming soon", true],
+            ["icon", "Icons (PNG)", "free", false],
+            ["illustration", "Illustrations (PNG)", "free", false],
+            ["3d", "3D (PNG)", "free", false],
+          ] as const).map(([value, label, tag, disabledMode]) => (
+            <label
+              key={value}
+              className={`flex items-center gap-1.5 ${disabledMode ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+            >
               <input
-                type="radio"
-                name="mirror-mode"
-                checked={mode === value}
-                onChange={() => setMode(value)}
-                disabled={running}
+                type="checkbox"
+                checked={modes.includes(value)}
+                onChange={() => toggleMode(value)}
+                disabled={running || disabledMode}
               />
               <span>
                 {label}{" "}
-                <span className={tag === "paid API" ? "text-amber-600" : "text-muted-foreground"}>
+                <span className={tag.includes("paid") ? "text-amber-600" : "text-muted-foreground"}>
                   ({tag})
                 </span>
               </span>
