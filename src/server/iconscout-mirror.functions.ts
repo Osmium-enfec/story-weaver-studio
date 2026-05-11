@@ -292,7 +292,40 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
         processed++;
 
         try {
-          if (data.mode === "mp4") {
+          if (isStatic) {
+            // icon / illustration / 3d — free static PNG thumb
+            const staticId = `${searchAsset}-${externalId}`;
+            const { data: existingStatic } = await admin
+              .from("animation_components")
+              .select("id")
+              .eq("provider", "iconscout")
+              .eq("external_id", staticId)
+              .limit(1)
+              .maybeSingle();
+            if (existingStatic) {
+              skipped++;
+              continue;
+            }
+            const previewUrl = pickStaticUrl(it);
+            if (!previewUrl) {
+              skipped++;
+              continue;
+            }
+            const path = `iconscout/${searchAsset}/${externalId}.png`;
+            const publicUrl = await downloadToBucket(admin, previewUrl, path, "image/png");
+            const { error } = await admin.from("animation_components").insert({
+              slug: it.slug || `iconscout-${searchAsset}-${externalId}`,
+              name: it.name || `${searchAsset} ${externalId}`,
+              category: data.category,
+              provider: "iconscout",
+              external_id: staticId,
+              thumbnail_url: publicUrl,
+              color_support: "fixed",
+              default_props: { asset_type: searchAsset, image_url: publicUrl },
+            });
+            if (error) throw error;
+            mirrored++;
+          } else if (data.mode === "mp4") {
             const { data: existingMp4 } = await admin
               .from("animation_components")
               .select("id")
