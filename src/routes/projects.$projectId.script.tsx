@@ -1375,7 +1375,7 @@ function ClickableScript({
   if (last < text.length) tokens.push({ word: false, text: text.slice(last) });
 
   return (
-    <p className="whitespace-pre-wrap leading-9">
+    <p className="whitespace-pre-wrap leading-[2.5rem] pt-3">
       {tokens.map((t, i) => {
         if (!t.word) return <span key={i}>{t.text}</span>;
         const lower = t.text.toLowerCase();
