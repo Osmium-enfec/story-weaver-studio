@@ -315,17 +315,14 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
               continue;
             }
 
-            // palettes mode — need Lottie JSON
-            const lottieUrl = pickLottieUrl(it);
-            if (!lottieUrl) {
+            // palettes mode — fetch Lottie JSON via Iconscout download API (needs paid plan)
+            if (!it?.uuid) {
               skipped++;
-              errors.push(`${externalId}: no Lottie JSON available`);
+              errors.push(`${externalId}: missing uuid`);
               continue;
             }
-            const res = await fetch(lottieUrl);
-            if (!res.ok) throw new Error(`fetch lottie ${res.status}`);
-            const lottie = await res.json();
-            const thumbUrl = pickMp4Url(it) || lottieUrl;
+            const lottie = await fetchIconscoutLottie(it.uuid);
+            const thumbUrl = pickMp4Url(it) || "";
 
             for (let i = 0; i < ICONSCOUT_PALETTES.length; i++) {
               const palette = ICONSCOUT_PALETTES[i];
