@@ -289,7 +289,9 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
               .select("external_id")
               .eq("provider", "iconscout")
               .in("external_id", variantIds);
-            const existingVariantIds = new Set((existingVariants ?? []).map((row) => row.external_id));
+            const existingVariantIds = new Set(
+              (existingVariants ?? []).map((row) => row.external_id),
+            );
             if (existingVariantIds.size === ICONSCOUT_PALETTES.length) {
               skipped++;
               continue;
@@ -309,7 +311,9 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
 
             for (let i = 0; i < ICONSCOUT_PALETTES.length; i++) {
               const palette = ICONSCOUT_PALETTES[i];
-              const variant = palette.colors.length ? recolorLottie(lottie, palette.colors) : lottie;
+              const variant = palette.colors.length
+                ? recolorLottie(lottie, palette.colors)
+                : lottie;
               const variantId = `${externalId}__${palette.id}`;
               if (existingVariantIds.has(variantId)) continue;
               const path = `iconscout/${externalId}/${palette.id}.json`;
