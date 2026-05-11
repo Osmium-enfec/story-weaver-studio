@@ -40,6 +40,28 @@ export function IconscoutMirrorPanel() {
     | null
   >(null);
 
+  // Browse & pick state
+  type PreviewItem = {
+    external_id: string;
+    asset_type: "lottie" | "icon" | "illustration" | "3d";
+    uuid: string;
+    name: string;
+    slug: string;
+    preview_url: string;
+    already_mirrored: boolean;
+  };
+  const [previewItems, setPreviewItems] = useState<PreviewItem[] | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [browsing, setBrowsing] = useState(false);
+  const [mirroringSelected, setMirroringSelected] = useState(false);
+
+  const toggleSelected = (id: string) =>
+    setSelectedIds((curr) => {
+      const next = new Set(curr);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const refreshStats = useCallback(async () => {
     const { data, count } = await supabase
       .from("animation_components")
