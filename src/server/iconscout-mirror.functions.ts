@@ -185,6 +185,18 @@ function pickMp4Url(it: any): string | null {
   return it?.urls?.thumb || it?.urls?.png || it?.urls?.preview || null;
 }
 
+// Pick the best free public PNG/SVG-thumb URL for a non-lottie asset.
+function pickStaticUrl(it: any): string | null {
+  return (
+    it?.urls?.png_256 ||
+    it?.urls?.png_128 ||
+    it?.urls?.png_64 ||
+    it?.urls?.thumb ||
+    it?.urls?.png ||
+    it?.urls?.preview ||
+    null
+  );
+}
 // ---------- Server functions ----------
 
 /** Cache a single Iconscout item (called when a user selects it). MP4 mode. */
