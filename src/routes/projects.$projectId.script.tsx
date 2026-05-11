@@ -1098,20 +1098,22 @@ function ScriptCanvas() {
                               <Eraser className="h-3 w-3" />
                             </button>
                           )}
-                          <button
-                            onClick={(e) => { e.stopPropagation(); void moveElementLayer(s.id, el.id, "forward"); }}
-                            title="Move forward"
-                            className="absolute -left-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-card text-foreground border border-border shadow"
-                          >
-                            <ChevronUp className="h-3 w-3" />
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); void moveElementLayer(s.id, el.id, "backward"); }}
-                            title="Move backward"
-                            className="absolute left-5 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-card text-foreground border border-border shadow"
-                          >
-                            <ChevronDown className="h-3 w-3" />
-                          </button>
+                          <div className="absolute -bottom-2 -right-2 z-10 flex items-center rounded-full bg-card border border-border shadow overflow-hidden">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); void moveElementLayer(s.id, el.id, "forward"); }}
+                              title="Move forward"
+                              className="flex h-6 w-6 items-center justify-center text-foreground hover:bg-accent"
+                            >
+                              <ChevronUp className="h-3 w-3" />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); void moveElementLayer(s.id, el.id, "backward"); }}
+                              title="Move backward"
+                              className="flex h-6 w-6 items-center justify-center text-foreground hover:bg-accent border-l border-border"
+                            >
+                              <ChevronDown className="h-3 w-3" />
+                            </button>
+                          </div>
                           <button
                             onClick={(e) => { e.stopPropagation(); deleteElement(s.id, el.id); }}
                             title="Delete"
