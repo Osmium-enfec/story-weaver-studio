@@ -145,13 +145,12 @@ export function IconscoutMirrorPanel() {
   }
 
   async function browseSearch(q: string) {
-    const assetTypes = modes.filter((m) => m !== "palettes") as Array<
-      "lottie" | "icon" | "illustration" | "3d"
-    >;
-    const types = assetTypes.length
-      ? assetTypes.map((m) => (m === "mp4" ? "lottie" : m) as "lottie" | "icon" | "illustration" | "3d")
-      : (["lottie"] as const);
-    const uniqTypes = Array.from(new Set(types));
+    const mapped = modes
+      .filter((m) => m !== "palettes")
+      .map((m) =>
+        m === "mp4" ? ("lottie" as const) : (m as "icon" | "illustration" | "3d"),
+      );
+    const uniqTypes = Array.from(new Set(mapped.length ? mapped : (["lottie"] as const)));
     setBrowsing(true);
     setPreviewItems(null);
     setSelectedIds(new Set());
