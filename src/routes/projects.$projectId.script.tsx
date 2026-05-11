@@ -1099,6 +1099,20 @@ function ScriptCanvas() {
                             </button>
                           )}
                           <button
+                            onClick={(e) => { e.stopPropagation(); void moveElementLayer(s.id, el.id, "forward"); }}
+                            title="Move forward"
+                            className="absolute -left-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-card text-foreground border border-border shadow"
+                          >
+                            <ChevronUp className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); void moveElementLayer(s.id, el.id, "backward"); }}
+                            title="Move backward"
+                            className="absolute left-5 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-card text-foreground border border-border shadow"
+                          >
+                            <ChevronDown className="h-3 w-3" />
+                          </button>
+                          <button
                             onClick={(e) => { e.stopPropagation(); deleteElement(s.id, el.id); }}
                             title="Delete"
                             className="absolute -right-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow"
