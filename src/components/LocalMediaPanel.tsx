@@ -64,15 +64,18 @@ export function LocalMediaPanel() {
           };
         });
 
-        const comps: LocalItem[] = (compsRes.data ?? []).map((c) => ({
-          id: `comp:${c.id}`,
-          name: c.name,
-          category: c.category || "Components",
-          kind: c.lottie_url ? "lottie" : "component",
-          url: c.lottie_url,
-          thumbnail: c.thumbnail_url,
-          tags: c.tags ?? [],
-        }));
+        const comps: LocalItem[] = (compsRes.data ?? []).map((c) => {
+          const kind: LocalKind = c.lottie_url ? "lottie" : c.video_url ? "video" : "component";
+          return {
+            id: `comp:${c.id}`,
+            name: c.name,
+            category: c.category || "Components",
+            kind,
+            url: c.lottie_url || c.video_url,
+            thumbnail: c.thumbnail_url,
+            tags: c.tags ?? [],
+          };
+        });
 
         setItems([...uploads, ...comps]);
       } finally {
