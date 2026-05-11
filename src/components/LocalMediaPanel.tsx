@@ -46,15 +46,28 @@ export function LocalMediaPanel() {
     (async () => {
       setLoading(true);
       try {
+        const fetchAllComps = async () => {
+          const pageSize = 1000;
+          const all: any[] = [];
+          for (let from = 0; ; from += pageSize) {
+            const { data, error } = await supabase
+              .from("animation_components")
+              .select("id,name,slug,category,tags,lottie_url,thumbnail_url,video_url,provider")
+              .order("created_at", { ascending: false })
+              .range(from, from + pageSize - 1);
+            if (error) throw error;
+            const batch = data ?? [];
+            all.push(...batch);
+            if (batch.length < pageSize) break;
+          }
+          return { data: all };
+        };
         const [uploadsRes, compsRes] = await Promise.all([
           supabase.storage.from("lottie-uploads").list("", {
             limit: 1000,
             sortBy: { column: "created_at", order: "desc" },
           }),
-          supabase
-            .from("animation_components")
-            .select("id,name,slug,category,tags,lottie_url,thumbnail_url,video_url,provider")
-            .limit(2000),
+          fetchAllComps(),
         ]);
 
         const uploads: LocalItem[] = (uploadsRes.data ?? []).map((f) => {
