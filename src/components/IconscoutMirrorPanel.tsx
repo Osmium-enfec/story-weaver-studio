@@ -58,7 +58,7 @@ export function IconscoutMirrorPanel() {
     setLog((l) => [`Mirroring "${q}"…`, ...l]);
     try {
       const res = await bulkMirrorIconscout({
-        data: { query: q, category: q, limit },
+        data: { query: q, category: q, limit, mode },
       });
       const success = res.mirrored > 0;
       const msg = `${success ? "✓" : "⚠"} "${q}": +${res.mirrored} mirrored, ${res.skipped} skipped${res.errors.length ? `, ${res.errors.length} errors` : ""}`;
