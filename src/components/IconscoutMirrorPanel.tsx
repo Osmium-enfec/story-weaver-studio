@@ -1,9 +1,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Download, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, Download, CheckCircle2, XCircle, Search, X } from "lucide-react";
 import { toast } from "sonner";
-import { bulkMirrorIconscout } from "@/server/iconscout-mirror.functions";
+import {
+  bulkMirrorIconscout,
+  previewIconscoutSearch,
+  mirrorIconscoutSelected,
+} from "@/server/iconscout-mirror.functions";
 import { supabase } from "@/integrations/supabase/client";
 
 const PRESETS = [
