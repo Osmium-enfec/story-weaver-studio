@@ -46,9 +46,8 @@ export function LocalMediaPanel() {
           }),
           supabase
             .from("animation_components")
-            .select("id,name,slug,category,tags,lottie_url,thumbnail_url,provider")
-            .neq("provider", "iconscout")
-            .limit(1000),
+            .select("id,name,slug,category,tags,lottie_url,thumbnail_url,video_url,provider")
+            .limit(2000),
         ]);
 
         const uploads: LocalItem[] = (uploadsRes.data ?? []).map((f) => {
