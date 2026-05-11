@@ -1396,22 +1396,29 @@ function ClickableScript({
             >
               {t.text}
             </button>
-            {isBound ? (
-              <button
-                title={`Remove ${count} animation${count > 1 ? "s" : ""}`}
-                onClick={(e) => { e.stopPropagation(); onRemoveForWord(t.text); }}
-                className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm hover:scale-110 transition"
-              >
-                <Minus className="h-2.5 w-2.5" />
-              </button>
-            ) : (
-              <button
-                title="Add animation for this word"
-                onClick={(e) => { e.stopPropagation(); onAddForWord(t.text); }}
-                className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm opacity-60 hover:opacity-100 hover:scale-110 transition"
-              >
-                <Plus className="h-2.5 w-2.5" />
-              </button>
+            <button
+              title={isBound ? `Add another animation (${count} attached)` : "Add animation for this word"}
+              onClick={(e) => { e.stopPropagation(); onAddForWord(t.text); }}
+              className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm opacity-60 hover:opacity-100 hover:scale-110 transition"
+            >
+              <Plus className="h-2.5 w-2.5" />
+            </button>
+            {isBound && (
+              <>
+                <span
+                  title={`${count} attached`}
+                  className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-accent-foreground"
+                >
+                  {count}
+                </span>
+                <button
+                  title={`Remove all ${count} animation${count > 1 ? "s" : ""} for this word`}
+                  onClick={(e) => { e.stopPropagation(); onRemoveForWord(t.text); }}
+                  className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm hover:scale-110 transition"
+                >
+                  <Minus className="h-2.5 w-2.5" />
+                </button>
+              </>
             )}
           </span>
         );
