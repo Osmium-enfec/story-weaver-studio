@@ -31,14 +31,19 @@ function getAdmin() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-async function iconscoutSearch(query: string, page: number, perPage: number) {
+async function iconscoutSearch(
+  query: string,
+  page: number,
+  perPage: number,
+  asset: "lottie" | "icon" | "illustration" | "3d" = "lottie",
+) {
   const id = process.env.ICONSCOUT_CLIENT_ID;
   const secret = process.env.ICONSCOUT_CLIENT_SECRET;
   if (!id || !secret) throw new Error("Iconscout credentials not configured");
   const url = new URL("https://api.iconscout.com/v3/search");
   url.searchParams.set("query", query);
   url.searchParams.set("product_type", "item");
-  url.searchParams.set("asset", "lottie");
+  url.searchParams.set("asset", asset);
   url.searchParams.set("per_page", String(perPage));
   url.searchParams.set("page", String(page));
   const res = await fetch(url.toString(), {
@@ -180,6 +185,18 @@ function pickMp4Url(it: any): string | null {
   return it?.urls?.thumb || it?.urls?.png || it?.urls?.preview || null;
 }
 
+// Pick the best free public PNG/SVG-thumb URL for a non-lottie asset.
+function pickStaticUrl(it: any): string | null {
+  return (
+    it?.urls?.png_256 ||
+    it?.urls?.png_128 ||
+    it?.urls?.png_64 ||
+    it?.urls?.thumb ||
+    it?.urls?.png ||
+    it?.urls?.preview ||
+    null
+  );
+}
 // ---------- Server functions ----------
 
 /** Cache a single Iconscout item (called when a user selects it). MP4 mode. */
@@ -238,7 +255,9 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
         query: z.string().min(1).max(100),
         category: z.string().default("Iconscout"),
         limit: z.number().int().min(1).max(100).default(30),
-        mode: z.enum(["mp4", "palettes"]).default("mp4"),
+        // mp4 = lottie preview MP4 (free), palettes = lottie JSON + recolor (paid),
+        // icon / illustration / 3d = static PNG thumb (free).
+        mode: z.enum(["mp4", "palettes", "icon", "illustration", "3d"]).default("mp4"),
       })
       .parse(d),
   )
@@ -251,10 +270,16 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
     let processed = 0;
     const errors: string[] = [];
 
+    const searchAsset: "lottie" | "icon" | "illustration" | "3d" =
+      data.mode === "icon" || data.mode === "illustration" || data.mode === "3d"
+        ? data.mode
+        : "lottie";
+    const isStatic = searchAsset !== "lottie";
+
     outer: for (let p = 1; p <= pages; p++) {
       let items: any[];
       try {
-        items = await iconscoutSearch(data.query, p, perPage);
+        items = await iconscoutSearch(data.query, p, perPage, searchAsset);
       } catch (e) {
         errors.push((e as Error).message);
         break;
@@ -267,7 +292,40 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
         processed++;
 
         try {
-          if (data.mode === "mp4") {
+          if (isStatic) {
+            // icon / illustration / 3d — free static PNG thumb
+            const staticId = `${searchAsset}-${externalId}`;
+            const { data: existingStatic } = await admin
+              .from("animation_components")
+              .select("id")
+              .eq("provider", "iconscout")
+              .eq("external_id", staticId)
+              .limit(1)
+              .maybeSingle();
+            if (existingStatic) {
+              skipped++;
+              continue;
+            }
+            const previewUrl = pickStaticUrl(it);
+            if (!previewUrl) {
+              skipped++;
+              continue;
+            }
+            const path = `iconscout/${searchAsset}/${externalId}.png`;
+            const publicUrl = await downloadToBucket(admin, previewUrl, path, "image/png");
+            const { error } = await admin.from("animation_components").insert({
+              slug: it.slug || `iconscout-${searchAsset}-${externalId}`,
+              name: it.name || `${searchAsset} ${externalId}`,
+              category: data.category,
+              provider: "iconscout",
+              external_id: staticId,
+              thumbnail_url: publicUrl,
+              color_support: "fixed",
+              default_props: { asset_type: searchAsset, image_url: publicUrl },
+            });
+            if (error) throw error;
+            mirrored++;
+          } else if (data.mode === "mp4") {
             const { data: existingMp4 } = await admin
               .from("animation_components")
               .select("id")

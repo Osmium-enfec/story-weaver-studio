@@ -20,7 +20,7 @@ interface CategoryStat {
 export function IconscoutMirrorPanel() {
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(20);
-  const [mode, setMode] = useState<"mp4" | "palettes">("mp4");
+  const [mode, setMode] = useState<"mp4" | "palettes" | "icon" | "illustration" | "3d">("mp4");
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [total, setTotal] = useState<number>(0);
@@ -129,28 +129,31 @@ export function IconscoutMirrorPanel() {
           </Button>
         </div>
 
-        <div className="flex items-center gap-3 rounded-md border border-border bg-muted/30 p-2 text-xs">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-md border border-border bg-muted/30 p-2 text-xs">
           <span className="font-medium text-muted-foreground">Mirror as:</span>
-          <label className="flex items-center gap-1.5 cursor-pointer">
-            <input
-              type="radio"
-              name="mirror-mode"
-              checked={mode === "mp4"}
-              onChange={() => setMode("mp4")}
-              disabled={running}
-            />
-            <span>MP4 only <span className="text-muted-foreground">(1 per item, fixed colors)</span></span>
-          </label>
-          <label className="flex items-center gap-1.5 cursor-pointer">
-            <input
-              type="radio"
-              name="mirror-mode"
-              checked={mode === "palettes"}
-              onChange={() => setMode("palettes")}
-              disabled={running}
-            />
-            <span>Lottie + 5 color palettes <span className="text-muted-foreground">(5 per item)</span></span>
-          </label>
+          {([
+            ["mp4", "Lottie MP4", "free"],
+            ["palettes", "Lottie + 5 palettes", "paid API"],
+            ["icon", "Icons (PNG)", "free"],
+            ["illustration", "Illustrations (PNG)", "free"],
+            ["3d", "3D (PNG)", "free"],
+          ] as const).map(([value, label, tag]) => (
+            <label key={value} className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="radio"
+                name="mirror-mode"
+                checked={mode === value}
+                onChange={() => setMode(value)}
+                disabled={running}
+              />
+              <span>
+                {label}{" "}
+                <span className={tag === "paid API" ? "text-amber-600" : "text-muted-foreground"}>
+                  ({tag})
+                </span>
+              </span>
+            </label>
+          ))}
         </div>
 
         <div className="flex flex-wrap gap-1">
