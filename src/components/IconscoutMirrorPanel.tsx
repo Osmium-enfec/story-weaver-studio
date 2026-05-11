@@ -144,6 +144,64 @@ export function IconscoutMirrorPanel() {
     }
   }
 
+  async function browseSearch(q: string) {
+    const assetTypes = modes.filter((m) => m !== "palettes") as Array<
+      "lottie" | "icon" | "illustration" | "3d"
+    >;
+    const types = assetTypes.length
+      ? assetTypes.map((m) => (m === "mp4" ? "lottie" : m) as "lottie" | "icon" | "illustration" | "3d")
+      : (["lottie"] as const);
+    const uniqTypes = Array.from(new Set(types));
+    setBrowsing(true);
+    setPreviewItems(null);
+    setSelectedIds(new Set());
+    try {
+      const res = await previewIconscoutSearch({
+        data: { query: q, assetTypes: uniqTypes, limit },
+      });
+      setPreviewItems(res.items);
+      if (!res.items.length) toast.warning(`No results for "${q}"`);
+    } catch (e) {
+      toast.error(`Search failed: ${(e as Error).message}`);
+    } finally {
+      setBrowsing(false);
+    }
+  }
+
+  async function mirrorSelected() {
+    if (!previewItems) return;
+    const picked = previewItems.filter(
+      (it) => selectedIds.has(it.external_id) && !it.already_mirrored,
+    );
+    if (!picked.length) {
+      toast.warning("Select at least one un-mirrored item");
+      return;
+    }
+    setMirroringSelected(true);
+    try {
+      const res = await mirrorIconscoutSelected({
+        data: {
+          category: query.trim() || "Iconscout",
+          items: picked.map(({ already_mirrored, ...rest }) => rest),
+        },
+      });
+      toast.success(`Mirrored ${res.mirrored} (${res.skipped} skipped)`);
+      // mark them as mirrored in the preview
+      setPreviewItems((curr) =>
+        curr
+          ? curr.map((it) =>
+              selectedIds.has(it.external_id) ? { ...it, already_mirrored: true } : it,
+            )
+          : curr,
+      );
+      setSelectedIds(new Set());
+      await refreshStats();
+    } catch (e) {
+      toast.error(`Mirror failed: ${(e as Error).message}`);
+    } finally {
+      setMirroringSelected(false);
+    }
+  }
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <div className="space-y-4 rounded-xl border border-border bg-card p-4 lg:col-span-2">
