@@ -18,10 +18,10 @@ const BUCKET = "animation-cache";
 // Index 0 = original (no recolor).
 export const ICONSCOUT_PALETTES: { id: string; name: string; colors: string[] }[] = [
   { id: "original", name: "Original", colors: [] },
-  { id: "warm",     name: "Warm",     colors: ["#FF7A45", "#52C41A", "#1677FF", "#722ED1"] },
-  { id: "pastel",   name: "Pastel",   colors: ["#9254DE", "#D4B106", "#EB2F96", "#13C2C2"] },
-  { id: "primary",  name: "Primary",  colors: ["#2F54EB", "#F5222D", "#FAAD14", "#52C41A"] },
-  { id: "candy",    name: "Candy",    colors: ["#36CFC9", "#FF7875", "#BAE637", "#FF85C0"] },
+  { id: "warm", name: "Warm", colors: ["#FF7A45", "#52C41A", "#1677FF", "#722ED1"] },
+  { id: "pastel", name: "Pastel", colors: ["#9254DE", "#D4B106", "#EB2F96", "#13C2C2"] },
+  { id: "primary", name: "Primary", colors: ["#2F54EB", "#F5222D", "#FAAD14", "#52C41A"] },
+  { id: "candy", name: "Candy", colors: ["#36CFC9", "#FF7875", "#BAE637", "#FF85C0"] },
 ];
 
 function getAdmin() {
@@ -79,7 +79,10 @@ async function downloadToBucket(
 // ---------- Lottie color helpers ----------
 
 function rgbToHex(r: number, g: number, b: number) {
-  const to = (n: number) => Math.max(0, Math.min(255, Math.round(n * 255))).toString(16).padStart(2, "0");
+  const to = (n: number) =>
+    Math.max(0, Math.min(255, Math.round(n * 255)))
+      .toString(16)
+      .padStart(2, "0");
   return `#${to(r)}${to(g)}${to(b)}`.toUpperCase();
 }
 function hexToRgb01(hex: string): [number, number, number] {
