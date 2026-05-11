@@ -912,6 +912,8 @@ function ScriptCanvas() {
       next.map((e) => supabase.from("scene_elements").update({ z_index: e.z_index }).eq("id", e.id)),
     );
   }
+
+  async function toggleElementBackground(sceneId: string, id: string) {
     let nextContent: AnimationBlockContent | null = null;
     setScenes((prev) =>
       prev.map((s) =>
