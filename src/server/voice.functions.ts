@@ -579,8 +579,12 @@ async function seedScene(
  * existing scene_elements first.
  */
 export const seedAnimationsForProject = createServerFn({ method: "POST" })
-  .inputValidator((d: { projectId: string; replace?: boolean }) =>
-    z.object({ projectId: z.string().uuid(), replace: z.boolean().optional() }).parse(d),
+  .inputValidator((d: { projectId: string; replace?: boolean; sceneId?: string }) =>
+    z.object({
+      projectId: z.string().uuid(),
+      replace: z.boolean().optional(),
+      sceneId: z.string().uuid().optional(),
+    }).parse(d),
   )
   .handler(async ({ data }) => {
     const admin = getAdmin();
@@ -592,11 +596,14 @@ export const seedAnimationsForProject = createServerFn({ method: "POST" })
       .single();
     const themeTags = THEME_TAGS[project?.theme ?? "Whiteboard"] ?? [];
 
-    const { data: scenes } = await admin
+    const sceneQuery = admin
       .from("scenes")
       .select("id, narration, duration_ms, word_timings")
       .eq("project_id", data.projectId)
       .order("order_index");
+    const { data: scenes } = data.sceneId
+      ? await sceneQuery.eq("id", data.sceneId)
+      : await sceneQuery;
     const list = (scenes ?? []) as {
       id: string;
       narration: string | null;
