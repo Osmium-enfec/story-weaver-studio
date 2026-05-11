@@ -138,26 +138,42 @@ function recolorLottie(lottie: any, palette: string[]): any {
   return cloned;
 }
 
-// Try to find a Lottie JSON URL on an Iconscout item.
-function pickLottieUrl(it: any): string | null {
-  const candidates = [
-    it?.urls?.lottie,
-    it?.urls?.json,
-    it?.urls?.preview_json,
-    it?.urls?.animated_preview,
-  ];
-  for (const c of candidates) {
-    if (typeof c === "string" && c.toLowerCase().includes(".json")) return c;
-  }
-  // Some payloads stash a JSON url inside formats array
-  const fmts = it?.formats ?? it?.assets ?? [];
-  if (Array.isArray(fmts)) {
-    for (const f of fmts) {
-      const u = f?.url || f?.download_url || f?.preview_url;
-      if (typeof u === "string" && u.toLowerCase().endsWith(".json")) return u;
+// Iconscout's search endpoint never returns the Lottie JSON URL — only an MP4 thumb.
+// To get the JSON we must call the api-download endpoint with the item's uuid.
+// This requires an active Iconscout API subscription (download quota).
+async function fetchIconscoutLottie(uuid: string): Promise<any> {
+  const id = process.env.ICONSCOUT_CLIENT_ID;
+  const secret = process.env.ICONSCOUT_CLIENT_SECRET;
+  if (!id || !secret) throw new Error("Iconscout credentials not configured");
+
+  const url = `https://api.iconscout.com/v3/items/${uuid}/api-download?format=lottie`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Client-ID": id, "Client-Secret": secret },
+  });
+  const text = await res.text();
+  let payload: any = null;
+  try { payload = JSON.parse(text); } catch { /* not json */ }
+
+  if (!res.ok) {
+    const msg = payload?.message || text.slice(0, 200);
+    if (/subscription/i.test(msg)) {
+      throw new Error(`Iconscout subscription required for downloads — palette mirroring needs a paid Iconscout API plan. (${msg})`);
     }
+    throw new Error(`Iconscout download ${res.status}: ${msg}`);
   }
-  return null;
+
+  // Download endpoint returns { response: { download: { url: "..." } } } or similar
+  const downloadUrl =
+    payload?.response?.download?.url ||
+    payload?.response?.download_url ||
+    payload?.download_url ||
+    payload?.url;
+  if (!downloadUrl) throw new Error("Iconscout download response had no URL");
+
+  const jsonRes = await fetch(downloadUrl);
+  if (!jsonRes.ok) throw new Error(`Lottie fetch ${jsonRes.status}`);
+  return jsonRes.json();
 }
 
 function pickMp4Url(it: any): string | null {
