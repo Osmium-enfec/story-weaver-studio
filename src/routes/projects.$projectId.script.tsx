@@ -1375,7 +1375,7 @@ function ClickableScript({
   if (last < text.length) tokens.push({ word: false, text: text.slice(last) });
 
   return (
-    <p className="whitespace-pre-wrap leading-9">
+    <p className="whitespace-pre-wrap leading-[2.5rem] pt-3">
       {tokens.map((t, i) => {
         if (!t.word) return <span key={i}>{t.text}</span>;
         const lower = t.text.toLowerCase();
@@ -1383,7 +1383,33 @@ function ClickableScript({
         const count = boundCounts.get(lower) ?? 0;
         const isBound = count > 0;
         return (
-          <span key={i} className="inline-flex items-center gap-0.5 align-baseline">
+          <span key={i} className="relative inline-block align-baseline mx-0.5 pt-4">
+            <span className="absolute top-0 left-1/2 -translate-x-1/2 z-10 inline-flex items-center rounded-full border border-border bg-background shadow-sm overflow-hidden">
+              <button
+                title={isBound ? `Add another animation (${count} attached)` : "Add animation for this word"}
+                onClick={(e) => { e.stopPropagation(); onAddForWord(t.text); }}
+                className="inline-flex h-4 w-4 items-center justify-center bg-primary text-primary-foreground hover:bg-primary/80 transition"
+              >
+                <Plus className="h-2.5 w-2.5" />
+              </button>
+              {isBound && (
+                <>
+                  <span
+                    title={`${count} attached`}
+                    className="inline-flex h-4 min-w-4 items-center justify-center bg-accent px-1 text-[10px] font-semibold text-accent-foreground border-x border-border"
+                  >
+                    {count}
+                  </span>
+                  <button
+                    title={`Remove all ${count} animation${count > 1 ? "s" : ""} for this word`}
+                    onClick={(e) => { e.stopPropagation(); onRemoveForWord(t.text); }}
+                    className="inline-flex h-4 w-4 items-center justify-center bg-destructive text-destructive-foreground hover:bg-destructive/80 transition"
+                  >
+                    <Minus className="h-2.5 w-2.5" />
+                  </button>
+                </>
+              )}
+            </span>
             <button
               onClick={(e) => { e.stopPropagation(); onWordSelect(t.text); }}
               className={`rounded px-0.5 transition ${
@@ -1396,30 +1422,6 @@ function ClickableScript({
             >
               {t.text}
             </button>
-            <button
-              title={isBound ? `Add another animation (${count} attached)` : "Add animation for this word"}
-              onClick={(e) => { e.stopPropagation(); onAddForWord(t.text); }}
-              className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm opacity-60 hover:opacity-100 hover:scale-110 transition"
-            >
-              <Plus className="h-2.5 w-2.5" />
-            </button>
-            {isBound && (
-              <>
-                <span
-                  title={`${count} attached`}
-                  className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-accent-foreground"
-                >
-                  {count}
-                </span>
-                <button
-                  title={`Remove all ${count} animation${count > 1 ? "s" : ""} for this word`}
-                  onClick={(e) => { e.stopPropagation(); onRemoveForWord(t.text); }}
-                  className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm hover:scale-110 transition"
-                >
-                  <Minus className="h-2.5 w-2.5" />
-                </button>
-              </>
-            )}
           </span>
         );
       })}

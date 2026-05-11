@@ -163,13 +163,29 @@ export function FirebaseThemePanel({
         <Label className="mb-2 flex items-center gap-1.5 text-xs"><ImageIcon className="h-3.5 w-3.5" /> Backgrounds</Label>
         <div className="grid grid-cols-2 gap-2">
           {FIREBASE_BACKGROUNDS.map((bg) => (
-            <MediaTile
-              key={bg.id}
-              item={bg}
-              onClick={onApplyBackground ? () => onApplyBackground(backgroundFromAsset(bg)) : undefined}
-            />
+            <div key={bg.id} className="space-y-1">
+              <MediaTile
+                item={bg}
+                onClick={onApplyBackground ? () => onApplyBackground(backgroundFromAsset(bg)) : undefined}
+                label={bg.name}
+              />
+              {onInsertMedia && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-6 w-full text-[10px]"
+                  onClick={() => onInsertMedia({ url: bg.url, kind: bg.kind, name: bg.name })}
+                >
+                  Add as element
+                </Button>
+              )}
+            </div>
           ))}
         </div>
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          Click the tile to set as canvas background, or add it as an element.
+        </p>
       </section>
 
       {/* Cards */}
