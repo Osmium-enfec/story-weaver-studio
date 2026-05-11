@@ -232,6 +232,7 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
     const pages = Math.ceil(data.limit / perPage);
     let mirrored = 0;
     let skipped = 0;
+    let processed = 0;
     const errors: string[] = [];
 
     outer: for (let p = 1; p <= pages; p++) {
@@ -245,8 +246,9 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
       if (!items.length) break;
 
       for (const it of items) {
-        if (mirrored + skipped >= data.limit) break outer;
+        if (processed >= data.limit) break outer;
         const externalId = String(it.id);
+        processed++;
 
         try {
           if (data.mode === "mp4") {
