@@ -203,6 +203,34 @@ export function LocalMediaPanel() {
           ))}
         </div>
       )}
+
+      {!loading && filtered.length > 0 && (
+        <div className="flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
+          <span>
+            Showing {(currentPage - 1) * PAGE_SIZE + 1}–
+            {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="rounded-md border border-border px-2 py-1 hover:bg-accent disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <span className="px-2">
+              Page {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="rounded-md border border-border px-2 py-1 hover:bg-accent disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
