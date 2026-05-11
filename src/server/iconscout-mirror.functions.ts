@@ -31,14 +31,19 @@ function getAdmin() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-async function iconscoutSearch(query: string, page: number, perPage: number) {
+async function iconscoutSearch(
+  query: string,
+  page: number,
+  perPage: number,
+  asset: "lottie" | "icon" | "illustration" | "3d" = "lottie",
+) {
   const id = process.env.ICONSCOUT_CLIENT_ID;
   const secret = process.env.ICONSCOUT_CLIENT_SECRET;
   if (!id || !secret) throw new Error("Iconscout credentials not configured");
   const url = new URL("https://api.iconscout.com/v3/search");
   url.searchParams.set("query", query);
   url.searchParams.set("product_type", "item");
-  url.searchParams.set("asset", "lottie");
+  url.searchParams.set("asset", asset);
   url.searchParams.set("per_page", String(perPage));
   url.searchParams.set("page", String(page));
   const res = await fetch(url.toString(), {
