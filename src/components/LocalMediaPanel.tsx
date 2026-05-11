@@ -72,13 +72,19 @@ export function LocalMediaPanel() {
         });
 
         const comps: LocalItem[] = (compsRes.data ?? []).map((c) => {
-          const kind: LocalKind = c.lottie_url ? "lottie" : c.video_url ? "video" : "component";
+          const kind: LocalKind = c.lottie_url
+            ? "lottie"
+            : c.video_url
+            ? "video"
+            : c.thumbnail_url
+            ? "image"
+            : "component";
           return {
             id: `comp:${c.id}`,
             name: c.name,
             category: c.category || "Components",
             kind,
-            url: c.lottie_url || c.video_url,
+            url: c.lottie_url || c.video_url || c.thumbnail_url,
             thumbnail: c.thumbnail_url,
             tags: c.tags ?? [],
           };
