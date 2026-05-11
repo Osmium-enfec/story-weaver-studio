@@ -20,6 +20,7 @@ interface CategoryStat {
 export function IconscoutMirrorPanel() {
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(20);
+  const [mode, setMode] = useState<"mp4" | "palettes">("mp4");
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [total, setTotal] = useState<number>(0);
