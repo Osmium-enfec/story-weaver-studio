@@ -275,6 +275,110 @@ export function IconscoutMirrorPanel() {
           ))}
         </div>
 
+        {previewItems !== null && (
+          <div className="space-y-2 rounded-md border border-border bg-background p-2">
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <div className="font-medium">
+                {previewItems.length} result{previewItems.length === 1 ? "" : "s"}
+                {selectedIds.size > 0 ? ` · ${selectedIds.size} selected` : ""}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    const pickable = previewItems
+                      .filter((it) => !it.already_mirrored)
+                      .map((it) => it.external_id);
+                    setSelectedIds(new Set(pickable));
+                  }}
+                >
+                  Select all
+                </button>
+                <button
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  Clear
+                </button>
+                <Button
+                  size="sm"
+                  onClick={mirrorSelected}
+                  disabled={mirroringSelected || selectedIds.size === 0}
+                  className="h-7 gap-1"
+                >
+                  {mirroringSelected ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Download className="h-3 w-3" />
+                  )}
+                  Mirror selected ({selectedIds.size})
+                </Button>
+                <button
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setPreviewItems(null);
+                    setSelectedIds(new Set());
+                  }}
+                  aria-label="Close preview"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="grid max-h-[420px] grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+              {previewItems.map((it) => {
+                const sel = selectedIds.has(it.external_id);
+                return (
+                  <button
+                    key={it.external_id}
+                    onClick={() => !it.already_mirrored && toggleSelected(it.external_id)}
+                    disabled={it.already_mirrored}
+                    className={`group relative aspect-square overflow-hidden rounded-md border text-left transition ${
+                      it.already_mirrored
+                        ? "border-border opacity-50 cursor-not-allowed"
+                        : sel
+                          ? "border-primary ring-2 ring-primary"
+                          : "border-border hover:border-primary/60"
+                    }`}
+                    title={it.name}
+                  >
+                    {it.asset_type === "lottie" ? (
+                      <video
+                        src={it.preview_url}
+                        muted
+                        loop
+                        autoPlay
+                        playsInline
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <img
+                        src={it.preview_url}
+                        alt={it.name}
+                        className="h-full w-full object-contain bg-muted/30"
+                        loading="lazy"
+                      />
+                    )}
+                    <div className="absolute left-1 top-1 rounded bg-background/90 px-1 text-[9px] uppercase tracking-wide">
+                      {it.asset_type}
+                    </div>
+                    {it.already_mirrored && (
+                      <div className="absolute right-1 top-1 rounded bg-green-500/90 px-1 text-[9px] text-white">
+                        ✓ saved
+                      </div>
+                    )}
+                    {sel && !it.already_mirrored && (
+                      <div className="absolute right-1 top-1 rounded-full bg-primary p-0.5 text-primary-foreground">
+                        <CheckCircle2 className="h-3 w-3" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-1">
           {PRESETS.map((p) => (
             <button
