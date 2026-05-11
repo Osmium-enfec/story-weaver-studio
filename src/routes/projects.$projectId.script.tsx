@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Trash2, Plus, Eraser, Grid3x3, Minus, Play, ArrowUpToLine, ArrowDownToLine } from "lucide-react";
+import { Trash2, Plus, Eraser, Grid3x3, Minus, Play, ArrowUpToLine, ArrowDownToLine, ChevronUp, ChevronDown } from "lucide-react";
 import { toolbarStore } from "@/components/toolbar-store";
 import { AnimationSearchPanel } from "@/components/AnimationSearchPanel";
 import { AnimationBlockRenderer, TextBlockRenderer, measureTextSize, type AnimationBlockContent, type ShapeType } from "@/components/AnimationBlock";
@@ -897,6 +897,22 @@ function ScriptCanvas() {
     );
   }
 
+  async function moveElementLayer(sceneId: string, id: string, direction: "forward" | "backward") {
+    const scene = scenes.find((s) => s.id === sceneId);
+    if (!scene) return;
+    const sorted = [...scene.elements].sort((a, b) => a.z_index - b.z_index);
+    const idx = sorted.findIndex((e) => e.id === id);
+    if (idx < 0) return;
+    const swapWith = direction === "forward" ? idx + 1 : idx - 1;
+    if (swapWith < 0 || swapWith >= sorted.length) return;
+    [sorted[idx], sorted[swapWith]] = [sorted[swapWith], sorted[idx]];
+    const next = sorted.map((e, i) => ({ ...e, z_index: i }));
+    setScenes((prev) => prev.map((s) => (s.id === sceneId ? { ...s, elements: next } : s)));
+    await Promise.all(
+      next.map((e) => supabase.from("scene_elements").update({ z_index: e.z_index }).eq("id", e.id)),
+    );
+  }
+
   async function toggleElementBackground(sceneId: string, id: string) {
     let nextContent: AnimationBlockContent | null = null;
     setScenes((prev) =>
@@ -1082,6 +1098,20 @@ function ScriptCanvas() {
                               <Eraser className="h-3 w-3" />
                             </button>
                           )}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); void moveElementLayer(s.id, el.id, "forward"); }}
+                            title="Move forward"
+                            className="absolute -left-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-card text-foreground border border-border shadow"
+                          >
+                            <ChevronUp className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); void moveElementLayer(s.id, el.id, "backward"); }}
+                            title="Move backward"
+                            className="absolute left-5 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-card text-foreground border border-border shadow"
+                          >
+                            <ChevronDown className="h-3 w-3" />
+                          </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); deleteElement(s.id, el.id); }}
                             title="Delete"
