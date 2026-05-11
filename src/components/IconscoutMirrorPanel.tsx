@@ -129,6 +129,30 @@ export function IconscoutMirrorPanel() {
           </Button>
         </div>
 
+        <div className="flex items-center gap-3 rounded-md border border-border bg-muted/30 p-2 text-xs">
+          <span className="font-medium text-muted-foreground">Mirror as:</span>
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="radio"
+              name="mirror-mode"
+              checked={mode === "mp4"}
+              onChange={() => setMode("mp4")}
+              disabled={running}
+            />
+            <span>MP4 only <span className="text-muted-foreground">(1 per item, fixed colors)</span></span>
+          </label>
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="radio"
+              name="mirror-mode"
+              checked={mode === "palettes"}
+              onChange={() => setMode("palettes")}
+              disabled={running}
+            />
+            <span>Lottie + 5 color palettes <span className="text-muted-foreground">(5 per item)</span></span>
+          </label>
+        </div>
+
         <div className="flex flex-wrap gap-1">
           {PRESETS.map((p) => (
             <button
