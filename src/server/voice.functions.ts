@@ -471,15 +471,16 @@ async function findInLibrary(
   if (rows.length === 0) return null;
   // Prefer ones with playable assets, then theme-matching
   const playable = rows.filter((r) => r.video_url || r.lottie_url);
-  const pool = playable.length ? playable : rows;
-  const themed = pool.find((r) =>
+  const basePool = playable.length ? playable : rows;
+  const themedPool = basePool.filter((r) =>
     themeTags.some(
       (t) =>
         (r.tags ?? []).map((x: string) => x.toLowerCase()).includes(t) ||
         (r.category ?? "").toLowerCase().includes(t),
     ),
   );
-  const pick = themed ?? pool[0];
+  const finalPool = (themedPool.length ? themedPool : basePool).slice(0, 5);
+  const pick = finalPool[Math.floor(Math.random() * finalPool.length)];
   return {
     name: pick.name,
     slug: pick.slug,
