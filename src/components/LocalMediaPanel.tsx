@@ -29,11 +29,18 @@ function classifyExt(name: string): LocalKind {
   return "image";
 }
 
+const PAGE_SIZE = 20;
+
 export function LocalMediaPanel() {
   const [items, setItems] = useState<LocalItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, activeCategory]);
 
   useEffect(() => {
     (async () => {
@@ -103,6 +110,10 @@ export function LocalMediaPanel() {
     });
   }, [items, query, activeCategory]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
@@ -159,7 +170,7 @@ export function LocalMediaPanel() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          {filtered.map((it) => (
+          {paged.map((it) => (
             <div
               key={it.id}
               className="group flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-all hover:border-primary hover:shadow-sm"
@@ -190,6 +201,34 @@ export function LocalMediaPanel() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {!loading && filtered.length > 0 && (
+        <div className="flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
+          <span>
+            Showing {(currentPage - 1) * PAGE_SIZE + 1}–
+            {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="rounded-md border border-border px-2 py-1 hover:bg-accent disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <span className="px-2">
+              Page {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="rounded-md border border-border px-2 py-1 hover:bg-accent disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
     </div>
