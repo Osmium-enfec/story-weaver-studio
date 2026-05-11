@@ -170,7 +170,7 @@ export function LocalMediaPanel() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          {filtered.map((it) => (
+          {paged.map((it) => (
             <div
               key={it.id}
               className="group flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-all hover:border-primary hover:shadow-sm"
