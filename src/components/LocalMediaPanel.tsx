@@ -29,11 +29,18 @@ function classifyExt(name: string): LocalKind {
   return "image";
 }
 
+const PAGE_SIZE = 20;
+
 export function LocalMediaPanel() {
   const [items, setItems] = useState<LocalItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, activeCategory]);
 
   useEffect(() => {
     (async () => {
