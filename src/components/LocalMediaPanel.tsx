@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import { Search, Sparkles, HardDrive, Loader2 } from "lucide-react";
+import { Search, Sparkles, HardDrive, Loader2, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -34,6 +34,7 @@ const PAGE_SIZE = 20;
 export function LocalMediaPanel() {
   const [items, setItems] = useState<LocalItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [page, setPage] = useState(1);
@@ -42,10 +43,10 @@ export function LocalMediaPanel() {
     setPage(1);
   }, [query, activeCategory]);
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
+  const loadItems = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
         const fetchAllComps = async () => {
           const pageSize = 1000;
           const all: any[] = [];
@@ -103,12 +104,19 @@ export function LocalMediaPanel() {
           };
         });
 
-        setItems([...uploads, ...comps]);
-      } finally {
-        setLoading(false);
-      }
-    })();
+      setItems([...uploads, ...comps]);
+    } catch (err) {
+      console.error("Failed to load local media", err);
+      setItems([]);
+      setError("Could not load local media. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadItems();
+  }, [loadItems]);
 
   const categories = useMemo(() => {
     const map = new Map<string, number>();
@@ -143,14 +151,29 @@ export function LocalMediaPanel() {
         </span>
       </div>
 
-      <div className="relative max-w-md">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search local media…"
-          className="h-9 pl-8 text-sm"
-        />
+      <div className="flex max-w-xl gap-2">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => {
+              const value = e.target.value;
+              setQuery(value);
+              if (value.trim()) setActiveCategory("all");
+            }}
+            placeholder="Search local media…"
+            className="h-9 pl-8 text-sm"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => void loadItems()}
+          disabled={loading}
+          className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
@@ -182,6 +205,10 @@ export function LocalMediaPanel() {
       {loading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      ) : error ? (
+        <div className="rounded-xl border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
+          {error}
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
