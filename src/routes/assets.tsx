@@ -28,7 +28,7 @@ interface AnimationComponent {
 }
 
 function Assets() {
-  const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("uploaded");
+  const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("local");
   const [components, setComponents] = useState<AnimationComponent[]>([]);
 
   useEffect(() => {
