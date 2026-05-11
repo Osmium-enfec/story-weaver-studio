@@ -1,9 +1,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Download, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, Download, CheckCircle2, XCircle, Search, X } from "lucide-react";
 import { toast } from "sonner";
-import { bulkMirrorIconscout } from "@/server/iconscout-mirror.functions";
+import {
+  bulkMirrorIconscout,
+  previewIconscoutSearch,
+  mirrorIconscoutSelected,
+} from "@/server/iconscout-mirror.functions";
 import { supabase } from "@/integrations/supabase/client";
 
 const PRESETS = [
@@ -36,6 +40,28 @@ export function IconscoutMirrorPanel() {
     | null
   >(null);
 
+  // Browse & pick state
+  type PreviewItem = {
+    external_id: string;
+    asset_type: "lottie" | "icon" | "illustration" | "3d";
+    uuid: string;
+    name: string;
+    slug: string;
+    preview_url: string;
+    already_mirrored: boolean;
+  };
+  const [previewItems, setPreviewItems] = useState<PreviewItem[] | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [browsing, setBrowsing] = useState(false);
+  const [mirroringSelected, setMirroringSelected] = useState(false);
+
+  const toggleSelected = (id: string) =>
+    setSelectedIds((curr) => {
+      const next = new Set(curr);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const refreshStats = useCallback(async () => {
     const { data, count } = await supabase
       .from("animation_components")
@@ -118,6 +144,63 @@ export function IconscoutMirrorPanel() {
     }
   }
 
+  async function browseSearch(q: string) {
+    const mapped = modes
+      .filter((m) => m !== "palettes")
+      .map((m) =>
+        m === "mp4" ? ("lottie" as const) : (m as "icon" | "illustration" | "3d"),
+      );
+    const uniqTypes = Array.from(new Set(mapped.length ? mapped : (["lottie"] as const)));
+    setBrowsing(true);
+    setPreviewItems(null);
+    setSelectedIds(new Set());
+    try {
+      const res = await previewIconscoutSearch({
+        data: { query: q, assetTypes: uniqTypes, limit },
+      });
+      setPreviewItems(res.items);
+      if (!res.items.length) toast.warning(`No results for "${q}"`);
+    } catch (e) {
+      toast.error(`Search failed: ${(e as Error).message}`);
+    } finally {
+      setBrowsing(false);
+    }
+  }
+
+  async function mirrorSelected() {
+    if (!previewItems) return;
+    const picked = previewItems.filter(
+      (it) => selectedIds.has(it.external_id) && !it.already_mirrored,
+    );
+    if (!picked.length) {
+      toast.warning("Select at least one un-mirrored item");
+      return;
+    }
+    setMirroringSelected(true);
+    try {
+      const res = await mirrorIconscoutSelected({
+        data: {
+          category: query.trim() || "Iconscout",
+          items: picked.map(({ already_mirrored, ...rest }) => rest),
+        },
+      });
+      toast.success(`Mirrored ${res.mirrored} (${res.skipped} skipped)`);
+      // mark them as mirrored in the preview
+      setPreviewItems((curr) =>
+        curr
+          ? curr.map((it) =>
+              selectedIds.has(it.external_id) ? { ...it, already_mirrored: true } : it,
+            )
+          : curr,
+      );
+      setSelectedIds(new Set());
+      await refreshStats();
+    } catch (e) {
+      toast.error(`Mirror failed: ${(e as Error).message}`);
+    } finally {
+      setMirroringSelected(false);
+    }
+  }
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <div className="space-y-4 rounded-xl border border-border bg-card p-4 lg:col-span-2">
@@ -145,12 +228,21 @@ export function IconscoutMirrorPanel() {
             className="h-9 w-20"
           />
           <Button
+            variant="outline"
+            onClick={() => query.trim() && browseSearch(query.trim())}
+            disabled={browsing || !query.trim()}
+            className="h-9 gap-1"
+          >
+            {browsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            Browse
+          </Button>
+          <Button
             onClick={() => query.trim() && mirrorOne(query.trim())}
             disabled={running || !query.trim()}
             className="h-9 gap-1"
           >
             {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Mirror
+            Mirror all
           </Button>
         </div>
 
@@ -182,6 +274,110 @@ export function IconscoutMirrorPanel() {
             </label>
           ))}
         </div>
+
+        {previewItems !== null && (
+          <div className="space-y-2 rounded-md border border-border bg-background p-2">
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <div className="font-medium">
+                {previewItems.length} result{previewItems.length === 1 ? "" : "s"}
+                {selectedIds.size > 0 ? ` · ${selectedIds.size} selected` : ""}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    const pickable = previewItems
+                      .filter((it) => !it.already_mirrored)
+                      .map((it) => it.external_id);
+                    setSelectedIds(new Set(pickable));
+                  }}
+                >
+                  Select all
+                </button>
+                <button
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  Clear
+                </button>
+                <Button
+                  size="sm"
+                  onClick={mirrorSelected}
+                  disabled={mirroringSelected || selectedIds.size === 0}
+                  className="h-7 gap-1"
+                >
+                  {mirroringSelected ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Download className="h-3 w-3" />
+                  )}
+                  Mirror selected ({selectedIds.size})
+                </Button>
+                <button
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setPreviewItems(null);
+                    setSelectedIds(new Set());
+                  }}
+                  aria-label="Close preview"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="grid max-h-[420px] grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+              {previewItems.map((it) => {
+                const sel = selectedIds.has(it.external_id);
+                return (
+                  <button
+                    key={it.external_id}
+                    onClick={() => !it.already_mirrored && toggleSelected(it.external_id)}
+                    disabled={it.already_mirrored}
+                    className={`group relative aspect-square overflow-hidden rounded-md border text-left transition ${
+                      it.already_mirrored
+                        ? "border-border opacity-50 cursor-not-allowed"
+                        : sel
+                          ? "border-primary ring-2 ring-primary"
+                          : "border-border hover:border-primary/60"
+                    }`}
+                    title={it.name}
+                  >
+                    {it.asset_type === "lottie" ? (
+                      <video
+                        src={it.preview_url}
+                        muted
+                        loop
+                        autoPlay
+                        playsInline
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <img
+                        src={it.preview_url}
+                        alt={it.name}
+                        className="h-full w-full object-contain bg-muted/30"
+                        loading="lazy"
+                      />
+                    )}
+                    <div className="absolute left-1 top-1 rounded bg-background/90 px-1 text-[9px] uppercase tracking-wide">
+                      {it.asset_type}
+                    </div>
+                    {it.already_mirrored && (
+                      <div className="absolute right-1 top-1 rounded bg-green-500/90 px-1 text-[9px] text-white">
+                        ✓ saved
+                      </div>
+                    )}
+                    {sel && !it.already_mirrored && (
+                      <div className="absolute right-1 top-1 rounded-full bg-primary p-0.5 text-primary-foreground">
+                        <CheckCircle2 className="h-3 w-3" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-1">
           {PRESETS.map((p) => (

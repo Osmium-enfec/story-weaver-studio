@@ -420,3 +420,144 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
 
     return { mirrored, skipped, errors: errors.slice(0, 10) };
   });
+
+/**
+ * Search-only preview: fetches results across one or more asset types WITHOUT mirroring.
+ * Returns thumbnail URLs and a flag for items already mirrored locally,
+ * so the UI can show a grid for the user to multi-select.
+ */
+export const previewIconscoutSearch = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z
+      .object({
+        query: z.string().min(1).max(100),
+        assetTypes: z
+          .array(z.enum(["lottie", "icon", "illustration", "3d"]))
+          .min(1)
+          .default(["lottie"]),
+        limit: z.number().int().min(1).max(60).default(24),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const admin = getAdmin();
+    const perType = Math.max(1, Math.ceil(data.limit / data.assetTypes.length));
+    const results: Array<{
+      external_id: string;
+      asset_type: "lottie" | "icon" | "illustration" | "3d";
+      uuid: string;
+      name: string;
+      slug: string;
+      preview_url: string;
+      already_mirrored: boolean;
+    }> = [];
+
+    for (const assetType of data.assetTypes) {
+      // eslint-disable-next-line no-await-in-loop
+      const items = await iconscoutSearch(data.query, 1, perType, assetType);
+      for (const it of items) {
+        const previewUrl = assetType === "lottie" ? pickMp4Url(it) : pickStaticUrl(it);
+        if (!previewUrl) continue;
+        const externalId =
+          assetType === "lottie" ? String(it.id) : `${assetType}-${it.id}`;
+        results.push({
+          external_id: externalId,
+          asset_type: assetType,
+          uuid: it.uuid,
+          name: it.name || `${assetType} ${it.id}`,
+          slug: it.slug || `iconscout-${assetType}-${it.id}`,
+          preview_url: previewUrl,
+          already_mirrored: false,
+        });
+      }
+    }
+
+    // Mark already-mirrored ones
+    if (results.length) {
+      const ids = results.map((r) => r.external_id);
+      const { data: existing } = await admin
+        .from("animation_components")
+        .select("external_id")
+        .eq("provider", "iconscout")
+        .in("external_id", ids);
+      const have = new Set((existing ?? []).map((r) => r.external_id));
+      results.forEach((r) => {
+        if (have.has(r.external_id)) r.already_mirrored = true;
+      });
+    }
+
+    return { items: results };
+  });
+
+/** Mirror a user-picked subset of items (results from previewIconscoutSearch). */
+export const mirrorIconscoutSelected = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z
+      .object({
+        category: z.string().default("Iconscout"),
+        items: z
+          .array(
+            z.object({
+              external_id: z.string(),
+              asset_type: z.enum(["lottie", "icon", "illustration", "3d"]),
+              uuid: z.string(),
+              name: z.string(),
+              slug: z.string(),
+              preview_url: z.string().url(),
+            }),
+          )
+          .min(1)
+          .max(60),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const admin = getAdmin();
+    let mirrored = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (const it of data.items) {
+      try {
+        const { data: existing } = await admin
+          .from("animation_components")
+          .select("id")
+          .eq("provider", "iconscout")
+          .eq("external_id", it.external_id)
+          .maybeSingle();
+        if (existing) {
+          skipped++;
+          continue;
+        }
+
+        const isLottie = it.asset_type === "lottie";
+        const ext = isLottie ? "mp4" : "png";
+        const ct = isLottie ? "video/mp4" : "image/png";
+        const path = isLottie
+          ? `iconscout/${it.external_id}.mp4`
+          : `iconscout/${it.asset_type}/${it.external_id.replace(/^[a-z0-9]+-/, "")}.png`;
+        const publicUrl = await downloadToBucket(admin, it.preview_url, path, ct);
+
+        const { error } = await admin.from("animation_components").insert({
+          slug: it.slug,
+          name: it.name,
+          category: data.category,
+          provider: "iconscout",
+          external_id: it.external_id,
+          video_url: isLottie ? publicUrl : null,
+          thumbnail_url: publicUrl,
+          color_support: "fixed",
+          default_props: isLottie
+            ? {}
+            : { asset_type: it.asset_type, image_url: publicUrl },
+        });
+        if (error) throw error;
+        mirrored++;
+      } catch (e) {
+        errors.push(`${it.external_id}: ${(e as Error).message}`);
+        skipped++;
+      }
+    }
+
+    return { mirrored, skipped, errors: errors.slice(0, 10) };
+  });
