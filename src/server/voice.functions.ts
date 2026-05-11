@@ -358,7 +358,9 @@ async function iconscoutSearchOne(query: string): Promise<{
     if (!res.ok) return null;
     const json = await res.json();
     const items = (json?.response?.items?.data ?? []) as any[];
-    const free = items.find((it) => (it.price ?? 0) === 0) ?? items[0];
+    const freeItems = items.filter((it) => (it.price ?? 0) === 0);
+    const pool = (freeItems.length ? freeItems : items).slice(0, 5);
+    const free = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
     if (!free) return null;
     return {
       external_id: String(free.id),
@@ -469,15 +471,16 @@ async function findInLibrary(
   if (rows.length === 0) return null;
   // Prefer ones with playable assets, then theme-matching
   const playable = rows.filter((r) => r.video_url || r.lottie_url);
-  const pool = playable.length ? playable : rows;
-  const themed = pool.find((r) =>
+  const basePool = playable.length ? playable : rows;
+  const themedPool = basePool.filter((r) =>
     themeTags.some(
       (t) =>
         (r.tags ?? []).map((x: string) => x.toLowerCase()).includes(t) ||
         (r.category ?? "").toLowerCase().includes(t),
     ),
   );
-  const pick = themed ?? pool[0];
+  const finalPool = (themedPool.length ? themedPool : basePool).slice(0, 5);
+  const pick = finalPool[Math.floor(Math.random() * finalPool.length)];
   return {
     name: pick.name,
     slug: pick.slug,
