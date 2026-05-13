@@ -83,7 +83,7 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
           ...m,
           {
             role: "assistant",
-            content: `Step 1 — pick a grid for canvas ${activeSceneIndex + 1}. I suggested ${res.options.length} layouts based on ~${res.beatCount} beats. Click one to lock it in.`,
+            content: `Step 1 — pick a grid for canvas ${activeSceneIndex + 1}. ${res.options.length} layouts (≈${res.beatCount} beats). Click one to lock it in — the highlighted one is my recommendation.`,
             gridOptions: res.options,
           },
         ]);
