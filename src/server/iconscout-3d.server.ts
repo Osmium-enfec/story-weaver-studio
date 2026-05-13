@@ -23,6 +23,8 @@ async function iconscoutSearch3D(query: string, perPage: number) {
   url.searchParams.set("query", query);
   url.searchParams.set("product_type", "item");
   url.searchParams.set("asset", "3d");
+  url.searchParams.set("price", "free");
+  url.searchParams.set("sort", "relevant");
   url.searchParams.set("per_page", String(perPage));
   const res = await fetch(url.toString(), {
     headers: { "Client-ID": id, "Client-Secret": secret },
@@ -32,8 +34,17 @@ async function iconscoutSearch3D(query: string, perPage: number) {
   return (json?.response?.items?.data ?? []) as any[];
 }
 
+// Prefer a high-res PNG so the asset still looks crisp on the 1280×720 canvas.
 function pickStaticPreview(item: any): string | null {
-  return item?.urls?.png_64 ?? item?.urls?.png ?? item?.urls?.thumb ?? null;
+  return (
+    item?.urls?.png_512 ??
+    item?.urls?.png_256 ??
+    item?.urls?.png_128 ??
+    item?.urls?.png ??
+    item?.urls?.png_64 ??
+    item?.urls?.thumb ??
+    null
+  );
 }
 
 async function downloadToBucket(
