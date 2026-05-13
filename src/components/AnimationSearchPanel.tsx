@@ -118,6 +118,10 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
           <span>•</span>
           <span>Iconscout {counts.iconscout}</span>
           <span>•</span>
+          <span>Iconify {counts.iconify}</span>
+          <span>•</span>
+          <span>Unsplash {counts.unsplash}</span>
+          <span>•</span>
           <span>Internal {counts.internal}</span>
           <span>•</span>
           <span>Uploads {counts.upload}</span>
@@ -139,7 +143,7 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
           {results.map((r) => (
             <button
               key={r.id}
-              onClick={() => onSelect(r)}
+              onClick={() => handleSelect(r)}
               className="group flex flex-col items-stretch overflow-hidden rounded-lg border border-border bg-background text-left transition-all hover:border-primary hover:shadow-sm"
             >
               <div className="relative aspect-square bg-muted/40">
