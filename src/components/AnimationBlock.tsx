@@ -416,6 +416,35 @@ export function AnimationBlockRenderer({
       ? (content.video_url || content.lottie_url || null)
       : null);
   if (imageSrc) {
+    // Iconify SVGs ship with width="1em" and fill="currentColor". Rendering them
+    // through an <img> tag often collapses to 0×0 (em has no font context) and
+    // currentColor stays invisible. Use CSS mask-image so the SVG acts as a
+    // monochrome alpha mask that takes the theme color we paint underneath.
+    if (content.provider === "iconify") {
+      const tint = content.tint || content.color || "#0f172a";
+      return (
+        <div style={wrapperStyle} className="pointer-events-none">
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              backgroundColor: tint,
+              WebkitMaskImage: `url("${imageSrc}")`,
+              maskImage: `url("${imageSrc}")`,
+              WebkitMaskRepeat: "no-repeat",
+              maskRepeat: "no-repeat",
+              WebkitMaskPosition: "center",
+              maskPosition: "center",
+              WebkitMaskSize: "contain",
+              maskSize: "contain",
+              opacity: 0,
+              animation: "anim-block-fade-in 220ms ease-out 60ms forwards",
+            }}
+          />
+          <style>{`@keyframes anim-block-fade-in { to { opacity: 1; } }`}</style>
+        </div>
+      );
+    }
     return (
       <div style={wrapperStyle} className="pointer-events-none">
         {content.remove_background && <WhiteKeyFilterDef />}
@@ -427,7 +456,6 @@ export function AnimationBlockRenderer({
             width: "100%",
             height: "100%",
             objectFit: "contain",
-            color: content.tint || content.color || "#0f172a",
             opacity: 0,
             animation: "anim-block-fade-in 220ms ease-out 60ms forwards",
           }}
