@@ -422,11 +422,12 @@ export function AnimationBlockRenderer({
         <img
           src={imageSrc}
           alt={content.name}
-          crossOrigin="anonymous"
+          onError={(e) => console.warn("AnimationBlock img failed", imageSrc, e)}
           style={{
             width: "100%",
             height: "100%",
             objectFit: "contain",
+            color: content.tint || content.color || "#0f172a",
             opacity: 0,
             animation: "anim-block-fade-in 220ms ease-out 60ms forwards",
           }}
