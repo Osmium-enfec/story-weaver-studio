@@ -150,7 +150,10 @@ interface PlanElement {
   kind: "asset" | "text";
   text?: string;
   text_role?: "heading" | "subheading" | "caption";
-  position: { x: number; y: number; w: number; h: number };
+  /** New: slot index into the chosen layout (preferred over raw position). */
+  slot?: number;
+  /** Legacy: explicit normalized rect. Used as fallback when slot is missing. */
+  position?: { x: number; y: number; w: number; h: number };
   anchor_word_index: number;
   duration_ms: number;
   enter?: {
@@ -163,6 +166,7 @@ interface PlanElement {
 
 interface ScenePlan {
   elements: PlanElement[];
+  layout?: string;
   scene_transition_in?: "cut" | "fade" | "slide" | "zoom";
   rationale?: string;
 }
