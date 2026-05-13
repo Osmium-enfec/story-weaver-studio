@@ -1,93 +1,211 @@
-## Goal
+## Plan: make export reliable and smooth
 
-Add a proper Export flow that reuses the same canvas + audio preview the user already trusts, with selectable scope (one canvas / picked canvases / whole project) and a quality preset, optimised for **quality over speed**.
+### 1. Stop using the current browser recorder as the primary export path
 
-## Approach (and why)
+- The current export starts a realtime `MediaRecorder`, then tries to snapshot React/DOM frames with `html-to-image` while the clock is already running.
+- When snapshots are slow, the recorder captures the blank/last canvas for long periods, causing white starts, dropped motion, and audio/visual desync.
+- MP4 conversion in-browser is also fragile, as shown by the ffmpeg-core import failure.
 
-There are three viable paths. Recommendation: **Path A now, Path B as an optional "studio-grade" upgrade later.** Path C (current `/export` route) is browser MediaRecorder of a single canvas — it loses audio sync, drops frames, and is what the user wants to replace.
+### 2. Make server-side rendering the main export flow
 
-### Path A — Deterministic in-browser render (recommended, ships now)
+- Use the existing `render_jobs` queue and render worker architecture as the primary export button behavior.
+- On export start, enqueue a job with selected canvases, quality, format, audio setting, and scene scope.
+- Show job status/progress on the export page and provide the final downloadable MP4 URL when the render is done.
+- Keep cancellation/status UI, but avoid pretending the browser tab is rendering the final video.
 
-For each selected scene:
+### 3. Rebuild the worker’s Remotion renderer to match the real scene data
 
-1. Mount the **existing canvas preview component** off-screen at the target resolution (e.g. 1920×1080) inside a hidden container.
-2. Drive animation by a **fake clock** (a `currentTimeMs` prop the AnimationBlock already respects), stepping frame-by-frame at 30/60 fps — not by `requestAnimationFrame` wall-clock. This kills the "first preview is laggy" problem because we don't depend on real-time playback.
-3. For each frame: wait for all images/lottie/iconify masks to be `decode()`-ready, then snapshot the DOM via `html-to-image` → draw onto an offscreen `<canvas>` at full resolution.
-4. Pipe that canvas through `captureStream(fps)` into `MediaRecorder` with **VP9 @ high bitrate (12–20 Mbps for 1080p, 30–50 Mbps for 4K)**.
-5. Mix the scene's `voice_url` (respecting trim / cuts / fades / volume) into the recorder via `MediaStreamAudioDestinationNode` so audio is sample-accurate to the frames we just rendered.
-6. Concatenate scenes: render each scene to its own WebM, then stitch in the browser using `mp4-muxer`/`webm-muxer` (or just deliver per-scene files when only one scene is selected).
-7. Final container: **WebM (VP9 + Opus)** by default, with an optional "Convert to MP4" step using `ffmpeg.wasm` (slower but universally playable).
+- Replace the placeholder Remotion scene renderer with a deterministic renderer that uses:
+  - scene backgrounds: color, gradient, image, video where possible
+  - `scene_elements` positions and z-index
+  - text blocks with fonts, colors, scaling, and text backgrounds
+  - images/icons/shapes/static assets
+  - animation/video assets rendered at their timeline position
+- Use `start_ms`, `end_ms`, and `content.start_word_index` to reveal elements at the correct voice timing.
+- Convert CSS/timer-based reveals into frame-based Remotion animation so every frame is reproducible and smooth.
 
-Quality presets:
+### 4. Fix timing and audio in the worker render
 
-- **720p** — 1280×720, 30 fps, 6 Mbps
-- **1080p (recommended)** — 1920×1080, 30 fps, 12 Mbps
-- **1080p60** — 1920×1080, 60 fps, 18 Mbps
-- **4K** — 3840×2160, 30 fps, 40 Mbps
+- Compute scene durations from `duration_ms` and selected scope.
+- Render at fixed FPS with Remotion instead of realtime browser capture.
+- Add scene voice audio to the Remotion timeline, respecting existing trim/cut/fade settings as closely as practical.
+- Ensure visual element reveal times use the same trimmed/cut scene-local timeline as the audible voice.
 
-Because rendering is decoupled from real time, a 30 s scene may take 1–3 min to export — that's the trade-off the user explicitly accepted ("take proper time").
+### 5. Update the export page UX around queued rendering
 
-### Path B — Server-side Remotion render (optional later)
+- Replace the current “keep this tab open” browser render copy with queued render status.
+- Show latest render jobs, progress, failed errors, and completed download links.
+- If the worker is not configured, show a clear setup/configuration message instead of falling back to the broken browser export silently.
 
-The repo already has a `worker/` Remotion setup wired to `render_jobs`. We could port the canvas+AnimationBlock layout into a Remotion composition and render true broadcast-quality H.264/MP4 with perfect audio. Best quality possible, but requires the worker to be deployed and the AnimationBlock recreated as a Remotion component. Recommend as a follow-up — Path A unblocks the user immediately and uses the exact preview they've validated.
+### 6. Keep a browser preview-only renderer separate
 
-### Path C — Current `/export` route
+- Keep the existing client-side renderer only for preview/debug if needed, not for production export.
+- Remove or de-emphasize in-browser MP4 transcoding for the main path; final output should come from the worker as MP4.
 
-Delete or hide. It captures a generic `drawScene` SVG-ish rendering, not the real canvas, and has no audio. Replaced by Path A.
+### Technical notes
 
-## Scope selection UI
-
-New `/projects/:id/export` page:
-
-```text
-┌─ Export ────────────────────────────────────┐
-│ Scope:  ( ) Current canvas                  │
-│         ( ) Selected canvases  [pick list]  │
-│         (•) Whole project (all canvases)    │
-│                                             │
-│ Quality: [720p] [1080p ✓] [1080p60] [4K]   │
-│ Format:  (•) WebM (fast)  ( ) MP4 (slower) │
-│ Audio:   [✓] Include voice                  │
-│                                             │
-│ Estimated render time: ~2 min               │
-│ [ Start export ]                            │
-│                                             │
-│ Progress: scene 3 / 8 • 41%  ▓▓▓▓░░░░░     │
-└─────────────────────────────────────────────┘
-```
-
-Multi-select uses the existing scene list (thumbnails + checkboxes). When 1 scene is selected the file is named `<project>-<scene-title>.webm`; otherwise `<project>.webm`.
-
-## Why it will be higher quality than today's preview
-
-- Resolution is decoupled from the on-screen canvas size — we render at 1080p/4K regardless of the editor viewport.
-- Frame stepping (not wall-clock) means **no dropped frames, no first-play stutter**.
-- Assets are explicitly awaited (`img.decode()`, lottie `isLoaded`, iconify mask url fetched) before each snapshot, fixing the "first play is missing assets" bug.
-- Audio is mixed into the same `MediaStream` as the video, so A/V sync is locked.
-- Bitrate is configurable per preset, well above MediaRecorder defaults.
-
-## Technical changes
-
-- **New** `src/lib/scene-exporter.ts` — `exportScenes({ sceneIds, quality, format, includeAudio, onProgress })`. Owns the offscreen mount, frame loop, MediaRecorder wiring, audio graph, and per-scene concat.
-- **New** `src/components/ExportCanvasHost.tsx` — headless wrapper that renders one scene's canvas at a forced pixel size + accepts a `currentTimeMs` prop.
-- **Modify** `AnimationBlock.tsx` — accept an optional `currentTimeMs` override (already partially driven by time; thread it through so it ignores `Date.now()` when in export mode).
-- **Modify** `CanvasAudioEditor`-style audio resolution into a shared helper `src/lib/audio-graph.ts` so both preview and exporter apply trims/cuts/fades identically.
-- **Replace** `src/routes/projects.$projectId.export.tsx` with the new scope/quality UI; keep the existing render-jobs list hidden behind an "Advanced (server render)" disclosure for Path B later.
-- **Add deps**: `mp4-muxer` (or `webm-muxer`) for in-browser concat; `@ffmpeg/ffmpeg` only if the user picks MP4 output.
-- **Keep** Path B (`worker/`, `render_jobs`) untouched — no wasted work, available when we want server-side renders.
-
-## Out of scope for this plan
-
-- Server-side Remotion port (Path B) — separate follow-up.
-- Cloud delivery / share links for exports — local download only.
-- Background music tracks — only per-scene `voice_url` is mixed.
-
-## Open questions before I build
-
-1. **Scene picker UX**: are multi-scene exports usually "all" or genuinely a custom subset? If almost always "all", I'll keep the picker but default-collapse it.
-2. **Default output**: WebM (works everywhere modern, fast) vs MP4 (universal but adds ~30 s of `ffmpeg.wasm` transcode at the end). I'd default to WebM with a one-click "Convert to MP4" toggle.
-3. **Resolution ceiling**: confirm 4K is needed. It's ~6× the work of 1080p and the visual gain on icon/text-heavy content is small — happy to ship 720p / 1080p / 1080p60 only and add 4K later.  
+- No database schema change is likely needed because `render_jobs` already exists.
+- The main code changes will be in:
+  - `src/routes/projects.$projectId.export.tsx`
+  - `src/server/render-jobs.functions.ts`
+  - `worker/remotion/MainVideo.tsx`
+  - `worker/remotion/Root.tsx`
+  - `worker/src/render.ts`
+- This turns export from “record what the browser can keep up with” into “render every frame deterministically,” which is the proper architecture for export-heavy video apps.  
   
-go with option A  
-ship upto 1080 level not 4k for now  
-yes give option of both webM and mp4  
+  
+few chat gpt options  
+Best approach:
+  ### 1. Use one timeline source
+  Create a single timeline clock:
+  ```
+
+  ```
+  ```
+  const fps = 30;
+  const frameDuration = 1000 / fps;
+
+  for (let frame = 0; frame < totalFrames; frame++) {
+    const timeMs = frame * frameDuration;
+    renderCanvasAtTime(timeMs);
+    captureFrame();
+  }
+  ```
+  Do **not** use `requestAnimationFrame`, CSS animation timing, or real-time delays during export.
+  ### 2. Render animations manually
+  Every object should calculate its state from `timeMs`:
+  ```
+
+  ```
+  ```
+  function getAnimatedValue(keyframes, timeMs) {
+    // find surrounding keyframes
+    // interpolate value
+  }
+  ```
+  Example:
+  ```
+
+  ```
+  ```
+  const x = lerp(startX, endX, progress);
+  const opacity = lerp(0, 1, progress);
+  ```
+  This ensures frame 45 is always exactly frame 45.
+  ### 3. Export frame-by-frame
+  For video export:
+  1.   
+  Render frame to canvas  
+
+  2.   
+  Convert canvas to image frame  
+
+  3.   
+  Feed frames into encoder  
+
+  Use:
+  - **WebCodecs** for modern browser video encoding  
+
+  - **ffmpeg.wasm** if you need broader export features  
+
+  -   
+  Server-side FFmpeg for best quality and speed  
+
+  ### 4. Avoid recording the live canvas
+  This usually causes:
+  -   
+  animation timing mismatch  
+
+  -   
+  dropped frames  
+
+  -   
+  low-quality output  
+
+  -   
+  lag on heavy designs  
+
+  Avoid relying on:
+  ```
+
+  ```
+  ```
+  canvas.captureStream()
+  MediaRecorder
+  ```
+  for final professional export.
+  It is okay for preview, not ideal for Canva-like export.
+  ### 5. Separate preview and export
+  Preview can use real time:
+  ```
+
+  ```
+  ```
+  currentTime = performance.now() - startTime;
+  ```
+  Export should use fixed time:
+  ```
+
+  ```
+  ```
+  currentTime = frameIndex * (1000 / fps);
+  ```
+  ### 6. Use high-resolution export canvas
+  For export, create a separate canvas:
+  ```
+
+  ```
+  ```
+  exportCanvas.width = designWidth * scale;
+  exportCanvas.height = designHeight * scale;
+  ctx.scale(scale, scale);
+  ```
+  Example:
+  ```
+
+  ```
+  ```
+  scale = 2; // for better quality
+  ```
+  ### Recommended architecture
+  ```
+
+  ```
+  ```
+  Design JSON
+     ↓
+  Timeline Engine
+     ↓
+  Renderer
+     ↓
+  Frame Exporter
+     ↓
+  Video Encoder
+  ```
+  Your design JSON should store:
+  ```
+
+  ```
+  ```
+  {
+    "objects": [
+      {
+        "type": "text",
+        "x": 100,
+        "y": 100,
+        "animations": [
+          {
+            "property": "opacity",
+            "from": 0,
+            "to": 1,
+            "start": 500,
+            "duration": 1000,
+            "easing": "easeOut"
+          }
+        ]
+      }
+    ]
+  }
+  ```
+  Then export by evaluating every object at each timestamp.
+  Most likely fix: **stop recording the animation live** and instead **render each frame at exact timestamps**.

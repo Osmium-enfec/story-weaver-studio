@@ -1,6 +1,7 @@
 import { toCanvas } from "html-to-image";
 import { DESIGN } from "@/lib/grid";
 import { prepareScenesAudio, scheduleScenesAudio, type SceneAudioInput } from "@/lib/audio-graph";
+import { exportDeterministic, isDeterministicExportSupported } from "@/lib/deterministic-exporter";
 
 export type ExportQuality = "720p" | "1080p" | "1080p60";
 export type ExportFormat = "webm" | "mp4";
