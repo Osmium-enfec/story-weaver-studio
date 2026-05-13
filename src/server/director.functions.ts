@@ -675,6 +675,7 @@ export const directProject = createServerFn({ method: "POST" })
             console.error("ensureExternalForKeywords", (e as Error).message);
           }
 
+          const candById = new Map(candidates.map((c) => [c.id, c]));
 
           const prompt = buildUserPrompt({
             theme: themeName,
