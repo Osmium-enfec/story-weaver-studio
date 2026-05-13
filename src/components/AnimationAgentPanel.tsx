@@ -295,23 +295,10 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
           </Button>
           {scope === "scene" && (
             <>
-              <span className="ml-2 text-muted-foreground">Mode:</span>
-              <Button
-                variant={mode === "storyboard" ? "default" : "outline"}
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => setMode("storyboard")}
-              >
-                Storyboard
-              </Button>
-              <Button
-                variant={mode === "refine-anim" ? "default" : "outline"}
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => setMode("refine-anim")}
-              >
-                Refine animation
-              </Button>
+              <span className="ml-2 text-muted-foreground">Stage:</span>
+              <StageBadge label="1. Grid" active={mode === "grid"} done={!!chosenLayout} />
+              <StageBadge label="2. Infographic" active={mode === "storyboard"} done={!!storyboard && storyboard.status === "approved"} />
+              <StageBadge label="3. Animation" active={mode === "refine-anim"} done={false} />
             </>
           )}
         </div>
