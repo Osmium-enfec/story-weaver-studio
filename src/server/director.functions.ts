@@ -274,8 +274,9 @@ function buildUserPrompt(args: {
   candidates: CandidateAsset[];
   instruction?: string;
   storyboard?: StoryboardBeatHint[];
+  forcedLayoutId?: string;
 }) {
-  const { theme, narration, word_timings, duration_ms, candidates, instruction, storyboard } = args;
+  const { theme, narration, word_timings, duration_ms, candidates, instruction, storyboard, forcedLayoutId } = args;
   const wt = word_timings.slice(0, 60).map((w, i) => `${i}:${w.text}@${w.start_ms}`).join(" ");
   const cands = candidates
     .slice(0, 30)
@@ -305,6 +306,9 @@ function buildUserPrompt(args: {
 - Use the beat's anchor_word_index AS the element's anchor_word_index — DO NOT shift it. This is what syncs the asset to the spoken word.
 - duration_ms should cover from this beat's anchor word to the next beat's anchor word (or to the end of the scene for the last beat).`
     : "";
+  const layoutLock = forcedLayoutId
+    ? `\nLAYOUT LOCK: The user has approved layout "${forcedLayoutId}". You MUST set layout="${forcedLayoutId}" and place every element into one of its slots (slot 0 = primary). Do NOT pick a different layout.`
+    : "";
   return [
     `Theme: ${theme}`,
     `Scene duration: ${duration_ms}ms`,
@@ -313,6 +317,7 @@ function buildUserPrompt(args: {
     "",
     "LAYOUT PRESETS (pick one for `layout`, then place each element in a `slot` index 0..N-1):",
     layoutCatalogForPrompt(),
+    layoutLock,
     "",
     "candidate_assets (UUIDs you may reference; beat_id ties an asset to a specific beat):",
     cands || "(no library matches — use text elements)",
