@@ -52,6 +52,10 @@ interface CandidateAsset {
   external_id: string | null;
   color_support: string;
   tags: string[];
+  /** Optional: which storyboard beat this candidate was fetched for. */
+  beat_id?: string;
+  /** Optional: the keyword/query that surfaced this candidate. */
+  source_query?: string;
 }
 
 /** Pick keyword tokens from narration to drive asset search. */
