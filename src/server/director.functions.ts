@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
+import { ensure3DForKeywords, wants3D } from "./iconscout-3d.server";
 
 /**
  * AI Director — turns a scene's narration + word-timings into a production
@@ -503,6 +504,48 @@ export const directProject = createServerFn({ method: "POST" })
 
           const keywords = extractKeywords(narration, 12);
           const candidates = await findCandidates(admin, keywords, themeTags);
+
+          // 3D icon intent: if instruction or any storyboard beat asks for 3D,
+          // search Iconscout 3D, mirror, and add to the candidate pool so the
+          // LLM can pick them by uuid like any other asset.
+          const sbHint = data.storyboardHint as StoryboardBeatHint[] | undefined;
+          const sbText = (sbHint ?? [])
+            .map((b) => `${b.label} ${b.asset_query ?? ""}`)
+            .join(" ");
+          if (wants3D(data.instruction, sbText, narration)) {
+            const beatQueries = (sbHint ?? [])
+              .filter((b) => b.kind === "icon" || b.kind === "image" || b.kind === "diagram")
+              .map((b) => (b.asset_query || b.label).replace(/\b3d\b/gi, "").trim())
+              .filter(Boolean);
+            const queries = (beatQueries.length ? beatQueries : keywords).slice(0, 6);
+            try {
+              const ids = await ensure3DForKeywords(queries, 3, 18);
+              if (ids.length) {
+                const { data: rows } = await admin
+                  .from("animation_components")
+                  .select("id, name, slug, provider, video_url, lottie_url, thumbnail_url, external_id, color_support, tags")
+                  .in("id", ids);
+                for (const r of (rows ?? []) as any[]) {
+                  if (candidates.some((c) => c.id === r.id)) continue;
+                  candidates.unshift({
+                    id: r.id,
+                    name: r.name,
+                    slug: r.slug,
+                    provider: r.provider,
+                    preview_url: r.thumbnail_url ?? r.video_url ?? r.lottie_url,
+                    video_url: r.video_url,
+                    lottie_url: r.lottie_url,
+                    external_id: r.external_id,
+                    color_support: r.color_support ?? "fixed",
+                    tags: [...(r.tags ?? []), "3d"],
+                  });
+                }
+              }
+            } catch (e) {
+              console.error("ensure3DForKeywords", (e as Error).message);
+            }
+          }
+
           const candById = new Map(candidates.map((c) => [c.id, c]));
 
           const prompt = buildUserPrompt({
