@@ -2,6 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { ensure3DForKeywords, wants3D } from "./iconscout-3d.server";
+import {
+  LAYOUTS,
+  LAYOUT_IDS,
+  autoPickLayout,
+  getLayout,
+  layoutCatalogForPrompt,
+  resolveLayoutPx,
+} from "@/lib/layouts";
 
 /**
  * AI Director — turns a scene's narration + word-timings into a production
