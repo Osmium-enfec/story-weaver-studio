@@ -113,17 +113,8 @@ export async function exportScenesToBlob(opts: ExportOptions): Promise<Blob> {
     (stream as unknown as { __audioDest: MediaStreamAudioDestinationNode }).__audioDest = dest;
   }
 
-  // Preload assets across all scenes
-  for (let i = 0; i < opts.scenes.length; i++) {
-    if (opts.signal?.aborted) throw new Error("Aborted");
-    opts.onProgress?.({
-      sceneIndex: i,
-      sceneCount: opts.scenes.length,
-      pct: Math.round((i / opts.scenes.length) * 10),
-      phase: "Preloading assets",
-    });
-    await preloadImagesIn(opts.scenes[i].node);
-  }
+  // We mount each scene fresh just before recording it so its CSS animations
+  // start in sync with the audio. Preloading happens per-scene below.
   await preloadFonts();
 
   const mimeType = pickVideoMime();
