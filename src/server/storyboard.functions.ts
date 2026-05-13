@@ -363,7 +363,7 @@ export const refineStoryboard = createServerFn({ method: "POST" })
     const current = (scene.storyboard?.beats ?? []) as StoryboardBeat[];
     const beats = await callStoryboardLLM(apiKey, scene, current.length ? current : null, data.instruction);
     if (!beats || !beats.length) throw new Error("Could not refine the storyboard");
-    return await persistStoryboard(admin, scene.id, beats, "draft");
+    return await persistStoryboard(admin, scene.id, beats, "draft", scene.storyboard);
   });
 
 export const approveAndAnimate = createServerFn({ method: "POST" })
@@ -377,7 +377,7 @@ export const approveAndAnimate = createServerFn({ method: "POST" })
     if (!beats.length) throw new Error("No storyboard yet — generate one first");
 
     // Mark approved
-    await persistStoryboard(admin, scene.id, beats, "approved");
+    await persistStoryboard(admin, scene.id, beats, "approved", scene.storyboard);
 
     // Hand off to the Director with the storyboard as a hint
     const hint: StoryboardBeatHint[] = beats.map((b) => ({
