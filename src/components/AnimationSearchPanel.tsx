@@ -139,18 +139,25 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
             <LinkIcon className="h-3 w-3" />
           </Button>
         </div>
-        <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-          <span>Lottie {counts.lottie}</span>
-          <span>•</span>
-          <span>Iconscout {counts.iconscout}</span>
-          <span>•</span>
-          <span>Iconify {counts.iconify}</span>
-          <span>•</span>
-          <span>Unsplash {counts.unsplash}</span>
-          <span>•</span>
-          <span>Internal {counts.internal}</span>
-          <span>•</span>
-          <span>Uploads {counts.upload}</span>
+        <div className="flex flex-wrap gap-1">
+          {FILTERS.map((f) => {
+            const active = filter === f.id;
+            const count = f.id === "all" ? results.length : (counts[f.id as keyof typeof counts] ?? 0);
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setFilter(f.id)}
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors ${
+                  active
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-muted-foreground hover:border-primary/50"
+                }`}
+              >
+                {f.label} {count}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -166,7 +173,9 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
           </div>
         )}
         <div className="grid grid-cols-2 gap-2">
-          {results.map((r) => (
+          {results
+            .filter((r) => filter === "all" || r.provider === filter)
+            .map((r) => (
             <button
               key={r.id}
               onClick={() => handleSelect(r)}
