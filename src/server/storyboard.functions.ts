@@ -445,3 +445,34 @@ export const approveAndAnimate = createServerFn({ method: "POST" })
     await admin.from("scenes").update({ director_stage: "done" }).eq("id", scene.id);
     return { ok: true, ...res };
   });
+
+/** Edit a single beat (kind/label/asset_query) without re-running the LLM. */
+export const updateStoryboardBeat = createServerFn({ method: "POST" })
+  .inputValidator((d: { sceneId: string; beatId: string; kind?: string; label?: string; asset_query?: string }) =>
+    z
+      .object({
+        sceneId: z.string().uuid(),
+        beatId: z.string().min(1).max(40),
+        kind: z.enum([...BEAT_KINDS]).optional(),
+        label: z.string().min(1).max(80).optional(),
+        asset_query: z.string().max(60).optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const admin = getAdmin();
+    const scene = await fetchScene(admin, data.sceneId);
+    const beats = (scene.storyboard?.beats ?? []) as StoryboardBeat[];
+    if (!beats.length) throw new Error("No storyboard to edit");
+    const next = beats.map((b) =>
+      b.id === data.beatId
+        ? {
+            ...b,
+            ...(data.kind ? { kind: data.kind as StoryboardBeat["kind"] } : {}),
+            ...(data.label ? { label: data.label } : {}),
+            ...(data.asset_query !== undefined ? { asset_query: data.asset_query || undefined } : {}),
+          }
+        : b,
+    );
+    return await persistStoryboard(admin, scene.id, next, "draft", scene.storyboard);
+  });
