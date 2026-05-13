@@ -1,4 +1,4 @@
-import { createFileRoute, useParams } from "@tanstack/react-router";
+import { createFileRoute, useParams, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Rnd } from "react-rnd";
 import { toPng } from "html-to-image";
