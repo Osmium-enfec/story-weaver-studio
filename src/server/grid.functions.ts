@@ -43,7 +43,7 @@ function renderLayoutSvg(layout: LayoutPreset, n: number): string {
       const fill = i === 0 ? "#6366f1" : "#cbd5e1";
       const text = i === 0 ? "#ffffff" : "#0f172a";
       const fontSize = Math.max(7, Math.min(10, Math.round(Math.min(w, h) * 0.45)));
-      return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" ry="6" fill="${fill}" opacity="${i === 0 ? 0.9 : 0.7}"/><text x="${x + w / 2}" y="${y + h / 2 + 4}" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="700" fill="${text}" text-anchor="middle">${i + 1}</text></g>`;
+      return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" ry="3" fill="${fill}" opacity="${i === 0 ? 0.95 : 0.75}"/><text x="${x + w / 2}" y="${y + h / 2 + fontSize / 3}" font-family="Inter, system-ui, sans-serif" font-size="${fontSize}" font-weight="700" fill="${text}" text-anchor="middle">${i + 1}</text></g>`;
     })
     .join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px;height:auto;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">${cells}</svg>`;
