@@ -8,6 +8,7 @@ import {
   searchAllAnimations,
   uploadLottieFile,
   fromUrl,
+  mirrorExternalResult,
   type AnimationResult,
 } from "@/lib/animation-providers";
 
