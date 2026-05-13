@@ -20,8 +20,13 @@ export const QUALITY_PRESETS: Record<ExportQuality, QualityPreset> = {
 
 export interface ExporterScene extends SceneAudioInput {
   id: string;
-  /** DOM node already mounted off-screen, sized at DESIGN.w × DESIGN.h. */
-  node: HTMLElement;
+  /**
+   * Resolves to a freshly-mounted DOM node for this scene, sized at
+   * DESIGN.w × DESIGN.h. Called right before the scene starts rendering so
+   * any CSS animations on its elements begin in sync with the audio.
+   */
+  mount: () => Promise<HTMLElement>;
+  unmount?: () => void;
 }
 
 export interface ExportOptions {
