@@ -257,7 +257,7 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
   }
 
   const showStoryboardCta = scope === "scene" && mode === "storyboard" && !!activeSceneId;
-  const starters = mode === "storyboard" ? STORYBOARD_STARTERS : ANIM_STARTERS;
+  const starters = mode === "grid" ? [] : mode === "storyboard" ? STORYBOARD_STARTERS : ANIM_STARTERS;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
