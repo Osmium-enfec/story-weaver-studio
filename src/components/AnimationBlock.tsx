@@ -33,6 +33,8 @@ export interface AnimationBlockContent {
   slug?: string;
   lottie_url?: string | null;
   video_url?: string | null;
+  /** Static image (svg/png/jpg) — for iconify, unsplash, ai-image, iconscout thumbnails. */
+  image_url?: string | null;
   external_id?: string | null;
   // playback
   loop?: boolean;
