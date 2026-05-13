@@ -844,6 +844,57 @@ export const directProject = createServerFn({ method: "POST" })
             console.error("ensureExternalForKeywords", (e as Error).message);
           }
 
+          // For storyboard beats with kind="animation", fetch Iconscout Lottie
+          // animations (mirrored as MP4 previews) so each animation beat gets
+          // a real motion asset instead of falling back to a text label.
+          try {
+            const sbHintAnim = data.storyboardHint as StoryboardBeatHint[] | undefined;
+            const animBeatPairs = (sbHintAnim ?? [])
+              .filter((b) => b.kind === "animation")
+              .map((b) => ({
+                beatId: b.id ?? "",
+                query: (b.asset_query || b.label).trim(),
+              }))
+              .filter((p) => !!p.query);
+
+            if (animBeatPairs.length) {
+              const queries = Array.from(new Set(animBeatPairs.map((p) => p.query))).slice(0, 6);
+              const { byKeyword } = await ensureLottieForKeywords(queries, 3, 18);
+              const allIds = Array.from(new Set(Object.values(byKeyword).flat()));
+              if (allIds.length) {
+                const { data: rows } = await admin
+                  .from("animation_components")
+                  .select("id, name, slug, provider, video_url, lottie_url, thumbnail_url, external_id, color_support, tags")
+                  .in("id", allIds);
+                const rowById = new Map<string, any>((rows ?? []).map((r: any) => [r.id, r]));
+                for (const [kw, ids] of Object.entries(byKeyword)) {
+                  const beatId = animBeatPairs.find((p) => p.query === kw)?.beatId;
+                  for (const id of ids) {
+                    const r = rowById.get(id);
+                    if (!r || candidates.some((c) => c.id === r.id && c.beat_id === beatId)) continue;
+                    candidates.unshift({
+                      id: r.id,
+                      name: r.name,
+                      slug: r.slug,
+                      provider: r.provider,
+                      preview_url: r.thumbnail_url ?? r.video_url ?? r.lottie_url,
+                      video_url: r.video_url,
+                      lottie_url: r.lottie_url,
+                      image_url: r.thumbnail_url ?? null,
+                      external_id: r.external_id,
+                      color_support: r.color_support ?? "fixed",
+                      tags: [...(r.tags ?? []), "animation", "lottie"],
+                      beat_id: beatId,
+                      source_query: kw,
+                    });
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.error("ensureLottieForKeywords", (e as Error).message);
+          }
+
           const candById = new Map(candidates.map((c) => [c.id, c]));
 
           const forcedLayoutId = (s.storyboard as { layout?: string } | null)?.layout;
