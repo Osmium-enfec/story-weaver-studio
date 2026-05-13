@@ -13,10 +13,11 @@ import {
   approveAndAnimate,
   type Storyboard,
 } from "@/server/storyboard.functions";
+import { proposeGrid, chooseGrid, type GridOption } from "@/server/grid.functions";
 
 const GEN_IMAGE_RE = /^\s*(generate|create|make|draw)\s+(an?\s+)?(image|picture|illustration|icon|photo|3d\s+icon)\s+(of|for|showing|with)?\s*(.+)$/i;
 
-type Mode = "storyboard" | "refine-anim";
+type Mode = "grid" | "storyboard" | "refine-anim";
 
 interface Message {
   role: "user" | "assistant";
