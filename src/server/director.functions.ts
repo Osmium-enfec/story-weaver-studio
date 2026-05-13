@@ -57,6 +57,8 @@ interface CandidateAsset {
   preview_url: string | null;
   video_url: string | null;
   lottie_url: string | null;
+  /** Static image (svg/png/jpg) — for iconify, unsplash, ai-image, iconscout thumbnails. */
+  image_url: string | null;
   external_id: string | null;
   color_support: string;
   tags: string[];
