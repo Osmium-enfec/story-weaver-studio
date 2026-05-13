@@ -31,8 +31,8 @@ function estimateBeatCount(narration: string, durationMs: number): number {
 }
 
 function renderLayoutSvg(layout: LayoutPreset, n: number): string {
-  const W = 320;
-  const H = 180;
+  const W = 160;
+  const H = 90;
   const rects = layout.rects(n);
   const cells = rects
     .map((r, i) => {
