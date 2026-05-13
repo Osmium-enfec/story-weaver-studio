@@ -652,6 +652,20 @@ export const directProject = createServerFn({ method: "POST" })
     const themeName = project?.theme ?? "Whiteboard";
     const themeTags = THEME_TAGS[themeName] ?? [];
 
+    // Fetch theme design tokens so text colors match the project palette
+    // (no more black-on-black on dark themes).
+    const { data: themeRow } = await admin
+      .from("themes")
+      .select("design_tokens")
+      .eq("name", themeName)
+      .maybeSingle();
+    const tokens = (themeRow?.design_tokens ?? {}) as Partial<ThemeTokens>;
+    const themeTokens: ThemeTokens = {
+      fg: tokens.fg ?? DEFAULT_THEME_TOKENS.fg,
+      accent: tokens.accent ?? DEFAULT_THEME_TOKENS.accent,
+      bg: tokens.bg ?? DEFAULT_THEME_TOKENS.bg,
+    };
+
     const sceneQuery = admin
       .from("scenes")
       .select("id, narration, duration_ms, word_timings")
