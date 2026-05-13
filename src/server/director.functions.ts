@@ -524,6 +524,7 @@ function compilePlan(
         end_word_index: hasWords ? endWIdx : null,
         lottie_url: asset.lottie_url,
         video_url: asset.video_url,
+        image_url: asset.image_url,
         external_id: asset.external_id,
         loop: true,
         autoplay: true,
