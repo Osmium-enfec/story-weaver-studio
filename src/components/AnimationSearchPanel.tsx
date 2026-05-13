@@ -8,6 +8,7 @@ import {
   searchAllAnimations,
   uploadLottieFile,
   fromUrl,
+  mirrorExternalResult,
   type AnimationResult,
 } from "@/lib/animation-providers";
 
@@ -67,9 +68,22 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
   const counts = {
     lottie: results.filter((r) => r.provider === "lottie").length,
     iconscout: results.filter((r) => r.provider === "iconscout").length,
+    iconify: results.filter((r) => r.provider === "iconify").length,
+    unsplash: results.filter((r) => r.provider === "unsplash").length,
     internal: results.filter((r) => r.provider === "internal").length,
     upload: results.filter((r) => r.provider === "upload").length,
   };
+
+  async function handleSelect(r: AnimationResult) {
+    if (r.provider === "iconify" || r.provider === "unsplash") {
+      const cachedUrl = await mirrorExternalResult(r);
+      if (cachedUrl) {
+        onSelect({ ...r, thumbnail_url: cachedUrl, video_url: cachedUrl });
+        return;
+      }
+    }
+    onSelect(r);
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -117,6 +131,10 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
           <span>•</span>
           <span>Iconscout {counts.iconscout}</span>
           <span>•</span>
+          <span>Iconify {counts.iconify}</span>
+          <span>•</span>
+          <span>Unsplash {counts.unsplash}</span>
+          <span>•</span>
           <span>Internal {counts.internal}</span>
           <span>•</span>
           <span>Uploads {counts.upload}</span>
@@ -138,14 +156,15 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
           {results.map((r) => (
             <button
               key={r.id}
-              onClick={() => onSelect(r)}
+              onClick={() => handleSelect(r)}
               className="group flex flex-col items-stretch overflow-hidden rounded-lg border border-border bg-background text-left transition-all hover:border-primary hover:shadow-sm"
             >
               <div className="relative aspect-square bg-muted/40">
-                {r.provider === "image" && r.thumbnail_url ? (
+                {(r.provider === "image" || r.provider === "iconify" || r.provider === "unsplash") && r.thumbnail_url ? (
                   <img
                     src={r.thumbnail_url}
                     alt={r.name}
+                    loading="lazy"
                     style={{ width: "100%", height: "100%", objectFit: "contain" }}
                   />
                 ) : r.provider === "iconscout" && r.video_url ? (

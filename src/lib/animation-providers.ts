@@ -1,7 +1,16 @@
 import { supabase } from "@/integrations/supabase/client";
 import { searchIconscout } from "@/server/iconscout.functions";
+import { searchIconify, cacheIconifyIcon } from "@/server/iconify.functions";
+import { searchUnsplash, cacheUnsplashPhoto } from "@/server/unsplash.functions";
 
-export type AnimationProvider = "internal" | "lottie" | "upload" | "iconscout" | "image";
+export type AnimationProvider =
+  | "internal"
+  | "lottie"
+  | "upload"
+  | "iconscout"
+  | "image"
+  | "iconify"
+  | "unsplash";
 
 const IMAGE_EXT_RE = /\.(gif|png|jpe?g|webp|avif|svg)$/i;
 
@@ -128,14 +137,77 @@ async function searchIconscoutResults({ query, limit = 20 }: SearchOpts): Promis
     }));
 }
 
+async function searchIconifyResults({ query, limit = 24 }: SearchOpts): Promise<AnimationResult[]> {
+  if (!query.trim()) return [];
+  const { items } = await searchIconify({ data: { query: query.trim(), limit: Math.min(limit, 60) } });
+  return items.map((i) => ({
+    id: `iconify:${i.id}`,
+    provider: "iconify" as const,
+    name: i.name,
+    category: i.prefix,
+    tags: [],
+    concepts: [],
+    external_id: i.id,
+    thumbnail_url: i.preview_url,
+    color_support: "theme" as const,
+  }));
+}
+
+async function searchUnsplashResults({ query, limit = 20 }: SearchOpts): Promise<AnimationResult[]> {
+  if (!query.trim()) return [];
+  const { items } = await searchUnsplash({ data: { query: query.trim(), limit: Math.min(limit, 30) } });
+  return items.map((i) => ({
+    id: `unsplash:${i.id}`,
+    provider: "unsplash" as const,
+    name: i.name,
+    category: i.author ? `Photo by ${i.author}` : "Unsplash",
+    tags: [],
+    concepts: [],
+    external_id: i.id,
+    thumbnail_url: i.preview_url,
+    video_url: i.download_url,
+    color_support: "fixed" as const,
+  }));
+}
+
 export async function searchAllAnimations(opts: SearchOpts): Promise<AnimationResult[]> {
-  const [a, b, c, d] = await Promise.all([
+  const [internal, lottie, uploads, iconscout, iconify, unsplash] = await Promise.all([
     searchInternal(opts).catch(() => []),
     searchLottie(opts).catch(() => []),
     searchUploads(opts).catch(() => []),
     searchIconscoutResults(opts).catch(() => []),
+    searchIconifyResults(opts).catch(() => []),
+    searchUnsplashResults(opts).catch(() => []),
   ]);
-  return [...b, ...d, ...a, ...c];
+  return [...lottie, ...iconscout, ...iconify, ...unsplash, ...internal, ...uploads];
+}
+
+/**
+ * Mirror an external (Iconify / Unsplash) search result into our library so
+ * the AI director can pick it up and so the asset survives if the upstream
+ * URL ever changes. Returns the public URL of the cached asset.
+ */
+export async function mirrorExternalResult(r: AnimationResult): Promise<string | null> {
+  try {
+    if (r.provider === "iconify" && r.external_id) {
+      const out = await cacheIconifyIcon({ data: { icon_id: r.external_id, name: r.name } });
+      return out.thumbnail_url ?? null;
+    }
+    if (r.provider === "unsplash" && r.external_id && r.video_url) {
+      const out = await cacheUnsplashPhoto({
+        data: {
+          photo_id: r.external_id,
+          name: r.name,
+          download_url: r.video_url,
+          author: r.category?.replace(/^Photo by /, "") ?? undefined,
+        },
+      });
+      return out.thumbnail_url ?? null;
+    }
+  } catch (e) {
+    console.error("mirrorExternalResult failed", e);
+  }
+  return null;
 }
 
 export async function uploadLottieFile(file: File): Promise<AnimationResult> {
