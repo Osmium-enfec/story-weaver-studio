@@ -400,11 +400,13 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
               }
             }}
             placeholder={
-              mode === "storyboard"
-                ? "e.g. Make beat 2 a code snippet — or type 'approve' to animate"
-                : scope === "scene"
-                  ? "e.g. Make the icon bigger and centered"
-                  : "e.g. Use a consistent slide-up entrance everywhere"
+              mode === "grid"
+                ? "Pick a grid above, or type to suggest a different one (e.g. 'use two columns')"
+                : mode === "storyboard"
+                  ? "e.g. Make beat 2 a code snippet — or type 'approve' to animate"
+                  : scope === "scene"
+                    ? "e.g. Make the icon bigger and centered"
+                    : "e.g. Use a consistent slide-up entrance everywhere"
             }
             className="min-h-[70px] resize-none text-sm"
             disabled={busy}
