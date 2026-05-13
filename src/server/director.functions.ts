@@ -669,7 +669,7 @@ export const directProject = createServerFn({ method: "POST" })
 
     const sceneQuery = admin
       .from("scenes")
-      .select("id, narration, duration_ms, word_timings")
+      .select("id, narration, duration_ms, word_timings, storyboard")
       .eq("project_id", data.projectId)
       .order("order_index");
     const { data: scenes } = data.sceneId
@@ -680,6 +680,7 @@ export const directProject = createServerFn({ method: "POST" })
       narration: string | null;
       duration_ms: number | null;
       word_timings: { text: string; start_ms: number; end_ms: number }[] | null;
+      storyboard: { layout?: string } | null;
     }[];
 
     if (data.replace && list.length > 0) {
