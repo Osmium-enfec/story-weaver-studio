@@ -95,6 +95,7 @@ function snapElementsToGrid(elements: PlacedElement[]): PlacedElement[] {
 
 function ScriptCanvas() {
   const { projectId } = useParams({ from: "/projects/$projectId/script" });
+  const navigate = useNavigate();
   const { project } = useProject();
   const [scenes, setScenes] = useState<SceneRow[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
