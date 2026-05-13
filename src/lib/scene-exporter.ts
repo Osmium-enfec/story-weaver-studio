@@ -212,7 +212,7 @@ export async function convertWebmToMp4(
     coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
     wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
   });
-  ffmpeg.on("progress", ({ progress }) => onProgress?.(Math.min(99, Math.round(progress * 100))));
+  ffmpeg.on("progress", ({ progress }: { progress: number }) => onProgress?.(Math.min(99, Math.round(progress * 100))));
   await ffmpeg.writeFile("in.webm", await fetchFile(webm));
   // Re-encode video to H.264 yuv420p (universally playable), copy audio if AAC,
   // otherwise transcode with the bundled aac encoder.
