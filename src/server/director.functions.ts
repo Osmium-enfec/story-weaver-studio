@@ -2,6 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { ensure3DForKeywords, wants3D } from "./iconscout-3d.server";
+import {
+  LAYOUT_IDS,
+  autoPickLayout,
+  getLayout,
+  layoutCatalogForPrompt,
+  resolveLayoutPx,
+} from "@/lib/layouts";
 
 /**
  * AI Director — turns a scene's narration + word-timings into a production
@@ -142,7 +149,10 @@ interface PlanElement {
   kind: "asset" | "text";
   text?: string;
   text_role?: "heading" | "subheading" | "caption";
-  position: { x: number; y: number; w: number; h: number };
+  /** New: slot index into the chosen layout (preferred over raw position). */
+  slot?: number;
+  /** Legacy: explicit normalized rect. Used as fallback when slot is missing. */
+  position?: { x: number; y: number; w: number; h: number };
   anchor_word_index: number;
   duration_ms: number;
   enter?: {
@@ -155,6 +165,7 @@ interface PlanElement {
 
 interface ScenePlan {
   elements: PlanElement[];
+  layout?: string;
   scene_transition_in?: "cut" | "fade" | "slide" | "zoom";
   rationale?: string;
 }
@@ -164,13 +175,19 @@ const PLAN_TOOL = {
   function: {
     name: "render_scene",
     description:
-      "Produce a production-quality scene plan: pick assets from the candidate list, place them with clean composition, and time their entrance against word_timings for a natural reveal.",
+      "Produce a production-quality scene plan: pick a layout preset, place 2-6 elements in its slots, and time each entrance against word_timings for a natural reveal.",
     parameters: {
       type: "object",
       additionalProperties: false,
-      required: ["elements"],
+      required: ["elements", "layout"],
       properties: {
         scene_transition_in: { type: "string", enum: ["cut", "fade", "slide", "zoom"] },
+        layout: {
+          type: "string",
+          enum: LAYOUT_IDS,
+          description:
+            "Composition preset to use. Pick the one whose 'best for' matches the number of beats AND whose feel matches the narration (compare → two-col-balance, list → title-and-row, story progression → diagonal-cascade or vertical-storyline, single hero → hero-left/right/center).",
+        },
         rationale: { type: "string", description: "1-2 sentence summary of the creative direction." },
         elements: {
           type: "array",
@@ -179,25 +196,20 @@ const PLAN_TOOL = {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["kind", "position", "anchor_word_index", "duration_ms"],
+            required: ["kind", "anchor_word_index", "duration_ms", "slot"],
             properties: {
               kind: { type: "string", enum: ["asset", "text"] },
               asset_id: {
                 type: "string",
-                description: "UUID from the candidate_assets list. REQUIRED when kind=asset. Omit for kind=text.",
+                description: "UUID from candidate_assets. REQUIRED when kind=asset. Omit for kind=text.",
               },
               text: { type: "string", description: "Text content. REQUIRED when kind=text." },
               text_role: { type: "string", enum: ["heading", "subheading", "caption"] },
-              position: {
-                type: "object",
-                additionalProperties: false,
-                required: ["x", "y", "w", "h"],
-                properties: {
-                  x: { type: "number", minimum: 0, maximum: 1, description: "Normalised left (0..1)" },
-                  y: { type: "number", minimum: 0, maximum: 1 },
-                  w: { type: "number", minimum: 0.05, maximum: 1 },
-                  h: { type: "number", minimum: 0.05, maximum: 1 },
-                },
+              slot: {
+                type: "integer",
+                minimum: 0,
+                maximum: 8,
+                description: "Index into the chosen layout's slots (0-based). Slot order = visual reading order.",
               },
               anchor_word_index: {
                 type: "integer",
@@ -234,14 +246,13 @@ const PLAN_TOOL = {
 
 const DIRECTOR_SYSTEM = `You are a senior motion designer for an educational video editor.
 You compose ONE scene at a time. Your job:
-- Choose 2 to 5 elements that visually reinforce the narration.
-- Prefer 1 "primary" focal element + supporting icons/text. Avoid 9-cell grid stacks.
-- Place elements with intentional composition: a focal area (left/right/center), with supporting elements smaller and offset. Leave breathing room.
-- Time each element's entrance to the moment its concept is spoken (anchor_word_index into the provided word_timings).
+- FIRST pick a layout preset that fits the beat count + narration tone (see layouts catalogue). Do NOT default to a 3x3 grid.
+- Place 2 to 5 elements into the layout's slots (slot 0 = primary focal area).
+- Time each element's entrance to the moment its concept is spoken (anchor_word_index into word_timings). This is what syncs visuals to voice.
 - Keep at most 3 elements visible at the same instant.
-- Pick assets ONLY from the candidate_assets list (use the exact UUID in asset_id). If nothing fits, use a "text" element instead.
-- Use text elements for key terms ("useState", "API", "Loop"), short callouts, or titles. Pair them with an asset where possible.
-- Choose entrance animations that feel deliberate: fade for ambient, slide-up for arriving content, scale/bounce for emphasis, word-reveal for code/keywords, typewriter sparingly.
+- Pick assets ONLY from candidate_assets (use the exact UUID in asset_id). If nothing fits, use a "text" element.
+- Use text for key terms, short callouts, or titles. Pair text with an asset when possible.
+- Choose entrance animations deliberately: fade ambient, slide-up arriving, scale/bounce emphasis, word-reveal code, typewriter sparingly.
 - Output via the render_scene tool. Do not write prose outside the tool call.`;
 
 export interface StoryboardBeatHint {
@@ -297,6 +308,9 @@ function buildUserPrompt(args: {
     `Scene duration: ${duration_ms}ms`,
     `Narration: ${narration}`,
     `word_timings (idx:text@start_ms): ${wt}`,
+    "",
+    "LAYOUT PRESETS (pick one for `layout`, then place each element in a `slot` index 0..N-1):",
+    layoutCatalogForPrompt(),
     "",
     "candidate_assets (UUIDs you may reference; beat_id ties an asset to a specific beat):",
     cands || "(no library matches — use text elements)",
@@ -361,25 +375,40 @@ function compilePlan(
 ): CompiledRow[] {
   const rows: CompiledRow[] = [];
   const els = plan.elements ?? [];
+
+  // Resolve which layout preset to use, then materialize its slot rects.
+  const layout = (plan.layout && getLayout(plan.layout)) || autoPickLayout(els.length);
+  const slotRects = resolveLayoutPx(layout, Math.max(els.length, 1));
+
   els.forEach((el, idx) => {
-    // Resolve timing from word index
+    // Resolve timing from word index AND grab the anchored word so the
+    // script-area chip can show the binding ("this animation belongs to this word").
     const wIdx = Math.max(0, Math.min(el.anchor_word_index ?? 0, Math.max(0, wordTimings.length - 1)));
+    const anchorWord = wordTimings[wIdx]?.text ?? null;
     const startMs = wordTimings.length > 0
       ? Math.max(0, (wordTimings[wIdx]?.start_ms ?? 0) - 80)
       : Math.round(idx * 400);
     const endMs = Math.min(sceneDurationMs, startMs + Math.max(400, el.duration_ms ?? 2500));
 
-    // Position in pixels (clamped within canvas)
-    const px = Math.max(0, Math.min(1, el.position.x));
-    const py = Math.max(0, Math.min(1, el.position.y));
-    const pw = Math.max(0.05, Math.min(1 - px, el.position.w));
-    const ph = Math.max(0.05, Math.min(1 - py, el.position.h));
-    const position = {
-      x: Math.round(px * CANVAS_W),
-      y: Math.round(py * CANVAS_H),
-      w: Math.round(pw * CANVAS_W),
-      h: Math.round(ph * CANVAS_H),
-    };
+    // Position: prefer slot from chosen layout. Fall back to legacy normalized rect.
+    let position: { x: number; y: number; w: number; h: number };
+    const slotIdx = typeof el.slot === "number" ? el.slot : idx;
+    if (slotRects[slotIdx]) {
+      position = slotRects[slotIdx];
+    } else if (el.position) {
+      const px = Math.max(0, Math.min(1, el.position.x));
+      const py = Math.max(0, Math.min(1, el.position.y));
+      const pw = Math.max(0.05, Math.min(1 - px, el.position.w));
+      const ph = Math.max(0.05, Math.min(1 - py, el.position.h));
+      position = {
+        x: Math.round(px * CANVAS_W),
+        y: Math.round(py * CANVAS_H),
+        w: Math.round(pw * CANVAS_W),
+        h: Math.round(ph * CANVAS_H),
+      };
+    } else {
+      position = slotRects[Math.min(idx, slotRects.length - 1)] ?? { x: 40, y: 40, w: 400, h: 300 };
+    }
 
     if (el.kind === "text") {
       const role = el.text_role ?? "subheading";
@@ -397,6 +426,7 @@ function compilePlan(
           name: "Text",
           text: el.text ?? "",
           role,
+          word: anchorWord,
           font_family: "Inter",
           font_size: sizeByRole[role] ?? 36,
           font_weight: weightByRole[role] ?? 600,
@@ -418,7 +448,12 @@ function compilePlan(
     // kind === "asset"
     const asset = el.asset_id ? candidatesById.get(el.asset_id) : null;
     if (!asset) return; // skip — LLM hallucinated id
-    const type = asset.provider === "iconscout" ? "iconscout" : asset.provider === "lottie" ? "lottie" : "animation";
+    const type =
+      asset.provider === "iconscout" || asset.provider === "ai-image"
+        ? "iconscout"
+        : asset.provider === "lottie"
+          ? "lottie"
+          : "animation";
     rows.push({
       scene_id: sceneId,
       type,
@@ -430,6 +465,7 @@ function compilePlan(
         provider: asset.provider,
         name: asset.name,
         slug: asset.slug,
+        word: anchorWord,
         lottie_url: asset.lottie_url,
         video_url: asset.video_url,
         external_id: asset.external_id,
@@ -440,7 +476,7 @@ function compilePlan(
         rotation: 0,
         color_support: asset.color_support,
         tint: null,
-        remove_background: asset.provider === "iconscout",
+        remove_background: asset.provider === "iconscout" || asset.provider === "ai-image",
         text_animation: el.enter
           ? {
               type: el.enter.type,

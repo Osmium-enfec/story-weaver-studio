@@ -6,12 +6,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sparkles, Send, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { directProject } from "@/server/director.functions";
+import { generateAssetImage } from "@/server/ai-image.functions";
 import {
   planStoryboard,
   refineStoryboard,
   approveAndAnimate,
   type Storyboard,
 } from "@/server/storyboard.functions";
+
+const GEN_IMAGE_RE = /^\s*(generate|create|make|draw)\s+(an?\s+)?(image|picture|illustration|icon|photo|3d\s+icon)\s+(of|for|showing|with)?\s*(.+)$/i;
 
 type Mode = "storyboard" | "refine-anim";
 
@@ -143,6 +146,30 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
     // Natural-language approval shortcut while in storyboard mode
     if (scope === "scene" && mode === "storyboard" && storyboard && APPROVE_RE.test(instruction)) {
       await approveCurrent();
+      return;
+    }
+
+    // Natural-language image generation: "generate an image of X"
+    const genMatch = instruction.match(GEN_IMAGE_RE);
+    if (genMatch) {
+      const subject = genMatch[5].trim();
+      const style = /icon/i.test(genMatch[3]) ? "icon" : /photo/i.test(genMatch[3]) ? "photo" : "illustration";
+      setBusy(true);
+      try {
+        const img = await generateAssetImage({
+          data: { projectId, sceneId: activeSceneId ?? undefined, prompt: subject, style },
+        });
+        setMessages((m) => [
+          ...m,
+          { role: "assistant", content: `Generated image "${img.name}". Added to the asset library — ask me to "use it" or refine the storyboard to include it.\n\n![generated](${img.url})` },
+        ]);
+      } catch (e) {
+        const msg = (e as Error).message || "Image generation failed";
+        setMessages((m) => [...m, { role: "assistant", content: `Error: ${msg}` }]);
+        toast.error(msg);
+      } finally {
+        setBusy(false);
+      }
       return;
     }
 
