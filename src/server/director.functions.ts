@@ -239,6 +239,15 @@ You compose ONE scene at a time. Your job:
 - Choose entrance animations that feel deliberate: fade for ambient, slide-up for arriving content, scale/bounce for emphasis, word-reveal for code/keywords, typewriter sparingly.
 - Output via the render_scene tool. Do not write prose outside the tool call.`;
 
+export interface StoryboardBeatHint {
+  id?: string;
+  label: string;
+  kind: "title" | "icon" | "code" | "diagram" | "callout" | "image";
+  asset_query?: string;
+  anchor_word_index?: number;
+  narration_excerpt?: string;
+}
+
 function buildUserPrompt(args: {
   theme: string;
   narration: string;
@@ -246,9 +255,9 @@ function buildUserPrompt(args: {
   duration_ms: number;
   candidates: CandidateAsset[];
   instruction?: string;
+  storyboard?: StoryboardBeatHint[];
 }) {
-  const { theme, narration, word_timings, duration_ms, candidates, instruction } = args;
-  // Truncate timings to 60 entries to keep prompt small
+  const { theme, narration, word_timings, duration_ms, candidates, instruction, storyboard } = args;
   const wt = word_timings.slice(0, 60).map((w, i) => `${i}:${w.text}@${w.start_ms}`).join(" ");
   const cands = candidates
     .slice(0, 30)
@@ -257,6 +266,18 @@ function buildUserPrompt(args: {
         `- id=${c.id} name="${c.name}" provider=${c.provider} tags=[${c.tags.slice(0, 5).join(",")}]`,
     )
     .join("\n");
+  const sb = storyboard && storyboard.length
+    ? "\nAPPROVED STORYBOARD (use exactly this order, one element per beat):\n" +
+      storyboard
+        .map(
+          (b, i) =>
+            `${i + 1}. kind=${b.kind} label="${b.label}"${b.asset_query ? ` query="${b.asset_query}"` : ""}${
+              typeof b.anchor_word_index === "number" ? ` anchor_word_index=${b.anchor_word_index}` : ""
+            }`,
+        )
+        .join("\n") +
+      "\nFor each beat: pick the closest candidate UUID for kind=icon/image/diagram by matching the query against name/tags; for kind=title/code/callout use a text element with the label. Keep anchor_word_index as given."
+    : "";
   return [
     `Theme: ${theme}`,
     `Scene duration: ${duration_ms}ms`,
@@ -265,6 +286,7 @@ function buildUserPrompt(args: {
     "",
     "candidate_assets (UUIDs you may reference):",
     cands || "(no library matches — use text elements)",
+    sb,
     instruction ? `\nUSER INSTRUCTION: ${instruction}` : "",
   ].join("\n");
 }
