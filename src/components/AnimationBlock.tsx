@@ -407,15 +407,18 @@ export function AnimationBlockRenderer({
     );
   }
 
-  // Fallback: internal placeholder block
+  // Fallback: internal placeholder block — show the anchored word, not the asset_query
+  const fallbackLabel = (content.word || content.text || "").trim();
   return (
     <div
       style={wrapperStyle}
-      className="flex h-full w-full items-center justify-center rounded-md bg-primary/10 text-center"
+      className="flex h-full w-full items-center justify-center rounded-md bg-primary/5 text-center"
     >
-      <div>
-        <Sparkles className="mx-auto h-5 w-5 text-primary" />
-        <p className="mt-1 text-xs font-medium text-primary">{content.name}</p>
+      <div className="px-2">
+        <Sparkles className="mx-auto h-5 w-5 text-primary/70" />
+        {fallbackLabel ? (
+          <p className="mt-1 text-sm font-semibold text-primary truncate">{fallbackLabel}</p>
+        ) : null}
       </div>
     </div>
   );

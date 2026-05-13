@@ -83,7 +83,7 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
           ...m,
           {
             role: "assistant",
-            content: `Step 1 — pick a grid for canvas ${activeSceneIndex + 1}. I suggested ${res.options.length} layouts based on ~${res.beatCount} beats. Click one to lock it in.`,
+            content: `Step 1 — pick a grid for canvas ${activeSceneIndex + 1}. ${res.options.length} layouts (≈${res.beatCount} beats). Click one to lock it in — the highlighted one is my recommendation.`,
             gridOptions: res.options,
           },
         ]);
@@ -450,24 +450,21 @@ function GridOptionsPicker({
   onPick: (id: string, name: string) => void;
 }) {
   return (
-    <div className="mt-2 grid grid-cols-1 gap-2">
+    <div className="mt-2 grid grid-cols-3 gap-1.5">
       {options.map((o) => (
         <button
           key={o.id}
           onClick={() => onPick(o.id, o.name)}
           disabled={busy}
-          className="text-left rounded-md border bg-background hover:border-primary transition-colors p-2 disabled:opacity-60"
+          title={`${o.name} — ${o.description}`}
+          className="text-left rounded-md border bg-background hover:border-primary transition-colors p-1 disabled:opacity-60"
         >
           <div
             className="rounded overflow-hidden"
             // SVG generated server-side from a strict shape
             dangerouslySetInnerHTML={{ __html: o.svg }}
           />
-          <div className="mt-1.5 flex items-baseline justify-between gap-2">
-            <span className="text-xs font-semibold">{o.name}</span>
-            <span className="text-[10px] text-muted-foreground">{o.beatCount} beats</span>
-          </div>
-          <div className="text-[11px] text-muted-foreground line-clamp-2">{o.description}</div>
+          <div className="mt-1 text-[10px] font-semibold leading-tight truncate">{o.name}</div>
         </button>
       ))}
     </div>
