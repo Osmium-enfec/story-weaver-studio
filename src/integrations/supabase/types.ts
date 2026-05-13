@@ -376,6 +376,7 @@ export type Database = {
           background: Json
           created_at: string
           detected_concepts: string[]
+          director_plan: Json
           duration_ms: number
           id: string
           narration: string
@@ -402,6 +403,7 @@ export type Database = {
           background?: Json
           created_at?: string
           detected_concepts?: string[]
+          director_plan?: Json
           duration_ms?: number
           id?: string
           narration?: string
@@ -428,6 +430,7 @@ export type Database = {
           background?: Json
           created_at?: string
           detected_concepts?: string[]
+          director_plan?: Json
           duration_ms?: number
           id?: string
           narration?: string
