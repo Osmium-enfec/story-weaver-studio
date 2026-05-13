@@ -149,6 +149,30 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
       return;
     }
 
+    // Natural-language image generation: "generate an image of X"
+    const genMatch = instruction.match(GEN_IMAGE_RE);
+    if (genMatch) {
+      const subject = genMatch[5].trim();
+      const style = /icon/i.test(genMatch[3]) ? "icon" : /photo/i.test(genMatch[3]) ? "photo" : "illustration";
+      setBusy(true);
+      try {
+        const img = await generateAssetImage({
+          data: { projectId, sceneId: activeSceneId ?? undefined, prompt: subject, style },
+        });
+        setMessages((m) => [
+          ...m,
+          { role: "assistant", content: `Generated image "${img.name}". Added to the asset library — ask me to "use it" or refine the storyboard to include it.\n\n![generated](${img.url})` },
+        ]);
+      } catch (e) {
+        const msg = (e as Error).message || "Image generation failed";
+        setMessages((m) => [...m, { role: "assistant", content: `Error: ${msg}` }]);
+        toast.error(msg);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     setBusy(true);
     try {
       if (scope === "scene" && mode === "storyboard" && targetSceneId) {
