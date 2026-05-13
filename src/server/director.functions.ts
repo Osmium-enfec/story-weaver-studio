@@ -263,7 +263,7 @@ You compose ONE scene at a time. Your job:
 export interface StoryboardBeatHint {
   id?: string;
   label: string;
-  kind: "title" | "icon" | "code" | "diagram" | "callout" | "image";
+  kind: "title" | "icon" | "code" | "diagram" | "callout" | "image" | "animation";
   asset_query?: string;
   anchor_word_index?: number;
   narration_excerpt?: string;

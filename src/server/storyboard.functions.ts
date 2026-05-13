@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { directProject, type StoryboardBeatHint } from "./director.functions";
+import { getLayout } from "@/lib/layouts";
 
 /**
  * Storyboard step — runs BEFORE animation. Produces a 3-7 beat infographic
@@ -19,7 +20,7 @@ function getAdmin() {
 export interface StoryboardBeat {
   id: string;
   label: string;
-  kind: "title" | "icon" | "code" | "diagram" | "callout" | "image";
+  kind: "title" | "icon" | "code" | "diagram" | "callout" | "image" | "animation";
   asset_query?: string;
   anchor_word_index: number;
   narration_excerpt?: string;
@@ -33,7 +34,7 @@ export interface Storyboard {
   updated_at: string;
 }
 
-const BEAT_KINDS = ["title", "icon", "code", "diagram", "callout", "image"] as const;
+const BEAT_KINDS = ["title", "icon", "code", "diagram", "callout", "image", "animation"] as const;
 
 const STORYBOARD_TOOL = {
   type: "function" as const,
@@ -137,6 +138,7 @@ function kindGlyph(kind: StoryboardBeat["kind"]): string {
     case "diagram": return "◆";
     case "callout": return "!";
     case "image": return "▣";
+    case "animation": return "▶";
     default: return "•";
   }
 }
@@ -149,12 +151,58 @@ function kindColor(kind: StoryboardBeat["kind"]): string {
     case "diagram": return "#14b8a6";
     case "callout": return "#f59e0b";
     case "image": return "#ec4899";
+    case "animation": return "#8b5cf6";
     default: return "#64748b";
   }
 }
 
-/** Render the storyboard as a compact horizontal flow SVG (wraps after 4). */
-function renderBeatsSvg(beats: StoryboardBeat[]): string {
+/**
+ * Render the storyboard SVG. When `layoutId` matches a known LayoutPreset,
+ * beats are placed inside that layout's slots so the chat preview reflects
+ * the grid the user picked in stage 1. Otherwise we fall back to a flow grid.
+ */
+function renderBeatsSvg(beats: StoryboardBeat[], layoutId?: string | null): string {
+  const layout = layoutId ? getLayout(layoutId) : null;
+
+  if (layout && beats.length > 0) {
+    const W = 480;
+    const H = 270;
+    const rects = layout.rects(beats.length);
+    const cards = beats
+      .map((b, i) => {
+        const r = rects[i] ?? rects[rects.length - 1];
+        const x = Math.round(r.x * W);
+        const y = Math.round(r.y * H);
+        const w = Math.round(r.w * W);
+        const h = Math.round(r.h * H);
+        const c = kindColor(b.kind);
+        const label = escapeXml(b.label.length > 36 ? b.label.slice(0, 35) + "…" : b.label);
+        const kindLabel = escapeXml(b.kind);
+        const glyph = escapeXml(kindGlyph(b.kind));
+        const headerH = Math.min(20, Math.max(14, Math.round(h * 0.18)));
+        const fontSize = Math.max(9, Math.min(13, Math.round(Math.min(w, h) * 0.12)));
+        return `
+  <g>
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" ry="8"
+          fill="#ffffff" stroke="${c}" stroke-width="1.5"/>
+    <rect x="${x}" y="${y}" width="${w}" height="${headerH}" rx="8" ry="8" fill="${c}"/>
+    <rect x="${x}" y="${y + headerH / 2}" width="${w}" height="${headerH / 2}" fill="${c}"/>
+    <text x="${x + 6}" y="${y + headerH - 5}" font-family="Inter, system-ui, sans-serif" font-size="9" fill="#ffffff" font-weight="600">${i + 1}. ${kindLabel}</text>
+    <text x="${x + w - 6}" y="${y + headerH - 5}" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#ffffff" text-anchor="end" font-weight="700">${glyph}</text>
+    <foreignObject x="${x + 6}" y="${y + headerH + 4}" width="${Math.max(10, w - 12)}" height="${Math.max(10, h - headerH - 8)}">
+      <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:Inter,system-ui,sans-serif;font-size:${fontSize}px;color:#0f172a;line-height:1.2;font-weight:600;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">${label}</div>
+    </foreignObject>
+  </g>`;
+      })
+      .join("");
+    const title = escapeXml(layout.name);
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H + 18}" width="100%" style="max-width:${W}px;height:auto;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">
+  <text x="8" y="12" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#64748b" font-weight="600">grid: ${title}</text>
+  <g transform="translate(0, 18)">${cards}</g>
+</svg>`;
+  }
+
+  // Fallback: flow layout (wraps after 4)
   const perRow = 4;
   const cardW = 140;
   const cardH = 86;
@@ -170,10 +218,7 @@ function renderBeatsSvg(beats: StoryboardBeat[]): string {
   const positions = beats.map((_, i) => {
     const row = Math.floor(i / perRow);
     const col = i % perRow;
-    return {
-      x: padX + col * (cardW + gapX),
-      y: padY + row * (cardH + gapY),
-    };
+    return { x: padX + col * (cardW + gapX), y: padY + row * (cardH + gapY) };
   });
 
   const cards = beats
@@ -210,7 +255,6 @@ function renderBeatsSvg(beats: StoryboardBeat[]): string {
         const y = a.y + cardH / 2;
         return `<line x1="${x1}" y1="${y}" x2="${x2 - 4}" y2="${y}" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>`;
       }
-      // Wrap to next row: down + left
       const startX = a.x + cardW / 2;
       const startY = a.y + cardH;
       const endX = b.x + cardW / 2;
@@ -318,12 +362,13 @@ async function persistStoryboard(
   prevStoryboard: Partial<Storyboard> | null,
 ): Promise<Storyboard> {
   const linked = beats.map((b, i) => ({ ...b, next: i < beats.length - 1 ? beats[i + 1].id : null }));
+  const prev = (prevStoryboard ?? {}) as Partial<Storyboard> & { layout?: string };
   const sb: Storyboard & { layout?: string; layoutName?: string; layoutOptions?: string[] } = {
     // Preserve grid-stage choices (layout, layoutName) across storyboard rewrites
-    ...(prevStoryboard ?? {}),
+    ...prev,
     status,
     beats: linked,
-    svg: renderBeatsSvg(linked),
+    svg: renderBeatsSvg(linked, prev.layout ?? null),
     updated_at: new Date().toISOString(),
   };
   const { error } = await admin
@@ -399,4 +444,35 @@ export const approveAndAnimate = createServerFn({ method: "POST" })
     });
     await admin.from("scenes").update({ director_stage: "done" }).eq("id", scene.id);
     return { ok: true, ...res };
+  });
+
+/** Edit a single beat (kind/label/asset_query) without re-running the LLM. */
+export const updateStoryboardBeat = createServerFn({ method: "POST" })
+  .inputValidator((d: { sceneId: string; beatId: string; kind?: string; label?: string; asset_query?: string }) =>
+    z
+      .object({
+        sceneId: z.string().uuid(),
+        beatId: z.string().min(1).max(40),
+        kind: z.enum([...BEAT_KINDS]).optional(),
+        label: z.string().min(1).max(80).optional(),
+        asset_query: z.string().max(60).optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const admin = getAdmin();
+    const scene = await fetchScene(admin, data.sceneId);
+    const beats = (scene.storyboard?.beats ?? []) as StoryboardBeat[];
+    if (!beats.length) throw new Error("No storyboard to edit");
+    const next = beats.map((b) =>
+      b.id === data.beatId
+        ? {
+            ...b,
+            ...(data.kind ? { kind: data.kind as StoryboardBeat["kind"] } : {}),
+            ...(data.label ? { label: data.label } : {}),
+            ...(data.asset_query !== undefined ? { asset_query: data.asset_query || undefined } : {}),
+          }
+        : b,
+    );
+    return await persistStoryboard(admin, scene.id, next, "draft", scene.storyboard);
   });
