@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { ensure3DForKeywords, wants3D } from "./iconscout-3d.server";
+import { ensureExternalForKeywords } from "./director-mirror.server";
 import {
   LAYOUT_IDS,
   autoPickLayout,
@@ -248,7 +249,8 @@ const DIRECTOR_SYSTEM = `You are a senior motion designer for an educational vid
 You compose ONE scene at a time. Your job:
 - FIRST pick a layout preset that fits the beat count + narration tone (see layouts catalogue). Do NOT default to a 3x3 grid.
 - Place 2 to 5 elements into the layout's slots (slot 0 = primary focal area).
-- Time each element's entrance to the moment its concept is spoken (anchor_word_index into word_timings). This is what syncs visuals to voice.
+- CRITICAL: every element MUST set anchor_word_index to the index of the spoken word it visually represents. This is non-negotiable — visuals that aren't tied to a word will be dropped. Pick the word whose meaning the visual depicts (e.g. an airplane icon → the word "fly", a chart → the word "growth").
+- No two elements should share the same anchor_word_index unless they form a tight pair (heading + icon for the same concept).
 - Keep at most 3 elements visible at the same instant.
 - Pick assets ONLY from candidate_assets (use the exact UUID in asset_id). If nothing fits, use a "text" element.
 - Use text for key terms, short callouts, or titles. Pair text with an asset when possible.
@@ -366,29 +368,60 @@ interface CompiledRow {
   end_ms: number;
 }
 
+interface ThemeTokens {
+  fg: string;
+  accent: string;
+  bg: string;
+}
+
+const DEFAULT_THEME_TOKENS: ThemeTokens = { fg: "#0f172a", accent: "#1f6feb", bg: "#ffffff" };
+
 function compilePlan(
   sceneId: string,
   sceneDurationMs: number,
   wordTimings: { text: string; start_ms: number; end_ms: number }[],
   candidatesById: Map<string, CandidateAsset>,
   plan: ScenePlan,
+  themeTokens: ThemeTokens,
 ): CompiledRow[] {
   const rows: CompiledRow[] = [];
   const els = plan.elements ?? [];
+  const hasWords = wordTimings.length > 0;
 
   // Resolve which layout preset to use, then materialize its slot rects.
   const layout = (plan.layout && getLayout(plan.layout)) || autoPickLayout(els.length);
   const slotRects = resolveLayoutPx(layout, Math.max(els.length, 1));
 
   els.forEach((el, idx) => {
-    // Resolve timing from word index AND grab the anchored word so the
-    // script-area chip can show the binding ("this animation belongs to this word").
-    const wIdx = Math.max(0, Math.min(el.anchor_word_index ?? 0, Math.max(0, wordTimings.length - 1)));
-    const anchorWord = wordTimings[wIdx]?.text ?? null;
-    const startMs = wordTimings.length > 0
+    // Word-anchor invariant: every element MUST bind to a real spoken word
+    // when word_timings exist. Drop elements with missing/out-of-range anchors
+    // so the timeline never shows visuals that don't match the voice.
+    let wIdx = el.anchor_word_index ?? -1;
+    if (hasWords) {
+      if (!Number.isFinite(wIdx) || wIdx < 0 || wIdx >= wordTimings.length) {
+        console.warn(`director: dropping element ${idx} — invalid anchor_word_index`, wIdx);
+        return;
+      }
+    } else {
+      wIdx = 0; // no words to bind to (silent scene)
+    }
+
+    const anchorWord = hasWords ? (wordTimings[wIdx]?.text ?? null) : null;
+    const startMs = hasWords
       ? Math.max(0, (wordTimings[wIdx]?.start_ms ?? 0) - 80)
       : Math.round(idx * 400);
-    const endMs = Math.min(sceneDurationMs, startMs + Math.max(400, el.duration_ms ?? 2500));
+    const elementDur = Math.max(400, el.duration_ms ?? 2500);
+    const endMs = Math.min(sceneDurationMs, startMs + elementDur);
+
+    // Compute end_word_index from duration so the script panel can highlight
+    // the FULL phrase this element covers, not just the single anchor word.
+    let endWIdx = wIdx;
+    if (hasWords) {
+      for (let i = wIdx; i < wordTimings.length; i++) {
+        if ((wordTimings[i]?.start_ms ?? 0) <= endMs) endWIdx = i;
+        else break;
+      }
+    }
 
     // Position: prefer slot from chosen layout. Fall back to legacy normalized rect.
     let position: { x: number; y: number; w: number; h: number };
@@ -414,6 +447,12 @@ function compilePlan(
       const role = el.text_role ?? "subheading";
       const sizeByRole: Record<string, number> = { heading: 72, subheading: 44, caption: 28 };
       const weightByRole: Record<string, number> = { heading: 700, subheading: 600, caption: 500 };
+      // Theme-aware color: heading uses fg, caption uses fg @ 70%, subheading uses accent.
+      const colorByRole: Record<string, string> = {
+        heading: themeTokens.fg,
+        subheading: themeTokens.accent,
+        caption: themeTokens.fg,
+      };
       rows.push({
         scene_id: sceneId,
         type: "text",
@@ -427,11 +466,13 @@ function compilePlan(
           text: el.text ?? "",
           role,
           word: anchorWord,
+          start_word_index: hasWords ? wIdx : null,
+          end_word_index: hasWords ? endWIdx : null,
           font_family: "Inter",
           font_size: sizeByRole[role] ?? 36,
           font_weight: weightByRole[role] ?? 600,
           line_height: 1.2,
-          color: "#0f172a",
+          color: colorByRole[role] ?? themeTokens.fg,
           text_animation: el.enter
             ? {
                 type: el.enter.type,
@@ -449,7 +490,7 @@ function compilePlan(
     const asset = el.asset_id ? candidatesById.get(el.asset_id) : null;
     if (!asset) return; // skip — LLM hallucinated id
     const type =
-      asset.provider === "iconscout" || asset.provider === "ai-image"
+      asset.provider === "iconscout" || asset.provider === "ai-image" || asset.provider === "iconify" || asset.provider === "unsplash"
         ? "iconscout"
         : asset.provider === "lottie"
           ? "lottie"
@@ -466,6 +507,8 @@ function compilePlan(
         name: asset.name,
         slug: asset.slug,
         word: anchorWord,
+        start_word_index: hasWords ? wIdx : null,
+        end_word_index: hasWords ? endWIdx : null,
         lottie_url: asset.lottie_url,
         video_url: asset.video_url,
         external_id: asset.external_id,
@@ -476,7 +519,10 @@ function compilePlan(
         rotation: 0,
         color_support: asset.color_support,
         tint: null,
-        remove_background: asset.provider === "iconscout" || asset.provider === "ai-image",
+        remove_background:
+          asset.provider === "iconscout" ||
+          asset.provider === "ai-image" ||
+          asset.provider === "iconify",
         text_animation: el.enter
           ? {
               type: el.enter.type,
@@ -488,6 +534,97 @@ function compilePlan(
       },
     });
   });
+  return rows;
+}
+
+/**
+ * Smart fallback: when the LLM returns no usable plan, drop a centered
+ * heading using the first words of the narration and (if a candidate is
+ * available) place the highest-tag-overlap asset alongside it. Both are
+ * anchored to real spoken words so the word-binding invariant holds.
+ */
+function buildFallbackRows(
+  sceneId: string,
+  sceneDurationMs: number,
+  wordTimings: { text: string; start_ms: number; end_ms: number }[],
+  candidates: CandidateAsset[],
+  themeTokens: ThemeTokens,
+  narration: string,
+): CompiledRow[] {
+  if (wordTimings.length === 0) return [];
+  const headingText = (narration || "").trim().split(/\s+/).slice(0, 6).join(" ");
+  const layout = autoPickLayout(2);
+  const slots = resolveLayoutPx(layout, 2);
+  const headingSlot = slots[0] ?? { x: 80, y: 80, w: 1120, h: 200 };
+  const assetSlot = slots[1] ?? { x: 80, y: 320, w: 1120, h: 320 };
+
+  const rows: CompiledRow[] = [];
+  const headingStart = Math.max(0, (wordTimings[0]?.start_ms ?? 0) - 80);
+  rows.push({
+    scene_id: sceneId,
+    type: "text",
+    position: headingSlot,
+    z_index: 0,
+    start_ms: headingStart,
+    end_ms: sceneDurationMs,
+    content: {
+      provider: "internal",
+      name: "Text",
+      text: headingText,
+      role: "heading",
+      word: wordTimings[0]?.text ?? null,
+      start_word_index: 0,
+      end_word_index: Math.min(5, wordTimings.length - 1),
+      font_family: "Inter",
+      font_size: 72,
+      font_weight: 700,
+      line_height: 1.2,
+      color: themeTokens.fg,
+      text_animation: { type: "fade", duration: 500, delay: 0, easing: "ease-out" },
+    },
+  });
+
+  const asset = candidates.find((c) => c.video_url || c.lottie_url) ?? candidates[0];
+  if (asset) {
+    const midIdx = Math.floor(wordTimings.length / 2);
+    const midStart = Math.max(0, (wordTimings[midIdx]?.start_ms ?? 0) - 80);
+    rows.push({
+      scene_id: sceneId,
+      type:
+        asset.provider === "iconscout" || asset.provider === "ai-image" || asset.provider === "iconify" || asset.provider === "unsplash"
+          ? "iconscout"
+          : asset.provider === "lottie"
+            ? "lottie"
+            : "animation",
+      position: assetSlot,
+      z_index: 1,
+      start_ms: midStart,
+      end_ms: sceneDurationMs,
+      content: {
+        provider: asset.provider,
+        name: asset.name,
+        slug: asset.slug,
+        word: wordTimings[midIdx]?.text ?? null,
+        start_word_index: midIdx,
+        end_word_index: wordTimings.length - 1,
+        lottie_url: asset.lottie_url,
+        video_url: asset.video_url,
+        external_id: asset.external_id,
+        loop: true,
+        autoplay: true,
+        speed: 1,
+        opacity: 1,
+        rotation: 0,
+        color_support: asset.color_support,
+        tint: null,
+        remove_background:
+          asset.provider === "iconscout" ||
+          asset.provider === "ai-image" ||
+          asset.provider === "iconify",
+        text_animation: { type: "scale", duration: 600, delay: 0, easing: "ease-out" },
+      },
+    });
+  }
   return rows;
 }
 
@@ -515,6 +652,20 @@ export const directProject = createServerFn({ method: "POST" })
       .single();
     const themeName = project?.theme ?? "Whiteboard";
     const themeTags = THEME_TAGS[themeName] ?? [];
+
+    // Fetch theme design tokens so text colors match the project palette
+    // (no more black-on-black on dark themes).
+    const { data: themeRow } = await admin
+      .from("themes")
+      .select("design_tokens")
+      .eq("name", themeName)
+      .maybeSingle();
+    const tokens = (themeRow?.design_tokens ?? {}) as Partial<ThemeTokens>;
+    const themeTokens: ThemeTokens = {
+      fg: tokens.fg ?? DEFAULT_THEME_TOKENS.fg,
+      accent: tokens.accent ?? DEFAULT_THEME_TOKENS.accent,
+      bg: tokens.bg ?? DEFAULT_THEME_TOKENS.bg,
+    };
 
     const sceneQuery = admin
       .from("scenes")
@@ -616,6 +767,64 @@ export const directProject = createServerFn({ method: "POST" })
             }
           }
 
+          // Live-mirror Iconify + Unsplash for the keywords most likely to
+          // need imagery. Skip keywords that already have ≥2 playable local
+          // candidates to avoid wasting API calls.
+          try {
+            const localByKw = new Map<string, number>();
+            for (const c of candidates) {
+              const k = c.source_query;
+              if (k) localByKw.set(k, (localByKw.get(k) ?? 0) + 1);
+            }
+            const sbHint2 = data.storyboardHint as StoryboardBeatHint[] | undefined;
+            const sbBeatQueries = (sbHint2 ?? [])
+              .filter((b) => b.kind === "icon" || b.kind === "image" || b.kind === "diagram")
+              .map((b) => ({ beatId: b.id ?? "", query: (b.asset_query || b.label).trim() }))
+              .filter((p) => !!p.query);
+            const externalQueries = (sbBeatQueries.length ? sbBeatQueries.map((p) => p.query) : keywords)
+              .filter((kw) => (localByKw.get(kw) ?? 0) < 2)
+              .slice(0, 6);
+
+            if (externalQueries.length) {
+              const { byKeyword } = await ensureExternalForKeywords(externalQueries, {
+                iconsPerKeyword: 2,
+                photosPerKeyword: 1,
+                totalCap: 12,
+              });
+              const allIds = Array.from(new Set(Object.values(byKeyword).flat()));
+              if (allIds.length) {
+                const { data: rows } = await admin
+                  .from("animation_components")
+                  .select("id, name, slug, provider, video_url, lottie_url, thumbnail_url, external_id, color_support, tags")
+                  .in("id", allIds);
+                const rowById = new Map<string, any>((rows ?? []).map((r: any) => [r.id, r]));
+                for (const [kw, ids] of Object.entries(byKeyword)) {
+                  const beatId = sbBeatQueries.find((p) => p.query === kw)?.beatId;
+                  for (const id of ids) {
+                    const r = rowById.get(id);
+                    if (!r || candidates.some((c) => c.id === r.id)) continue;
+                    candidates.push({
+                      id: r.id,
+                      name: r.name,
+                      slug: r.slug,
+                      provider: r.provider,
+                      preview_url: r.thumbnail_url ?? r.video_url ?? r.lottie_url,
+                      video_url: r.video_url,
+                      lottie_url: r.lottie_url,
+                      external_id: r.external_id,
+                      color_support: r.color_support ?? "fixed",
+                      tags: r.tags ?? [],
+                      beat_id: beatId,
+                      source_query: kw,
+                    });
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.error("ensureExternalForKeywords", (e as Error).message);
+          }
+
           const candById = new Map(candidates.map((c) => [c.id, c]));
 
           const prompt = buildUserPrompt({
@@ -628,23 +837,33 @@ export const directProject = createServerFn({ method: "POST" })
             storyboard: data.storyboardHint as StoryboardBeatHint[] | undefined,
           });
           const plan = await callDirectorLLM(prompt, apiKey);
-          if (!plan || !plan.elements?.length) {
-            return { sceneId: s.id, inserted: 0, fallback: true, plan: null };
+
+          // Smart fallback: if LLM returns no plan or compile produces 0 rows,
+          // drop a centered heading + best candidate so the scene is never blank.
+          let rows: CompiledRow[] = [];
+          let usedFallback = false;
+          if (plan && plan.elements?.length) {
+            rows = compilePlan(s.id, durationMs, wt, candById, plan, themeTokens);
           }
-          const rows = compilePlan(s.id, durationMs, wt, candById, plan);
-          if (rows.length === 0) return { sceneId: s.id, inserted: 0, fallback: true, plan };
+          if (rows.length === 0) {
+            rows = buildFallbackRows(s.id, durationMs, wt, candidates, themeTokens, narration);
+            usedFallback = true;
+          }
+          if (rows.length === 0) {
+            return { sceneId: s.id, inserted: 0, fallback: true, plan: plan ?? null };
+          }
 
           const { error } = await admin.from("scene_elements").insert(rows);
           if (error) {
             console.error("director insert error", error);
-            return { sceneId: s.id, inserted: 0, fallback: true, plan };
+            return { sceneId: s.id, inserted: 0, fallback: true, plan: plan ?? null };
           }
           // Persist plan for later refinement
           await admin
             .from("scenes")
-            .update({ director_plan: plan as unknown as never })
+            .update({ director_plan: (plan ?? { fallback: true }) as unknown as never })
             .eq("id", s.id);
-          return { sceneId: s.id, inserted: rows.length, fallback: false, plan };
+          return { sceneId: s.id, inserted: rows.length, fallback: usedFallback, plan: plan ?? null };
         }),
       );
       for (const r of results) {

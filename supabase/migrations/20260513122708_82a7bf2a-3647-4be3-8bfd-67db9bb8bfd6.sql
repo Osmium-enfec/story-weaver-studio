@@ -1,0 +1,1 @@
+ALTER TABLE public.scenes ADD COLUMN IF NOT EXISTS director_stage text NOT NULL DEFAULT 'idle' CHECK (director_stage IN ('idle','grid','infographic','animation','done'));
