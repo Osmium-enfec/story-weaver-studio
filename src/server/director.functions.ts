@@ -598,7 +598,7 @@ function buildFallbackRows(
     },
   });
 
-  const asset = candidates.find((c) => c.video_url || c.lottie_url) ?? candidates[0];
+  const asset = candidates.find((c) => c.video_url || c.lottie_url || c.image_url) ?? candidates[0];
   if (asset) {
     const midIdx = Math.floor(wordTimings.length / 2);
     const midStart = Math.max(0, (wordTimings[midIdx]?.start_ms ?? 0) - 80);
