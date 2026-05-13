@@ -22,6 +22,7 @@ import { PlaybackDialog } from "@/components/PlaybackDialog";
 import type { AnimationResult } from "@/lib/animation-providers";
 import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
 import { seedAnimationsForProject } from "@/server/voice.functions";
+import { directProject } from "@/server/director.functions";
 import { proxyImageAsDataUrl } from "@/server/proxy-image.functions";
 import { CanvasAudioEditor } from "@/components/CanvasAudioEditor";
 import { applyPendingTheme, consumePendingTheme } from "@/lib/pending-theme";
@@ -257,19 +258,21 @@ function ScriptCanvas() {
     }
   }
 
-  async function regenerateAnimations(opts?: { sceneId?: string }) {
+  async function regenerateAnimations(opts?: { sceneId?: string; ai?: boolean }) {
     if (isSeeding) return;
     const onlyOne = !!opts?.sceneId;
+    const useAI = opts?.ai !== false;
     const msg = onlyOne
-      ? "Replace animations on this canvas only with fresh ones from its narration?"
-      : "Replace all canvas animations with fresh ones from your script keywords?";
+      ? `Replace animations on this canvas with ${useAI ? "AI-directed" : "basic"} ones?`
+      : `Replace ALL canvas animations with ${useAI ? "AI-directed" : "basic"} ones?`;
     if (!confirm(msg)) return;
     setIsSeeding(true);
     try {
-      const res = await seedAnimationsForProject({
-        data: { projectId, replace: true, sceneId: opts?.sceneId },
-      });
-      toast.success(`Added ${res.elementsInserted} animations across ${res.sceneCount} canvas${res.sceneCount === 1 ? "" : "es"}`);
+      const res = useAI
+        ? await directProject({ data: { projectId, replace: true, sceneId: opts?.sceneId } })
+        : await seedAnimationsForProject({ data: { projectId, replace: true, sceneId: opts?.sceneId } });
+      const fb = "scenesFallback" in res && res.scenesFallback ? ` (${res.scenesFallback} fell back)` : "";
+      toast.success(`Added ${res.elementsInserted} animations across ${res.sceneCount} canvas${res.sceneCount === 1 ? "" : "es"}${fb}`);
       // Refetch elements
       const idQuery = supabase.from("scenes").select("id").eq("project_id", projectId);
       const { data: rows } = opts?.sceneId ? await idQuery.eq("id", opts.sceneId) : await idQuery;
@@ -304,18 +307,25 @@ function ScriptCanvas() {
         },
       },
       {
-        label: isSeeding ? "Generating…" : "Auto-animate canvas",
+        label: isSeeding ? "Directing…" : "AI animate canvas",
         icon: "play",
         variant: "outline",
         disabled: isSeeding || isExporting || !activeScene,
-        onClick: () => regenerateAnimations({ sceneId: activeScene?.id }),
+        onClick: () => regenerateAnimations({ sceneId: activeScene?.id, ai: true }),
       },
       {
-        label: isSeeding ? "Generating…" : "Auto-animate all",
+        label: isSeeding ? "Directing…" : "AI animate all",
         icon: "play",
         variant: "outline",
         disabled: isSeeding || isExporting,
-        onClick: () => regenerateAnimations(),
+        onClick: () => regenerateAnimations({ ai: true }),
+      },
+      {
+        label: "Quick fill (basic)",
+        icon: "play",
+        variant: "outline",
+        disabled: isSeeding || isExporting,
+        onClick: () => regenerateAnimations({ ai: false }),
       },
       {
         label: isExporting ? "Exporting…" : "Export",
