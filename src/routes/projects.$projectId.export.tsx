@@ -53,6 +53,7 @@ function ExportPage() {
   const [playingSceneId, setPlayingSceneId] = useState<string | null>(null);
   const [convertPct, setConvertPct] = useState<number | null>(null);
   const stageRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const mountResolvers = useRef<Record<string, ((el: HTMLDivElement) => void) | null>>({});
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [projectId]);
@@ -131,24 +132,34 @@ function ExportPage() {
     try {
       // Wait one tick so the off-screen stages have mounted
       await new Promise((r) => requestAnimationFrame(() => r(null)));
-      const exporterScenes = selectedScenes.map((s) => {
-        const node = stageRefs.current[s.id];
-        if (!node) throw new Error(`Stage not mounted for scene ${s.id}`);
-        return {
-          id: s.id,
-          node,
-          duration_ms: s.duration_ms,
-          voice_url: s.voice_url,
-          voice_start_ms: s.voice_start_ms,
-          voice_end_ms: s.voice_end_ms,
-          voice_trim_start_ms: s.voice_trim_start_ms,
-          voice_trim_end_ms: s.voice_trim_end_ms,
-          voice_cuts: s.voice_cuts,
-          voice_volume: s.voice_volume,
-          voice_fade_in_ms: s.voice_fade_in_ms,
-          voice_fade_out_ms: s.voice_fade_out_ms,
-        };
-      });
+      const exporterScenes = selectedScenes.map((s) => ({
+        id: s.id,
+        duration_ms: s.duration_ms,
+        voice_url: s.voice_url,
+        voice_start_ms: s.voice_start_ms,
+        voice_end_ms: s.voice_end_ms,
+        voice_trim_start_ms: s.voice_trim_start_ms,
+        voice_trim_end_ms: s.voice_trim_end_ms,
+        voice_cuts: s.voice_cuts,
+        voice_volume: s.voice_volume,
+        voice_fade_in_ms: s.voice_fade_in_ms,
+        voice_fade_out_ms: s.voice_fade_out_ms,
+        mount: () =>
+          new Promise<HTMLElement>((resolve) => {
+            const existing = stageRefs.current[s.id];
+            if (existing) {
+              resolve(existing);
+              return;
+            }
+            mountResolvers.current[s.id] = (el) => resolve(el);
+            setPlayingSceneId(s.id);
+          }),
+        unmount: () => {
+          mountResolvers.current[s.id] = null;
+          stageRefs.current[s.id] = null;
+          setPlayingSceneId((cur) => (cur === s.id ? null : cur));
+        },
+      }));
 
       const webm = await exportScenesToBlob({
         scenes: exporterScenes,
@@ -356,9 +367,9 @@ function ExportPage() {
         )}
       </section>
 
-      {/* Off-screen stages — one per selected scene, kept mounted so the
-          exporter can snapshot them. We hide visually but stay in the layout
-          tree (display:none breaks measurement, so we use absolute + opacity:0). */}
+      {/* Off-screen stage — only the currently-recording scene is mounted so
+          its CSS animations begin in lockstep with the audio. Each scene gets
+          a fresh key so React fully unmounts and remounts between scenes. */}
       <div
         aria-hidden
         style={{
@@ -373,24 +384,38 @@ function ExportPage() {
           overflow: "hidden",
         }}
       >
-        {selectedScenes.map((s) => (
-          <div
-            key={s.id}
-            style={{
-              position: "absolute",
-              left: 0,
-              top: 0,
-              width: DESIGN.w,
-              height: DESIGN.h,
-            }}
-          >
-            <ExportSceneStage
-              ref={(el) => { stageRefs.current[s.id] = el; }}
-              scene={s}
-              isPlaying={playingSceneId === s.id}
-            />
-          </div>
-        ))}
+        {(() => {
+          const s = selectedScenes.find((x) => x.id === playingSceneId);
+          if (!s) return null;
+          return (
+            <div
+              key={s.id}
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                width: DESIGN.w,
+                height: DESIGN.h,
+              }}
+            >
+              <ExportSceneStage
+                ref={(el) => {
+                  stageRefs.current[s.id] = el;
+                  if (el) {
+                    const r = mountResolvers.current[s.id];
+                    if (r) {
+                      mountResolvers.current[s.id] = null;
+                      r(el);
+                    }
+                  }
+                }}
+                scene={s}
+                isPlaying
+                exportMode
+              />
+            </div>
+          );
+        })()}
       </div>
 
       <p className="text-xs text-muted-foreground">

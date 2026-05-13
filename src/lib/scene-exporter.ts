@@ -20,8 +20,13 @@ export const QUALITY_PRESETS: Record<ExportQuality, QualityPreset> = {
 
 export interface ExporterScene extends SceneAudioInput {
   id: string;
-  /** DOM node already mounted off-screen, sized at DESIGN.w × DESIGN.h. */
-  node: HTMLElement;
+  /**
+   * Resolves to a freshly-mounted DOM node for this scene, sized at
+   * DESIGN.w × DESIGN.h. Called right before the scene starts rendering so
+   * any CSS animations on its elements begin in sync with the audio.
+   */
+  mount: () => Promise<HTMLElement>;
+  unmount?: () => void;
 }
 
 export interface ExportOptions {
@@ -108,17 +113,8 @@ export async function exportScenesToBlob(opts: ExportOptions): Promise<Blob> {
     (stream as unknown as { __audioDest: MediaStreamAudioDestinationNode }).__audioDest = dest;
   }
 
-  // Preload assets across all scenes
-  for (let i = 0; i < opts.scenes.length; i++) {
-    if (opts.signal?.aborted) throw new Error("Aborted");
-    opts.onProgress?.({
-      sceneIndex: i,
-      sceneCount: opts.scenes.length,
-      pct: Math.round((i / opts.scenes.length) * 10),
-      phase: "Preloading assets",
-    });
-    await preloadImagesIn(opts.scenes[i].node);
-  }
+  // We mount each scene fresh just before recording it so its CSS animations
+  // start in sync with the audio. Preloading happens per-scene below.
   await preloadFonts();
 
   const mimeType = pickVideoMime();
@@ -129,6 +125,16 @@ export async function exportScenesToBlob(opts: ExportOptions): Promise<Blob> {
     recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
     recorder.onerror = (e) => reject(e);
   });
+
+  // Pre-mount + preload the FIRST scene before starting the recorder/audio
+  // so video and audio begin together. Subsequent scenes mount inside the
+  // loop and pay only their own preload latency.
+  const firstNode = opts.scenes.length > 0 ? await opts.scenes[0].mount() : null;
+  if (firstNode) {
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    await preloadImagesIn(firstNode);
+  }
+  opts.onPlayingScene?.(opts.scenes[0]?.id ?? null);
 
   // Schedule audio in lockstep with recorder.start()
   recorder.start(500);
@@ -144,10 +150,17 @@ export async function exportScenesToBlob(opts: ExportOptions): Promise<Blob> {
     for (let i = 0; i < opts.scenes.length; i++) {
       if (opts.signal?.aborted) throw new Error("Aborted");
       const scene = opts.scenes[i];
-      opts.onPlayingScene?.(scene.id);
+      let node: HTMLElement;
+      if (i === 0 && firstNode) {
+        node = firstNode;
+      } else {
+        opts.onPlayingScene?.(scene.id);
+        node = await scene.mount();
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        await preloadImagesIn(node);
+      }
       const sceneStart = performance.now();
       const sceneDur = scene.duration_ms;
-      // Force a re-snapshot loop for the scene's duration
       const frameInterval = 1000 / fps;
       let nextFrameAt = sceneStart;
       while (performance.now() - sceneStart < sceneDur) {
@@ -157,7 +170,7 @@ export async function exportScenesToBlob(opts: ExportOptions): Promise<Blob> {
           await new Promise((r) => setTimeout(r, Math.max(0, nextFrameAt - now)));
         }
         try {
-          const frameCanvas = await toCanvas(scene.node, {
+          const frameCanvas = await toCanvas(node, {
             cacheBust: false,
             pixelRatio: 1,
             width: DESIGN.w,
@@ -181,6 +194,7 @@ export async function exportScenesToBlob(opts: ExportOptions): Promise<Blob> {
           phase: `Rendering scene ${i + 1} / ${opts.scenes.length}`,
         });
       }
+      scene.unmount?.();
     }
   } finally {
     opts.onPlayingScene?.(null);
