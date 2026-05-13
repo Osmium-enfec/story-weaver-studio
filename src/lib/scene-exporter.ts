@@ -141,9 +141,14 @@ export async function exportScenesToBlob(opts: ExportOptions): Promise<Blob> {
       if (opts.signal?.aborted) throw new Error("Aborted");
       const scene = opts.scenes[i];
       opts.onPlayingScene?.(scene.id);
+      // Mount this scene fresh so its CSS animations begin now (in sync
+      // with the audio that was scheduled at recorder.start()).
+      const node = await scene.mount();
+      // Give React/CSS one paint to attach styles, then preload images.
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      await preloadImagesIn(node);
       const sceneStart = performance.now();
       const sceneDur = scene.duration_ms;
-      // Force a re-snapshot loop for the scene's duration
       const frameInterval = 1000 / fps;
       let nextFrameAt = sceneStart;
       while (performance.now() - sceneStart < sceneDur) {
@@ -153,7 +158,7 @@ export async function exportScenesToBlob(opts: ExportOptions): Promise<Blob> {
           await new Promise((r) => setTimeout(r, Math.max(0, nextFrameAt - now)));
         }
         try {
-          const frameCanvas = await toCanvas(scene.node, {
+          const frameCanvas = await toCanvas(node, {
             cacheBust: false,
             pixelRatio: 1,
             width: DESIGN.w,
@@ -177,6 +182,7 @@ export async function exportScenesToBlob(opts: ExportOptions): Promise<Blob> {
           phase: `Rendering scene ${i + 1} / ${opts.scenes.length}`,
         });
       }
+      scene.unmount?.();
     }
   } finally {
     opts.onPlayingScene?.(null);
