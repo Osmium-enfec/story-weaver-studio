@@ -51,8 +51,9 @@ const APPROVE_RE = /^\s*(approve|approved|looks good|lgtm|ship it|animate it|go 
 
 export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex, onApplied }: Props) {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<Mode>("storyboard");
+  const [mode, setMode] = useState<Mode>("grid");
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
+  const [chosenLayout, setChosenLayout] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -68,8 +69,34 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
   useEffect(() => {
     setMessages([]);
     setStoryboard(null);
-    setMode("storyboard");
+    setChosenLayout(null);
+    setMode("grid");
   }, [activeSceneId]);
+
+  const startGridStage = useCallback(
+    async (sceneId: string) => {
+      setBusy(true);
+      try {
+        const res = await proposeGrid({ data: { sceneId } });
+        setMode("grid");
+        setMessages((m) => [
+          ...m,
+          {
+            role: "assistant",
+            content: `Step 1 — pick a grid for canvas ${activeSceneIndex + 1}. I suggested ${res.options.length} layouts based on ~${res.beatCount} beats. Click one to lock it in.`,
+            gridOptions: res.options,
+          },
+        ]);
+      } catch (e) {
+        const msg = (e as Error).message || "Failed";
+        setMessages((m) => [...m, { role: "assistant", content: `Error: ${msg}` }]);
+        toast.error(msg);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [activeSceneIndex],
+  );
 
   const generateStoryboard = useCallback(
     async (sceneId: string, instruction?: string) => {
@@ -82,7 +109,7 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
           ...m,
           {
             role: "assistant",
-            content: `Here's the storyboard for canvas ${activeSceneIndex + 1} (${sb.beats.length} beats). Tell me what to change, or click Approve & animate.`,
+            content: `Step 2 — infographic for canvas ${activeSceneIndex + 1} (${sb.beats.length} beats). Tell me what to change, or click Approve & animate.`,
             storyboard: sb,
           },
         ]);
@@ -97,6 +124,26 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
     [activeSceneIndex],
   );
 
+  async function pickGrid(layoutId: string, layoutName: string) {
+    if (!activeSceneId || busy) return;
+    setBusy(true);
+    try {
+      await chooseGrid({ data: { sceneId: activeSceneId, layoutId } });
+      setChosenLayout(layoutId);
+      setMessages((m) => [
+        ...m,
+        { role: "user", content: `Use the "${layoutName}" grid` },
+      ]);
+      // Move on to storyboard generation immediately
+      await generateStoryboard(activeSceneId);
+    } catch (e) {
+      const msg = (e as Error).message || "Failed to pick grid";
+      setMessages((m) => [...m, { role: "assistant", content: `Error: ${msg}` }]);
+      toast.error(msg);
+      setBusy(false);
+    }
+  }
+
   // Listen for toolbar trigger
   useEffect(() => {
     function handler(e: Event) {
@@ -104,12 +151,14 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
       if (!detail?.sceneId) return;
       setOpen(true);
       setScope("scene");
-      setMode("storyboard");
-      void generateStoryboard(detail.sceneId);
+      setMode("grid");
+      setStoryboard(null);
+      setChosenLayout(null);
+      void startGridStage(detail.sceneId);
     }
     window.addEventListener("open-storyboard-agent", handler as EventListener);
     return () => window.removeEventListener("open-storyboard-agent", handler as EventListener);
-  }, [generateStoryboard]);
+  }, [startGridStage]);
 
   async function approveCurrent() {
     if (!activeSceneId || !storyboard) return;
