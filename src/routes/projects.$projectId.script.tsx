@@ -5,7 +5,7 @@ import { toPng } from "html-to-image";
 import { supabase } from "@/integrations/supabase/client";
 import { useProject } from "@/components/project-context";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+// Textarea no longer needed — script is captured via voice recording
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Trash2, Plus, Eraser, Grid3x3, Minus, Play, ArrowUpToLine, ArrowDownToLine, ChevronUp, ChevronDown } from "lucide-react";
