@@ -409,6 +409,33 @@ export function AnimationBlockRenderer({
     );
   }
 
+  // Static image: iconify SVG, unsplash photo, ai-image, iconscout thumbnail
+  const imageSrc =
+    content.image_url ||
+    ((content.provider === "iconify" || content.provider === "unsplash" || content.provider === "ai-image")
+      ? (content.video_url || content.lottie_url || null)
+      : null);
+  if (imageSrc) {
+    return (
+      <div style={wrapperStyle} className="pointer-events-none">
+        {content.remove_background && <WhiteKeyFilterDef />}
+        <img
+          src={imageSrc}
+          alt={content.name}
+          crossOrigin="anonymous"
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            opacity: 0,
+            animation: "anim-block-fade-in 220ms ease-out 60ms forwards",
+          }}
+        />
+        <style>{`@keyframes anim-block-fade-in { to { opacity: 1; } }`}</style>
+      </div>
+    );
+  }
+
   // Fallback: internal placeholder block — show the anchored word, not the asset_query
   const fallbackLabel = (content.word || content.text || "").trim();
   return (
