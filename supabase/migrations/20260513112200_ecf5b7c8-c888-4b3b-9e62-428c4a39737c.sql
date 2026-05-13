@@ -1,0 +1,1 @@
+ALTER TABLE public.scenes ADD COLUMN IF NOT EXISTS storyboard jsonb NOT NULL DEFAULT '{}'::jsonb;

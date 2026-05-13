@@ -1,142 +1,99 @@
 ## Goal
 
-Replace the current rule-based `seedScene` (keyword grid + grab-bag of icons) with an AI Director agent that produces production-quality scene compositions — asset choice, layout, entrance/exit animations, timing synced to `word_timings`, and cross-scene camera/transitions — guided by reference videos you provide.
-
-## Architecture
+Insert a **Storyboard step** between "open a canvas" and "animate it". The agent first plans the canvas as an infographic (numbered beats + small SVG flow with arrows), shows it in the chat, lets the user iterate in plain English, and only animates after the user approves — at which point timing is synced to `word_timings` (voice).
 
 ```text
-                ┌────────────────────────────────────┐
-   YouTube      │  1. Reference Profile Builder      │
-   refs ───────▶│  (one-time per project, GPT-5 vision│──▶ style_profile JSON
-                │   over sampled frames + transcript)│
-                └────────────────────────────────────┘
-                                  │
-                                  ▼
-   Scene  ┌─────────────────────────────────────────┐
-   data ─▶│ 2. Director (per-scene LLM call)        │──▶ scene_plan JSON
-          │  inputs: narration, word_timings,       │
-          │  duration, theme, style_profile,        │
-          │  candidate assets shortlist             │
-          └─────────────────────────────────────────┘
-                                  │
-                                  ▼
-          ┌─────────────────────────────────────────┐
-          │ 3. Compiler (deterministic TS)          │
-          │  scene_plan → scene_elements rows       │
-          │  + content.text_animation timings       │
-          │  + scene.transition / camera moves      │
-          └─────────────────────────────────────────┘
-                                  │
-                                  ▼
-                         scene_elements table
+script  ─▶  Storyboard agent  ─▶  beats[] + svg  ─▶  chat preview
+                                                          │
+                                          user edits ◀────┤
+                                                          ▼
+                                            "approve" / button click
+                                                          │
+                                                          ▼
+                                  Director.compile(beats → scene_elements)
+                                  start_ms derived from word_timings
 ```
 
-Three stages so the LLM only does what it's good at (creative decisions) and deterministic code does what it must (exact pixel positions, valid DB rows, asset URLs).
+## What changes
 
-## Stage 1 — Reference Profile Builder
+### 1. Data — new column on `scenes`
+- `scenes.storyboard jsonb default '{}'::jsonb` — last approved/working storyboard for the canvas.
+  Shape:
+  ```json
+  {
+    "status": "draft" | "approved",
+    "beats": [
+      {
+        "id": "b1",
+        "label": "Title: useState hook",
+        "kind": "title" | "icon" | "code" | "diagram" | "callout" | "image",
+        "asset_query": "react hook icon",
+        "anchor_word_index": 0,
+        "narration_excerpt": "Today we'll learn useState…",
+        "next": "b2"
+      }
+    ],
+    "svg": "<svg …>…</svg>",
+    "updated_at": "iso"
+  }
+  ```
 
-**New table** `project_style_profiles` (1 row per project):
-- `reference_urls text[]` — YouTube/Vimeo links you paste
-- `profile jsonb` — extracted style: pacing (avg ms/scene), motion vocabulary (pop-in, slide, draw-on, parallax), composition rules (focal point, asymmetric vs grid, max simultaneous elements), color/contrast bias, transition palette, "feel" tags
-- `summary text` — short prose for prompt injection
+### 2. Server — `src/server/storyboard.functions.ts` (new)
+Three server fns, all `requireSupabaseAuth`-free (matches existing director.functions style), using `OPENAI_API_KEY` already set:
 
-**New server function** `buildStyleProfile({ projectId, urls })`:
-1. Use YouTube Data API (or `yt-dlp` via a lightweight HTTP service — TBD: we may need to call an external service since the Worker can't run yt-dlp; alternative is to fetch oEmbed thumbnails + sample 6 frames via a free frame-grab API).
-2. Send sampled frames + auto-captions to **GPT-5** with vision, ask it to return strict JSON (tool-call schema) describing the style.
-3. Persist to `project_style_profiles`.
+- `planStoryboard({ sceneId, instruction? })`
+  - Pulls scene narration + word_timings + theme.
+  - Calls GPT-5 with a `propose_storyboard` tool that returns `beats[]` (3–7 beats) with `kind`, `label`, `asset_query`, `anchor_word_index`, `narration_excerpt`, `next`.
+  - Compiler (deterministic) renders a compact SVG: rounded boxes per beat with the label + kind icon, connected left-to-right (wraps to 2 rows after 4) with arrow markers. Pure server-side string build, no headless browser.
+  - Persists `{status:"draft", beats, svg}` to `scenes.storyboard`. Returns it.
 
-**UI**: a "Reference videos" card on the script page — paste links, click "Analyze style", shows extracted summary so you can confirm/edit.
+- `refineStoryboard({ sceneId, instruction })`
+  - Same as `planStoryboard` but feeds the current `beats` + user instruction so the model patches them (re-order, swap, add/remove). Returns updated draft.
 
-## Stage 2 — Director (per-scene)
+- `approveAndAnimate({ sceneId })`
+  - Marks `storyboard.status = "approved"`.
+  - Calls existing `directProject` with a new `storyboard` hint (passes the approved `beats` array as ground truth so the Director uses these elements/order instead of inventing its own).
+  - Director already maps `anchor_word_index → start_ms` via `word_timings`, so voice sync is automatic.
 
-**Server function** `directScene({ sceneId, mode })` where mode ∈ `{full, animations_only, layout_only}`.
+### 3. Director — small extension in `src/server/director.functions.ts`
+- Accept optional `storyboardHint?: Beat[]` in `directProject` input.
+- When present, prompt forces: "Use exactly these beats in this order. Resolve `asset_query` against the candidate shortlist; keep `anchor_word_index` as-is." Layout/animation choice is still the LLM's job.
+- No DB schema change beyond column above.
 
-For each scene, build a tight prompt:
-- Theme + style_profile.summary
-- Narration + word_timings (truncated)
-- Scene duration, aspect ratio
-- **Candidate asset shortlist** (top 30) — pre-fetched by running existing `findInLibrary` for each noun/verb, plus a few Iconscout previews. Each candidate carries `{id, name, provider, preview_url, color_support, tags}`. The LLM picks from this list rather than hallucinating asset names.
+### 4. UI — `src/components/AnimationAgentPanel.tsx`
+Add a **Storyboard mode** that becomes the default when scope = "this canvas":
 
-Force structured output via OpenAI tool-calling. Schema:
-```json
-{
-  "layout": "grid3x3" | "focal_left" | "focal_center" | "split" | "stack" | "free",
-  "elements": [
-    {
-      "asset_id": "uuid-from-shortlist",
-      "role": "primary" | "support" | "label",
-      "position": { "x": 0..1, "y": 0..1, "w": 0..1, "h": 0..1 },
-      "anchor_word_index": 12,
-      "enter": { "type": "fade|slide-up|slide-left|scale|draw|pop", "duration_ms": 400, "easing": "ease-out" },
-      "exit":  { "type": "...", "duration_ms": 300 },
-      "emphasis": [{ "at_word_index": 18, "effect": "pulse|shake|bounce" }]
-    }
-  ],
-  "text_overlays": [
-    { "text": "useState", "style": "heading|caption|callout",
-      "position": {...}, "enter": {...}, "anchor_word_index": 5 }
-  ],
-  "scene_transition_in":  "cut|fade|slide|zoom",
-  "scene_transition_out": "cut|fade|slide|zoom",
-  "camera": [{ "at_ms": 1200, "zoom": 1.15, "pan_x": 0.1, "pan_y": 0 }]
-}
-```
+- Top of panel: a 3-state pill — `Storyboard` · `Refine` · `Animated`.
+- "Generate storyboard" button → calls `planStoryboard`. The reply bubble renders:
+  - the SVG inline (`dangerouslySetInnerHTML`, sanitized to `<svg>` only),
+  - a numbered list of beats below it,
+  - two buttons: **Refine in chat** (focus textarea) and **Approve & animate** (calls `approveAndAnimate`, then `onApplied`).
+- User chat messages while in Storyboard state call `refineStoryboard` instead of `directProject`. The reply re-renders the updated SVG + beats.
+- Natural-language approval: if the user message matches `/^(approve|looks good|ship it|animate it|go ahead)/i`, run `approveAndAnimate` automatically.
+- Scope toggle stays. "All canvases" keeps current behavior (skips storyboard, calls director directly) — explicit note in the panel.
 
-Use **GPT-5** (highest quality; cost is fine per your note). Run scenes in parallel batches of 3-4.
+### 5. Script route — `src/routes/projects.$projectId.script.tsx`
+- The toolbar's **AI animate canvas** button is repurposed to **"Plan storyboard"** (opens the agent panel and triggers `planStoryboard` for the active canvas).
+- **AI animate all** and **Quick fill** stay as-is.
+- After `approveAndAnimate`, existing `refetchSceneElements(sceneId)` already refreshes the canvas — reuse it via the existing `onApplied` prop.
 
-## Stage 3 — Compiler
-
-Deterministic TS function `compilePlan(scene, plan)`:
-- Resolves `asset_id` → real `animation_components` row, falls back to next candidate if missing.
-- Converts normalized `position` (0..1) into the 1280×720 canvas pixels and applies collision/snap rules from `src/lib/grid.ts`.
-- Converts `anchor_word_index` → `start_ms` using `word_timings`, derives `end_ms` from next anchor or scene end.
-- Writes `text_animation` onto element `content` (already supported by `AnimationBlock` per `.lovable/plan.md`).
-- Updates `scenes.transition` and stores `camera` keyframes in `scenes.background` extra field or new `camera jsonb` column (TBD).
-- Inserts/updates `scene_elements` in one batch.
-
-If the LLM returns garbage for a slot, fall back to the existing `seedScene` logic so we never make a scene worse.
-
-## Trigger UX (both)
-
-1. **Toolbar buttons** on `projects.$projectId.script.tsx` (replace existing auto-animate):
-   - "AI animate canvas" — calls `directScene({ sceneId, mode: "full" })`
-   - "AI animate all" — loops over scenes, shows progress toast
-
-2. **Chat agent panel** — new right-side drawer `AnimationAgentPanel.tsx`:
-   - Free-text instructions: *"make scene 3 more dramatic"*, *"swap the lock icon for a key"*, *"slow down the intro"*
-   - Sends `{ sceneId, instruction, currentPlan }` to a new `agentEdit` server function that returns a patched `scene_plan`, then runs the same compiler.
-   - Streams responses (SSE) so you see what the agent is doing.
-   - Keeps a per-scene history of plans so you can revert.
-
-## Schema changes (one migration)
-
-- `project_style_profiles` table (project_id, reference_urls, profile jsonb, summary, timestamps)
-- `scenes`: add `camera jsonb default '[]'`, `director_plan jsonb` (last plan, for chat history + re-compile without re-calling LLM)
-- `scene_elements.content.text_animation` — already JSON, no migration needed
-
-All `open_all_*` RLS to match existing tables.
-
-## Files to add / change
+## Files
 
 **New**
-- `src/server/director.functions.ts` — `buildStyleProfile`, `directScene`, `agentEdit`
-- `src/lib/director/prompts.ts` — system prompts, schemas
-- `src/lib/director/compile.ts` — deterministic compiler
-- `src/lib/director/candidates.ts` — asset shortlist builder (reuses `findInLibrary`)
-- `src/lib/director/youtube.ts` — frame sampling + caption fetch
-- `src/components/AnimationAgentPanel.tsx` — chat drawer
-- `src/components/StyleReferenceCard.tsx` — reference-videos input
+- `supabase/migrations/<ts>_scenes_storyboard.sql` — adds `storyboard jsonb default '{}'`.
+- `src/server/storyboard.functions.ts` — `planStoryboard`, `refineStoryboard`, `approveAndAnimate`, plus internal `renderBeatsSvg(beats)`.
 
 **Modified**
-- `src/routes/projects.$projectId.script.tsx` — replace existing auto-animate buttons, mount agent panel + reference card
-- `src/server/voice.functions.ts` — keep `seedScene` as fallback, deprecate as primary path
-- `src/components/AnimationBlock.tsx` — render `text_animation`, emphasis pulses, camera keyframes during preview
-- `src/components/PlaybackDialog.tsx` — apply per-element enter/exit + scene camera moves
+- `src/server/director.functions.ts` — accept `storyboardHint`, thread into prompt.
+- `src/components/AnimationAgentPanel.tsx` — storyboard state machine, SVG render, approve flow.
+- `src/routes/projects.$projectId.script.tsx` — rename "AI animate canvas" → "Plan storyboard", auto-open panel.
 
-## Open questions before I start coding
+## Order of work
 
-1. **YouTube frame extraction**: easiest path is a tiny external service (Render/Fly worker running `yt-dlp` + `ffmpeg`). Alternative: skip frame analysis, feed only the YouTube transcript + your written notes about the style. Which do you prefer for v1?
-2. **Camera moves**: do you want them as actual zoom/pan during playback (requires `PlaybackDialog` rework), or skip for v1 and ship asset/layout/animation/transition first?
-3. **Ship order**: I recommend (a) Director + Compiler with existing assets, (b) Chat panel, (c) Style profile from references, (d) Camera. Each phase is shippable on its own. OK?
+1. Migration: add `scenes.storyboard`.
+2. `storyboard.functions.ts` + SVG renderer.
+3. Director hint plumbing.
+4. Agent panel rework (storyboard ↔ refine ↔ animated).
+5. Toolbar wiring on the script route.
 
-Answer those three and I'll start with phase (a).
+I'll start with the migration on your approval.
