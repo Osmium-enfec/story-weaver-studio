@@ -373,25 +373,40 @@ function compilePlan(
 ): CompiledRow[] {
   const rows: CompiledRow[] = [];
   const els = plan.elements ?? [];
+
+  // Resolve which layout preset to use, then materialize its slot rects.
+  const layout = (plan.layout && getLayout(plan.layout)) || autoPickLayout(els.length);
+  const slotRects = resolveLayoutPx(layout, Math.max(els.length, 1));
+
   els.forEach((el, idx) => {
-    // Resolve timing from word index
+    // Resolve timing from word index AND grab the anchored word so the
+    // script-area chip can show the binding ("this animation belongs to this word").
     const wIdx = Math.max(0, Math.min(el.anchor_word_index ?? 0, Math.max(0, wordTimings.length - 1)));
+    const anchorWord = wordTimings[wIdx]?.text ?? null;
     const startMs = wordTimings.length > 0
       ? Math.max(0, (wordTimings[wIdx]?.start_ms ?? 0) - 80)
       : Math.round(idx * 400);
     const endMs = Math.min(sceneDurationMs, startMs + Math.max(400, el.duration_ms ?? 2500));
 
-    // Position in pixels (clamped within canvas)
-    const px = Math.max(0, Math.min(1, el.position.x));
-    const py = Math.max(0, Math.min(1, el.position.y));
-    const pw = Math.max(0.05, Math.min(1 - px, el.position.w));
-    const ph = Math.max(0.05, Math.min(1 - py, el.position.h));
-    const position = {
-      x: Math.round(px * CANVAS_W),
-      y: Math.round(py * CANVAS_H),
-      w: Math.round(pw * CANVAS_W),
-      h: Math.round(ph * CANVAS_H),
-    };
+    // Position: prefer slot from chosen layout. Fall back to legacy normalized rect.
+    let position: { x: number; y: number; w: number; h: number };
+    const slotIdx = typeof el.slot === "number" ? el.slot : idx;
+    if (slotRects[slotIdx]) {
+      position = slotRects[slotIdx];
+    } else if (el.position) {
+      const px = Math.max(0, Math.min(1, el.position.x));
+      const py = Math.max(0, Math.min(1, el.position.y));
+      const pw = Math.max(0.05, Math.min(1 - px, el.position.w));
+      const ph = Math.max(0.05, Math.min(1 - py, el.position.h));
+      position = {
+        x: Math.round(px * CANVAS_W),
+        y: Math.round(py * CANVAS_H),
+        w: Math.round(pw * CANVAS_W),
+        h: Math.round(ph * CANVAS_H),
+      };
+    } else {
+      position = slotRects[Math.min(idx, slotRects.length - 1)] ?? { x: 40, y: 40, w: 400, h: 300 };
+    }
 
     if (el.kind === "text") {
       const role = el.text_role ?? "subheading";
@@ -409,6 +424,7 @@ function compilePlan(
           name: "Text",
           text: el.text ?? "",
           role,
+          word: anchorWord,
           font_family: "Inter",
           font_size: sizeByRole[role] ?? 36,
           font_weight: weightByRole[role] ?? 600,
@@ -430,7 +446,12 @@ function compilePlan(
     // kind === "asset"
     const asset = el.asset_id ? candidatesById.get(el.asset_id) : null;
     if (!asset) return; // skip — LLM hallucinated id
-    const type = asset.provider === "iconscout" ? "iconscout" : asset.provider === "lottie" ? "lottie" : "animation";
+    const type =
+      asset.provider === "iconscout" || asset.provider === "ai-image"
+        ? "iconscout"
+        : asset.provider === "lottie"
+          ? "lottie"
+          : "animation";
     rows.push({
       scene_id: sceneId,
       type,
@@ -442,6 +463,7 @@ function compilePlan(
         provider: asset.provider,
         name: asset.name,
         slug: asset.slug,
+        word: anchorWord,
         lottie_url: asset.lottie_url,
         video_url: asset.video_url,
         external_id: asset.external_id,
@@ -452,7 +474,7 @@ function compilePlan(
         rotation: 0,
         color_support: asset.color_support,
         tint: null,
-        remove_background: asset.provider === "iconscout",
+        remove_background: asset.provider === "iconscout" || asset.provider === "ai-image",
         text_animation: el.enter
           ? {
               type: el.enter.type,
