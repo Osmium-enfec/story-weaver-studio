@@ -23,6 +23,8 @@ async function iconscoutSearch3D(query: string, perPage: number) {
   url.searchParams.set("query", query);
   url.searchParams.set("product_type", "item");
   url.searchParams.set("asset", "3d");
+  url.searchParams.set("price", "free");
+  url.searchParams.set("sort", "relevant");
   url.searchParams.set("per_page", String(perPage));
   const res = await fetch(url.toString(), {
     headers: { "Client-ID": id, "Client-Secret": secret },
@@ -32,8 +34,17 @@ async function iconscoutSearch3D(query: string, perPage: number) {
   return (json?.response?.items?.data ?? []) as any[];
 }
 
+// Prefer a high-res PNG so the asset still looks crisp on the 1280×720 canvas.
 function pickStaticPreview(item: any): string | null {
-  return item?.urls?.png_64 ?? item?.urls?.png ?? item?.urls?.thumb ?? null;
+  return (
+    item?.urls?.png_512 ??
+    item?.urls?.png_256 ??
+    item?.urls?.png_128 ??
+    item?.urls?.png ??
+    item?.urls?.png_64 ??
+    item?.urls?.thumb ??
+    null
+  );
 }
 
 async function downloadToBucket(
@@ -64,19 +75,25 @@ export function wants3D(...inputs: (string | undefined | null)[]): boolean {
 
 /**
  * For each keyword, search Iconscout 3D and mirror up to `perKeyword` items
- * into animation_components. Returns the IDs of all matched rows (existing + new).
+ * into animation_components. Returns:
+ *  - ids: all matched UUIDs (existing + new)
+ *  - byKeyword: which row IDs came from which keyword, so the caller can
+ *    map each storyboard beat → its candidate icons (essential for keeping
+ *    the right asset anchored to the right spoken word).
  */
 export async function ensure3DForKeywords(
   keywords: string[],
   perKeyword = 3,
   totalCap = 18,
-): Promise<string[]> {
+): Promise<{ ids: string[]; byKeyword: Record<string, string[]> }> {
   const admin = getAdmin();
   const collectedIds = new Set<string>();
   const seenExternal = new Set<string>();
+  const byKeyword: Record<string, string[]> = {};
 
   for (const kw of keywords) {
     if (collectedIds.size >= totalCap) break;
+    byKeyword[kw] = byKeyword[kw] ?? [];
     let items: any[] = [];
     try {
       items = await iconscoutSearch3D(kw, perKeyword);
@@ -99,6 +116,7 @@ export async function ensure3DForKeywords(
         .maybeSingle();
       if (existing?.id) {
         collectedIds.add(existing.id);
+        byKeyword[kw].push(existing.id);
         continue;
       }
 
@@ -121,17 +139,24 @@ export async function ensure3DForKeywords(
             thumbnail_url: publicUrl,
             color_support: "fixed",
             tags: [...tags, "3d", kw],
-            default_props: { asset_type: "3d", image_url: publicUrl },
+            default_props: {
+              asset_type: "3d",
+              image_url: publicUrl,
+              source_query: kw,
+            },
           })
           .select("id")
           .single();
         if (error) throw error;
-        if (inserted?.id) collectedIds.add(inserted.id);
+        if (inserted?.id) {
+          collectedIds.add(inserted.id);
+          byKeyword[kw].push(inserted.id);
+        }
       } catch (e) {
         console.error("iconscout 3d mirror", externalId, (e as Error).message);
       }
     }
   }
 
-  return Array.from(collectedIds);
+  return { ids: Array.from(collectedIds), byKeyword };
 }
