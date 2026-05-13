@@ -164,13 +164,19 @@ const PLAN_TOOL = {
   function: {
     name: "render_scene",
     description:
-      "Produce a production-quality scene plan: pick assets from the candidate list, place them with clean composition, and time their entrance against word_timings for a natural reveal.",
+      "Produce a production-quality scene plan: pick a layout preset, place 2-6 elements in its slots, and time each entrance against word_timings for a natural reveal.",
     parameters: {
       type: "object",
       additionalProperties: false,
-      required: ["elements"],
+      required: ["elements", "layout"],
       properties: {
         scene_transition_in: { type: "string", enum: ["cut", "fade", "slide", "zoom"] },
+        layout: {
+          type: "string",
+          enum: LAYOUT_IDS,
+          description:
+            "Composition preset to use. Pick the one whose 'best for' matches the number of beats AND whose feel matches the narration (compare → two-col-balance, list → title-and-row, story progression → diagonal-cascade or vertical-storyline, single hero → hero-left/right/center).",
+        },
         rationale: { type: "string", description: "1-2 sentence summary of the creative direction." },
         elements: {
           type: "array",
@@ -179,25 +185,20 @@ const PLAN_TOOL = {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["kind", "position", "anchor_word_index", "duration_ms"],
+            required: ["kind", "anchor_word_index", "duration_ms", "slot"],
             properties: {
               kind: { type: "string", enum: ["asset", "text"] },
               asset_id: {
                 type: "string",
-                description: "UUID from the candidate_assets list. REQUIRED when kind=asset. Omit for kind=text.",
+                description: "UUID from candidate_assets. REQUIRED when kind=asset. Omit for kind=text.",
               },
               text: { type: "string", description: "Text content. REQUIRED when kind=text." },
               text_role: { type: "string", enum: ["heading", "subheading", "caption"] },
-              position: {
-                type: "object",
-                additionalProperties: false,
-                required: ["x", "y", "w", "h"],
-                properties: {
-                  x: { type: "number", minimum: 0, maximum: 1, description: "Normalised left (0..1)" },
-                  y: { type: "number", minimum: 0, maximum: 1 },
-                  w: { type: "number", minimum: 0.05, maximum: 1 },
-                  h: { type: "number", minimum: 0.05, maximum: 1 },
-                },
+              slot: {
+                type: "integer",
+                minimum: 0,
+                maximum: 8,
+                description: "Index into the chosen layout's slots (0-based). Slot order = visual reading order.",
               },
               anchor_word_index: {
                 type: "integer",
@@ -234,14 +235,13 @@ const PLAN_TOOL = {
 
 const DIRECTOR_SYSTEM = `You are a senior motion designer for an educational video editor.
 You compose ONE scene at a time. Your job:
-- Choose 2 to 5 elements that visually reinforce the narration.
-- Prefer 1 "primary" focal element + supporting icons/text. Avoid 9-cell grid stacks.
-- Place elements with intentional composition: a focal area (left/right/center), with supporting elements smaller and offset. Leave breathing room.
-- Time each element's entrance to the moment its concept is spoken (anchor_word_index into the provided word_timings).
+- FIRST pick a layout preset that fits the beat count + narration tone (see layouts catalogue). Do NOT default to a 3x3 grid.
+- Place 2 to 5 elements into the layout's slots (slot 0 = primary focal area).
+- Time each element's entrance to the moment its concept is spoken (anchor_word_index into word_timings). This is what syncs visuals to voice.
 - Keep at most 3 elements visible at the same instant.
-- Pick assets ONLY from the candidate_assets list (use the exact UUID in asset_id). If nothing fits, use a "text" element instead.
-- Use text elements for key terms ("useState", "API", "Loop"), short callouts, or titles. Pair them with an asset where possible.
-- Choose entrance animations that feel deliberate: fade for ambient, slide-up for arriving content, scale/bounce for emphasis, word-reveal for code/keywords, typewriter sparingly.
+- Pick assets ONLY from candidate_assets (use the exact UUID in asset_id). If nothing fits, use a "text" element.
+- Use text for key terms, short callouts, or titles. Pair text with an asset when possible.
+- Choose entrance animations deliberately: fade ambient, slide-up arriving, scale/bounce emphasis, word-reveal code, typewriter sparingly.
 - Output via the render_scene tool. Do not write prose outside the tool call.`;
 
 export interface StoryboardBeatHint {
