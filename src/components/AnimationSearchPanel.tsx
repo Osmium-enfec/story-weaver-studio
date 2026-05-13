@@ -160,10 +160,11 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
               className="group flex flex-col items-stretch overflow-hidden rounded-lg border border-border bg-background text-left transition-all hover:border-primary hover:shadow-sm"
             >
               <div className="relative aspect-square bg-muted/40">
-                {r.provider === "image" && r.thumbnail_url ? (
+                {(r.provider === "image" || r.provider === "iconify" || r.provider === "unsplash") && r.thumbnail_url ? (
                   <img
                     src={r.thumbnail_url}
                     alt={r.name}
+                    loading="lazy"
                     style={{ width: "100%", height: "100%", objectFit: "contain" }}
                   />
                 ) : r.provider === "iconscout" && r.video_url ? (
