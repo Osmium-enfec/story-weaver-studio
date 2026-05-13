@@ -405,6 +405,57 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
   );
 }
 
+function StageBadge({ label, active, done }: { label: string; active: boolean; done: boolean }) {
+  return (
+    <span
+      className={`text-[10px] px-2 py-0.5 rounded-full border ${
+        active
+          ? "bg-primary text-primary-foreground border-primary"
+          : done
+            ? "bg-green-100 text-green-900 border-green-300"
+            : "bg-muted text-muted-foreground border-border"
+      }`}
+    >
+      {label}
+      {done ? " ✓" : ""}
+    </span>
+  );
+}
+
+function GridOptionsPicker({
+  options,
+  busy,
+  onPick,
+}: {
+  options: GridOption[];
+  busy: boolean;
+  onPick: (id: string, name: string) => void;
+}) {
+  return (
+    <div className="mt-2 grid grid-cols-1 gap-2">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          onClick={() => onPick(o.id, o.name)}
+          disabled={busy}
+          className="text-left rounded-md border bg-background hover:border-primary transition-colors p-2 disabled:opacity-60"
+        >
+          <div
+            className="rounded overflow-hidden"
+            // SVG generated server-side from a strict shape
+            dangerouslySetInnerHTML={{ __html: o.svg }}
+          />
+          <div className="mt-1.5 flex items-baseline justify-between gap-2">
+            <span className="text-xs font-semibold">{o.name}</span>
+            <span className="text-[10px] text-muted-foreground">{o.beatCount} beats</span>
+          </div>
+          <div className="text-[11px] text-muted-foreground line-clamp-2">{o.description}</div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function StoryboardPreview({ sb }: { sb: Storyboard }) {
   return (
     <div className="mt-2 space-y-2">
