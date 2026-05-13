@@ -20,7 +20,7 @@ function getAdmin() {
 export interface StoryboardBeat {
   id: string;
   label: string;
-  kind: "title" | "icon" | "code" | "diagram" | "callout" | "image";
+  kind: "title" | "icon" | "code" | "diagram" | "callout" | "image" | "animation";
   asset_query?: string;
   anchor_word_index: number;
   narration_excerpt?: string;
