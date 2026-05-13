@@ -1,4 +1,4 @@
-import { createFileRoute, useParams } from "@tanstack/react-router";
+import { createFileRoute, useParams, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Rnd } from "react-rnd";
 import { toPng } from "html-to-image";
@@ -95,6 +95,7 @@ function snapElementsToGrid(elements: PlacedElement[]): PlacedElement[] {
 
 function ScriptCanvas() {
   const { projectId } = useParams({ from: "/projects/$projectId/script" });
+  const navigate = useNavigate();
   const { project } = useProject();
   const [scenes, setScenes] = useState<SceneRow[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -337,11 +338,11 @@ function ScriptCanvas() {
         onClick: () => regenerateAnimations({ ai: false }),
       },
       {
-        label: isExporting ? "Exporting…" : "Export",
+        label: "Export",
         icon: "download",
         variant: "outline",
-        disabled: isExporting,
-        onClick: exportVideo,
+        disabled: false,
+        onClick: () => navigate({ to: "/projects/$projectId/export", params: { projectId } }),
       },
     ]);
     return () => toolbarStore.clear();
