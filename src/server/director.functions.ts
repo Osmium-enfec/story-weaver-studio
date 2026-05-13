@@ -512,6 +512,7 @@ export const directProject = createServerFn({ method: "POST" })
             duration_ms: durationMs,
             candidates,
             instruction: data.instruction,
+            storyboard: data.storyboardHint as StoryboardBeatHint[] | undefined,
           });
           const plan = await callDirectorLLM(prompt, apiKey);
           if (!plan || !plan.elements?.length) {
