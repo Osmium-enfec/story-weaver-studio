@@ -311,11 +311,16 @@ function ScriptCanvas() {
         },
       },
       {
-        label: isSeeding ? "Directing…" : "AI animate canvas",
+        label: "Plan storyboard",
         icon: "play",
         variant: "outline",
         disabled: isSeeding || isExporting || !activeScene,
-        onClick: () => regenerateAnimations({ sceneId: activeScene?.id, ai: true }),
+        onClick: () => {
+          if (!activeScene?.id) return;
+          window.dispatchEvent(
+            new CustomEvent("open-storyboard-agent", { detail: { sceneId: activeScene.id } }),
+          );
+        },
       },
       {
         label: isSeeding ? "Directing…" : "AI animate all",
