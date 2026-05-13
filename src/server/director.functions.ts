@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { ensure3DForKeywords, wants3D } from "./iconscout-3d.server";
+import { ensureExternalForKeywords } from "./director-mirror.server";
 import {
   LAYOUT_IDS,
   autoPickLayout,
