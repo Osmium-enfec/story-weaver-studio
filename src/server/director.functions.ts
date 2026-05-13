@@ -838,6 +838,8 @@ export const directProject = createServerFn({ method: "POST" })
 
           const candById = new Map(candidates.map((c) => [c.id, c]));
 
+          const forcedLayoutId = (s.storyboard as { layout?: string } | null)?.layout;
+
           const prompt = buildUserPrompt({
             theme: themeName,
             narration,
@@ -846,6 +848,7 @@ export const directProject = createServerFn({ method: "POST" })
             candidates,
             instruction: data.instruction,
             storyboard: data.storyboardHint as StoryboardBeatHint[] | undefined,
+            forcedLayoutId,
           });
           const plan = await callDirectorLLM(prompt, apiKey);
 
@@ -854,7 +857,7 @@ export const directProject = createServerFn({ method: "POST" })
           let rows: CompiledRow[] = [];
           let usedFallback = false;
           if (plan && plan.elements?.length) {
-            rows = compilePlan(s.id, durationMs, wt, candById, plan, themeTokens);
+            rows = compilePlan(s.id, durationMs, wt, candById, plan, themeTokens, forcedLayoutId);
           }
           if (rows.length === 0) {
             rows = buildFallbackRows(s.id, durationMs, wt, candidates, themeTokens, narration);
