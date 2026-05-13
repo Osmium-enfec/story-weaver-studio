@@ -486,7 +486,38 @@ function GridOptionsPicker({
   );
 }
 
-function StoryboardPreview({ sb }: { sb: Storyboard }) {
+const BEAT_KIND_OPTIONS = ["title", "icon", "image", "animation", "code", "diagram", "callout"] as const;
+type BeatKind = (typeof BEAT_KIND_OPTIONS)[number];
+
+function StoryboardPreview({
+  sb,
+  sceneId,
+  busy,
+  onUpdated,
+}: {
+  sb: Storyboard;
+  sceneId?: string | null;
+  busy: boolean;
+  onUpdated: (sb: Storyboard) => void;
+}) {
+  const [pending, setPending] = useState<string | null>(null);
+
+  async function changeKind(beatId: string, kind: BeatKind) {
+    if (!sceneId) {
+      toast.error("Open a canvas first");
+      return;
+    }
+    setPending(beatId);
+    try {
+      const next = await updateStoryboardBeat({ data: { sceneId, beatId, kind } });
+      onUpdated(next);
+    } catch (e) {
+      toast.error((e as Error).message || "Could not update beat");
+    } finally {
+      setPending(null);
+    }
+  }
+
   return (
     <div className="mt-2 space-y-2">
       <div
@@ -494,12 +525,28 @@ function StoryboardPreview({ sb }: { sb: Storyboard }) {
         // SVG is server-generated from a strict schema (no user-controlled raw HTML)
         dangerouslySetInnerHTML={{ __html: sb.svg }}
       />
-      <ol className="text-xs space-y-1 list-decimal list-inside">
-        {sb.beats.map((b) => (
-          <li key={b.id}>
-            <span className="font-medium">[{b.kind}]</span> {b.label}
-            {b.asset_query ? <span className="text-muted-foreground"> · {b.asset_query}</span> : null}
-            <span className="text-muted-foreground"> · @word {b.anchor_word_index}</span>
+      <ol className="text-xs space-y-1.5">
+        {sb.beats.map((b, idx) => (
+          <li key={b.id} className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-muted-foreground tabular-nums">{idx + 1}.</span>
+            <select
+              value={b.kind}
+              disabled={busy || pending === b.id || !sceneId}
+              onChange={(e) => changeKind(b.id, e.target.value as BeatKind)}
+              className="text-[11px] border rounded px-1 py-0.5 bg-background h-6"
+              title="Change beat type"
+            >
+              {BEAT_KIND_OPTIONS.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </select>
+            <span className="font-medium">{b.label}</span>
+            {b.asset_query ? (
+              <span className="text-muted-foreground">· {b.asset_query}</span>
+            ) : null}
+            <span className="text-muted-foreground">· @w{b.anchor_word_index}</span>
           </li>
         ))}
       </ol>
