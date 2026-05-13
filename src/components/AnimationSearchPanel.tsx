@@ -17,11 +17,24 @@ interface Props {
   onSelect: (a: AnimationResult) => void;
 }
 
+type ProviderFilter = "all" | "lottie" | "iconscout" | "iconify" | "unsplash" | "internal" | "upload";
+
+const FILTERS: { id: ProviderFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "lottie", label: "Lottie" },
+  { id: "iconscout", label: "Iconscout" },
+  { id: "iconify", label: "Iconify" },
+  { id: "unsplash", label: "Unsplash" },
+  { id: "internal", label: "Local" },
+  { id: "upload", label: "Uploads" },
+];
+
 export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<AnimationResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [urlInput, setUrlInput] = useState("");
+  const [filter, setFilter] = useState<ProviderFilter>("all");
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
