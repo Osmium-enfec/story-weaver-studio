@@ -836,23 +836,33 @@ export const directProject = createServerFn({ method: "POST" })
             storyboard: data.storyboardHint as StoryboardBeatHint[] | undefined,
           });
           const plan = await callDirectorLLM(prompt, apiKey);
-          if (!plan || !plan.elements?.length) {
-            return { sceneId: s.id, inserted: 0, fallback: true, plan: null };
+
+          // Smart fallback: if LLM returns no plan or compile produces 0 rows,
+          // drop a centered heading + best candidate so the scene is never blank.
+          let rows: CompiledRow[] = [];
+          let usedFallback = false;
+          if (plan && plan.elements?.length) {
+            rows = compilePlan(s.id, durationMs, wt, candById, plan, themeTokens);
           }
-          const rows = compilePlan(s.id, durationMs, wt, candById, plan);
-          if (rows.length === 0) return { sceneId: s.id, inserted: 0, fallback: true, plan };
+          if (rows.length === 0) {
+            rows = buildFallbackRows(s.id, durationMs, wt, candidates, themeTokens, narration);
+            usedFallback = true;
+          }
+          if (rows.length === 0) {
+            return { sceneId: s.id, inserted: 0, fallback: true, plan: plan ?? null };
+          }
 
           const { error } = await admin.from("scene_elements").insert(rows);
           if (error) {
             console.error("director insert error", error);
-            return { sceneId: s.id, inserted: 0, fallback: true, plan };
+            return { sceneId: s.id, inserted: 0, fallback: true, plan: plan ?? null };
           }
           // Persist plan for later refinement
           await admin
             .from("scenes")
-            .update({ director_plan: plan as unknown as never })
+            .update({ director_plan: (plan ?? { fallback: true }) as unknown as never })
             .eq("id", s.id);
-          return { sceneId: s.id, inserted: rows.length, fallback: false, plan };
+          return { sceneId: s.id, inserted: rows.length, fallback: usedFallback, plan: plan ?? null };
         }),
       );
       for (const r of results) {
