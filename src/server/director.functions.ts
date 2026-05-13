@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { ensure3DForKeywords, wants3D } from "./iconscout-3d.server";
 import { ensureExternalForKeywords } from "./director-mirror.server";
+import { ensureLottieForKeywords } from "./iconscout-lottie.server";
 import {
   LAYOUT_IDS,
   autoPickLayout,
@@ -304,7 +305,7 @@ function buildUserPrompt(args: {
         .join("\n") +
       `\n\nMAPPING RULES (CRITICAL — this keeps the visuals in sync with the voice):
 - Produce exactly one element per beat, in the same order.
-- For kind=icon/image/diagram: PREFER the candidate whose beat_id matches this beat. If none, fall back to one whose source_query / tags / name best matches the beat's query.
+- For kind=icon/image/diagram/animation: PREFER the candidate whose beat_id matches this beat. If none, fall back to one whose source_query / tags / name best matches the beat's query. NEVER emit a text element for kind=animation — animation beats MUST resolve to an asset (Iconscout Lottie/MP4 candidate).
 - For kind=title/code/callout: emit a "text" element with the beat's label.
 - Use the beat's anchor_word_index AS the element's anchor_word_index — DO NOT shift it. This is what syncs the asset to the spoken word.
 - duration_ms should cover from this beat's anchor word to the next beat's anchor word (or to the end of the scene for the last beat).`
@@ -841,6 +842,57 @@ export const directProject = createServerFn({ method: "POST" })
             }
           } catch (e) {
             console.error("ensureExternalForKeywords", (e as Error).message);
+          }
+
+          // For storyboard beats with kind="animation", fetch Iconscout Lottie
+          // animations (mirrored as MP4 previews) so each animation beat gets
+          // a real motion asset instead of falling back to a text label.
+          try {
+            const sbHintAnim = data.storyboardHint as StoryboardBeatHint[] | undefined;
+            const animBeatPairs = (sbHintAnim ?? [])
+              .filter((b) => b.kind === "animation")
+              .map((b) => ({
+                beatId: b.id ?? "",
+                query: (b.asset_query || b.label).trim(),
+              }))
+              .filter((p) => !!p.query);
+
+            if (animBeatPairs.length) {
+              const queries = Array.from(new Set(animBeatPairs.map((p) => p.query))).slice(0, 6);
+              const { byKeyword } = await ensureLottieForKeywords(queries, 3, 18);
+              const allIds = Array.from(new Set(Object.values(byKeyword).flat()));
+              if (allIds.length) {
+                const { data: rows } = await admin
+                  .from("animation_components")
+                  .select("id, name, slug, provider, video_url, lottie_url, thumbnail_url, external_id, color_support, tags")
+                  .in("id", allIds);
+                const rowById = new Map<string, any>((rows ?? []).map((r: any) => [r.id, r]));
+                for (const [kw, ids] of Object.entries(byKeyword)) {
+                  const beatId = animBeatPairs.find((p) => p.query === kw)?.beatId;
+                  for (const id of ids) {
+                    const r = rowById.get(id);
+                    if (!r || candidates.some((c) => c.id === r.id && c.beat_id === beatId)) continue;
+                    candidates.unshift({
+                      id: r.id,
+                      name: r.name,
+                      slug: r.slug,
+                      provider: r.provider,
+                      preview_url: r.thumbnail_url ?? r.video_url ?? r.lottie_url,
+                      video_url: r.video_url,
+                      lottie_url: r.lottie_url,
+                      image_url: r.thumbnail_url ?? null,
+                      external_id: r.external_id,
+                      color_support: r.color_support ?? "fixed",
+                      tags: [...(r.tags ?? []), "animation", "lottie"],
+                      beat_id: beatId,
+                      source_query: kw,
+                    });
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.error("ensureLottieForKeywords", (e as Error).message);
           }
 
           const candById = new Map(candidates.map((c) => [c.id, c]));
