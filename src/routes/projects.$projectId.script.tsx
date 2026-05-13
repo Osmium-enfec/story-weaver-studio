@@ -338,11 +338,11 @@ function ScriptCanvas() {
         onClick: () => regenerateAnimations({ ai: false }),
       },
       {
-        label: isExporting ? "Exporting…" : "Export",
+        label: "Export",
         icon: "download",
         variant: "outline",
-        disabled: isExporting,
-        onClick: exportVideo,
+        disabled: false,
+        onClick: () => navigate({ to: "/projects/$projectId/export", params: { projectId } }),
       },
     ]);
     return () => toolbarStore.clear();
