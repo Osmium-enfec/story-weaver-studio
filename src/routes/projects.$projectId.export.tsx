@@ -1,6 +1,7 @@
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Loader2, Film, CheckSquare, Square } from "lucide-react";
+import { Download, Loader2, Film, CheckSquare, Square, ArrowLeft } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -223,6 +224,11 @@ function ExportPage() {
   return (
     <div className="mx-auto max-w-3xl p-6 space-y-6">
       <div>
+        <Button variant="ghost" size="sm" asChild className="mb-2 -ml-2 h-8">
+          <Link to="/projects/$projectId/script" params={{ projectId }}>
+            <ArrowLeft className="mr-1 h-4 w-4" /> Back to project
+          </Link>
+        </Button>
         <h1 className="text-2xl font-semibold flex items-center gap-2">
           <Download className="h-6 w-6" /> Export
         </h1>
