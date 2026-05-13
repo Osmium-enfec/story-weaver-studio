@@ -57,6 +57,8 @@ interface CandidateAsset {
   preview_url: string | null;
   video_url: string | null;
   lottie_url: string | null;
+  /** Static image (svg/png/jpg) — for iconify, unsplash, ai-image, iconscout thumbnails. */
+  image_url: string | null;
   external_id: string | null;
   color_support: string;
   tags: string[];
@@ -100,9 +102,9 @@ async function findCandidates(
       .or(`name.ilike.%${kw}%,slug.ilike.%${kw}%,tags.cs.{${kw}},concepts.cs.{${kw}}`)
       .limit(perKeyword * 3);
     const rows = (data ?? []) as any[];
-    // Prefer playable; then theme-matching
-    const playable = rows.filter((r) => r.video_url || r.lottie_url);
-    const pool = playable.length ? playable : rows;
+    // Prefer playable/displayable; iconify/unsplash hits expose only thumbnail_url
+    const displayable = rows.filter((r) => r.video_url || r.lottie_url || r.thumbnail_url);
+    const pool = displayable.length ? displayable : rows;
     const themed = pool.filter((r) =>
       themeTags.some(
         (t) =>
@@ -121,6 +123,7 @@ async function findCandidates(
         preview_url: r.thumbnail_url ?? r.video_url ?? r.lottie_url,
         video_url: r.video_url,
         lottie_url: r.lottie_url,
+        image_url: r.thumbnail_url ?? null,
         external_id: r.external_id,
         color_support: r.color_support ?? "fixed",
         tags: r.tags ?? [],
@@ -521,6 +524,7 @@ function compilePlan(
         end_word_index: hasWords ? endWIdx : null,
         lottie_url: asset.lottie_url,
         video_url: asset.video_url,
+        image_url: asset.image_url,
         external_id: asset.external_id,
         loop: true,
         autoplay: true,
@@ -594,7 +598,7 @@ function buildFallbackRows(
     },
   });
 
-  const asset = candidates.find((c) => c.video_url || c.lottie_url) ?? candidates[0];
+  const asset = candidates.find((c) => c.video_url || c.lottie_url || c.image_url) ?? candidates[0];
   if (asset) {
     const midIdx = Math.floor(wordTimings.length / 2);
     const midStart = Math.max(0, (wordTimings[midIdx]?.start_ms ?? 0) - 80);
@@ -619,6 +623,7 @@ function buildFallbackRows(
         end_word_index: wordTimings.length - 1,
         lottie_url: asset.lottie_url,
         video_url: asset.video_url,
+        image_url: asset.image_url,
         external_id: asset.external_id,
         loop: true,
         autoplay: true,
@@ -764,6 +769,7 @@ export const directProject = createServerFn({ method: "POST" })
                       preview_url: r.thumbnail_url ?? r.video_url ?? r.lottie_url,
                       video_url: r.video_url,
                       lottie_url: r.lottie_url,
+                      image_url: r.thumbnail_url ?? null,
                       external_id: r.external_id,
                       color_support: r.color_support ?? "fixed",
                       tags: [...(r.tags ?? []), "3d"],
@@ -822,6 +828,7 @@ export const directProject = createServerFn({ method: "POST" })
                       preview_url: r.thumbnail_url ?? r.video_url ?? r.lottie_url,
                       video_url: r.video_url,
                       lottie_url: r.lottie_url,
+                      image_url: r.thumbnail_url ?? null,
                       external_id: r.external_id,
                       color_support: r.color_support ?? "fixed",
                       tags: r.tags ?? [],

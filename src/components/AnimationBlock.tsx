@@ -33,6 +33,8 @@ export interface AnimationBlockContent {
   slug?: string;
   lottie_url?: string | null;
   video_url?: string | null;
+  /** Static image (svg/png/jpg) — for iconify, unsplash, ai-image, iconscout thumbnails. */
+  image_url?: string | null;
   external_id?: string | null;
   // playback
   loop?: boolean;
@@ -400,6 +402,33 @@ export function AnimationBlockRenderer({
             objectFit: "contain",
             opacity: 0,
             animation: "anim-block-fade-in 180ms ease-out 80ms forwards",
+          }}
+        />
+        <style>{`@keyframes anim-block-fade-in { to { opacity: 1; } }`}</style>
+      </div>
+    );
+  }
+
+  // Static image: iconify SVG, unsplash photo, ai-image, iconscout thumbnail
+  const imageSrc =
+    content.image_url ||
+    ((content.provider === "iconify" || content.provider === "unsplash" || content.provider === "image" || content.provider === "iconscout")
+      ? (content.video_url || content.lottie_url || null)
+      : null);
+  if (imageSrc) {
+    return (
+      <div style={wrapperStyle} className="pointer-events-none">
+        {content.remove_background && <WhiteKeyFilterDef />}
+        <img
+          src={imageSrc}
+          alt={content.name}
+          crossOrigin="anonymous"
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            opacity: 0,
+            animation: "anim-block-fade-in 220ms ease-out 60ms forwards",
           }}
         />
         <style>{`@keyframes anim-block-fade-in { to { opacity: 1; } }`}</style>
