@@ -23,6 +23,7 @@ import type { AnimationResult } from "@/lib/animation-providers";
 import { cacheIconscoutItem } from "@/server/iconscout-mirror.functions";
 import { seedAnimationsForProject } from "@/server/voice.functions";
 import { directProject } from "@/server/director.functions";
+import { AnimationAgentPanel } from "@/components/AnimationAgentPanel";
 import { proxyImageAsDataUrl } from "@/server/proxy-image.functions";
 import { CanvasAudioEditor } from "@/components/CanvasAudioEditor";
 import { applyPendingTheme, consumePendingTheme } from "@/lib/pending-theme";
