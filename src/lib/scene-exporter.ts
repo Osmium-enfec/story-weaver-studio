@@ -126,6 +126,16 @@ export async function exportScenesToBlob(opts: ExportOptions): Promise<Blob> {
     recorder.onerror = (e) => reject(e);
   });
 
+  // Pre-mount + preload the FIRST scene before starting the recorder/audio
+  // so video and audio begin together. Subsequent scenes mount inside the
+  // loop and pay only their own preload latency.
+  const firstNode = opts.scenes.length > 0 ? await opts.scenes[0].mount() : null;
+  if (firstNode) {
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    await preloadImagesIn(firstNode);
+  }
+  opts.onPlayingScene?.(opts.scenes[0]?.id ?? null);
+
   // Schedule audio in lockstep with recorder.start()
   recorder.start(500);
   if (audioCtx && opts.includeAudio) {
@@ -140,13 +150,15 @@ export async function exportScenesToBlob(opts: ExportOptions): Promise<Blob> {
     for (let i = 0; i < opts.scenes.length; i++) {
       if (opts.signal?.aborted) throw new Error("Aborted");
       const scene = opts.scenes[i];
-      opts.onPlayingScene?.(scene.id);
-      // Mount this scene fresh so its CSS animations begin now (in sync
-      // with the audio that was scheduled at recorder.start()).
-      const node = await scene.mount();
-      // Give React/CSS one paint to attach styles, then preload images.
-      await new Promise((r) => requestAnimationFrame(() => r(null)));
-      await preloadImagesIn(node);
+      let node: HTMLElement;
+      if (i === 0 && firstNode) {
+        node = firstNode;
+      } else {
+        opts.onPlayingScene?.(scene.id);
+        node = await scene.mount();
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        await preloadImagesIn(node);
+      }
       const sceneStart = performance.now();
       const sceneDur = scene.duration_ms;
       const frameInterval = 1000 / fps;
