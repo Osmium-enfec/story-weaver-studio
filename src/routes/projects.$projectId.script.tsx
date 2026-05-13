@@ -1394,6 +1394,12 @@ function ScriptCanvas() {
         }))}
         canvasSize={canvasSize}
       />
+      <AnimationAgentPanel
+        projectId={projectId}
+        activeSceneId={activeScene?.id ?? null}
+        activeSceneIndex={activeIdx}
+        onApplied={refetchSceneElements}
+      />
     </div>
   );
 }
