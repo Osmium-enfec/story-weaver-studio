@@ -52,6 +52,7 @@ function ExportPage() {
   const [progress, setProgress] = useState(0);
   const [phase, setPhase] = useState<string>("");
   const [playingSceneId, setPlayingSceneId] = useState<string | null>(null);
+  const [sceneTimeMs, setSceneTimeMs] = useState(0);
   const [convertPct, setConvertPct] = useState<number | null>(null);
   const stageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const mountResolvers = useRef<Record<string, ((el: HTMLDivElement) => void) | null>>({});
@@ -62,7 +63,7 @@ function ExportPage() {
   async function load() {
     const { data: rows, error } = await supabase
       .from("scenes")
-      .select("id, order_index, background, duration_ms, voice_url, voice_start_ms, voice_end_ms, voice_trim_start_ms, voice_trim_end_ms, voice_cuts, voice_volume, voice_fade_in_ms, voice_fade_out_ms")
+      .select("id, order_index, background, duration_ms, word_timings, voice_url, voice_start_ms, voice_end_ms, voice_trim_start_ms, voice_trim_end_ms, voice_cuts, voice_volume, voice_fade_in_ms, voice_fade_out_ms")
       .eq("project_id", projectId)
       .order("order_index");
     if (error) { toast.error(error.message); return; }
@@ -85,6 +86,7 @@ function ExportPage() {
         background: bg,
         elements: byScene.get(r.id) ?? [],
         duration_ms: (r as unknown as { duration_ms: number }).duration_ms ?? 4000,
+        word_timings: ((r as unknown as { word_timings: { text: string; start_ms: number; end_ms: number }[] | null }).word_timings) ?? [],
         voice_url: r.voice_url,
         voice_start_ms: r.voice_start_ms,
         voice_end_ms: r.voice_end_ms,
@@ -153,6 +155,7 @@ function ExportPage() {
               return;
             }
             mountResolvers.current[s.id] = (el) => resolve(el);
+            setSceneTimeMs(0);
             setPlayingSceneId(s.id);
           }),
         unmount: () => {
@@ -168,7 +171,11 @@ function ExportPage() {
         format,
         includeAudio,
         signal: abortRef.current.signal,
-        onPlayingScene: setPlayingSceneId,
+        onPlayingScene: (sceneId) => {
+          setSceneTimeMs(0);
+          setPlayingSceneId(sceneId);
+        },
+        onSceneTime: (_sceneId, currentMs) => setSceneTimeMs(Math.round(currentMs)),
         onProgress: ({ pct, phase }) => {
           setProgress(pct);
           setPhase(phase);
@@ -417,6 +424,7 @@ function ExportPage() {
                 }}
                 scene={s}
                 isPlaying
+                currentMs={sceneTimeMs}
                 exportMode
               />
             </div>
