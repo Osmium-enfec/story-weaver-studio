@@ -388,13 +388,18 @@ function compilePlan(
   candidatesById: Map<string, CandidateAsset>,
   plan: ScenePlan,
   themeTokens: ThemeTokens,
+  forcedLayoutId?: string,
 ): CompiledRow[] {
   const rows: CompiledRow[] = [];
   const els = plan.elements ?? [];
   const hasWords = wordTimings.length > 0;
 
   // Resolve which layout preset to use, then materialize its slot rects.
-  const layout = (plan.layout && getLayout(plan.layout)) || autoPickLayout(els.length);
+  // forcedLayoutId (from approved storyboard.layout) wins over plan.layout.
+  const layout =
+    (forcedLayoutId && getLayout(forcedLayoutId)) ||
+    (plan.layout && getLayout(plan.layout)) ||
+    autoPickLayout(els.length);
   const slotRects = resolveLayoutPx(layout, Math.max(els.length, 1));
 
   els.forEach((el, idx) => {
