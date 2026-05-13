@@ -36,6 +36,7 @@ export interface ExportOptions {
   includeAudio: boolean;
   onProgress?: (info: { sceneIndex: number; sceneCount: number; pct: number; phase: string }) => void;
   onPlayingScene?: (sceneId: string | null) => void;
+  onSceneTime?: (sceneId: string, currentMs: number) => void;
   signal?: AbortSignal;
 }
 
@@ -169,6 +170,9 @@ export async function exportScenesToBlob(opts: ExportOptions): Promise<Blob> {
         if (now < nextFrameAt) {
           await new Promise((r) => setTimeout(r, Math.max(0, nextFrameAt - now)));
         }
+        const localMs = Math.max(0, Math.min(sceneDur, performance.now() - sceneStart));
+        opts.onSceneTime?.(scene.id, localMs);
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
         try {
           const frameCanvas = await toCanvas(node, {
             cacheBust: false,
