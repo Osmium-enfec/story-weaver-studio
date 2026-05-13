@@ -132,24 +132,34 @@ function ExportPage() {
     try {
       // Wait one tick so the off-screen stages have mounted
       await new Promise((r) => requestAnimationFrame(() => r(null)));
-      const exporterScenes = selectedScenes.map((s) => {
-        const node = stageRefs.current[s.id];
-        if (!node) throw new Error(`Stage not mounted for scene ${s.id}`);
-        return {
-          id: s.id,
-          node,
-          duration_ms: s.duration_ms,
-          voice_url: s.voice_url,
-          voice_start_ms: s.voice_start_ms,
-          voice_end_ms: s.voice_end_ms,
-          voice_trim_start_ms: s.voice_trim_start_ms,
-          voice_trim_end_ms: s.voice_trim_end_ms,
-          voice_cuts: s.voice_cuts,
-          voice_volume: s.voice_volume,
-          voice_fade_in_ms: s.voice_fade_in_ms,
-          voice_fade_out_ms: s.voice_fade_out_ms,
-        };
-      });
+      const exporterScenes = selectedScenes.map((s) => ({
+        id: s.id,
+        duration_ms: s.duration_ms,
+        voice_url: s.voice_url,
+        voice_start_ms: s.voice_start_ms,
+        voice_end_ms: s.voice_end_ms,
+        voice_trim_start_ms: s.voice_trim_start_ms,
+        voice_trim_end_ms: s.voice_trim_end_ms,
+        voice_cuts: s.voice_cuts,
+        voice_volume: s.voice_volume,
+        voice_fade_in_ms: s.voice_fade_in_ms,
+        voice_fade_out_ms: s.voice_fade_out_ms,
+        mount: () =>
+          new Promise<HTMLElement>((resolve) => {
+            const existing = stageRefs.current[s.id];
+            if (existing) {
+              resolve(existing);
+              return;
+            }
+            mountResolvers.current[s.id] = (el) => resolve(el);
+            setPlayingSceneId(s.id);
+          }),
+        unmount: () => {
+          mountResolvers.current[s.id] = null;
+          stageRefs.current[s.id] = null;
+          setPlayingSceneId((cur) => (cur === s.id ? null : cur));
+        },
+      }));
 
       const webm = await exportScenesToBlob({
         scenes: exporterScenes,
