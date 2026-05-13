@@ -6,12 +6,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sparkles, Send, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { directProject } from "@/server/director.functions";
+import { generateAssetImage } from "@/server/ai-image.functions";
 import {
   planStoryboard,
   refineStoryboard,
   approveAndAnimate,
   type Storyboard,
 } from "@/server/storyboard.functions";
+
+const GEN_IMAGE_RE = /^\s*(generate|create|make|draw)\s+(an?\s+)?(image|picture|illustration|icon|photo|3d\s+icon)\s+(of|for|showing|with)?\s*(.+)$/i;
 
 type Mode = "storyboard" | "refine-anim";
 
