@@ -391,5 +391,6 @@ export const approveAndAnimate = createServerFn({ method: "POST" })
         storyboardHint: hint,
       },
     });
+    await admin.from("scenes").update({ director_stage: "done" }).eq("id", scene.id);
     return { ok: true, ...res };
   });
