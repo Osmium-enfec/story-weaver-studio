@@ -23,6 +23,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   storyboard?: Storyboard;
+  gridOptions?: GridOption[];
   scope?: "scene" | "all";
 }
 
