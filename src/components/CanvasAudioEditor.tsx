@@ -84,6 +84,19 @@ export function CanvasAudioEditor({ sceneId, projectId, state, onChange }: Props
     wsRef.current?.setVolume(Math.max(0, Math.min(2, state.voice_volume)));
   }, [state.voice_volume]);
 
+  // Listen for external trigger (e.g. Record button in the script panel)
+  useEffect(() => {
+    function handler(e: Event) {
+      const detail = (e as CustomEvent<{ sceneId: string }>).detail;
+      if (detail?.sceneId !== sceneId) return;
+      setOpen(true);
+      if (!recording) void startRecording();
+    }
+    window.addEventListener("canvas-audio-record", handler as EventListener);
+    return () => window.removeEventListener("canvas-audio-record", handler as EventListener);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sceneId, recording]);
+
   const persist = useCallback(
     async (patch: Partial<CanvasAudioState>) => {
       onChange(patch);
