@@ -308,11 +308,24 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
             {messages.length === 0 && (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  {mode === "storyboard"
-                    ? "Step 1 — plan the canvas as an infographic. Approve when it looks right, then I'll animate it synced to your voice."
-                    : "Tell me how to refine the existing animation on this canvas."}
+                  {mode === "grid"
+                    ? "Step 1 — pick a grid layout for this canvas. Then I'll fill it as an infographic, then animate it word-by-word."
+                    : mode === "storyboard"
+                      ? "Step 2 — refine the infographic. Approve when it looks right, then I'll animate it synced to your voice."
+                      : "Step 3 — refine the existing animation on this canvas."}
                 </p>
-                {showStoryboardCta && !storyboard && (
+                {scope === "scene" && activeSceneId && mode === "grid" && (
+                  <Button
+                    size="sm"
+                    onClick={() => activeSceneId && startGridStage(activeSceneId)}
+                    disabled={busy}
+                    className="gap-2"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Suggest grids
+                  </Button>
+                )}
+                {showStoryboardCta && !storyboard && mode === "storyboard" && (
                   <Button
                     size="sm"
                     onClick={() => activeSceneId && generateStoryboard(activeSceneId)}
@@ -348,6 +361,9 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
                   <div className="text-[10px] opacity-70 mb-1">All canvases</div>
                 )}
                 <div className="whitespace-pre-wrap">{m.content}</div>
+                {m.gridOptions && (
+                  <GridOptionsPicker options={m.gridOptions} busy={busy} onPick={pickGrid} />
+                )}
                 {m.storyboard && <StoryboardPreview sb={m.storyboard} />}
               </div>
             ))}
