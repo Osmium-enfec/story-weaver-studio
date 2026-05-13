@@ -68,9 +68,22 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
   const counts = {
     lottie: results.filter((r) => r.provider === "lottie").length,
     iconscout: results.filter((r) => r.provider === "iconscout").length,
+    iconify: results.filter((r) => r.provider === "iconify").length,
+    unsplash: results.filter((r) => r.provider === "unsplash").length,
     internal: results.filter((r) => r.provider === "internal").length,
     upload: results.filter((r) => r.provider === "upload").length,
   };
+
+  async function handleSelect(r: AnimationResult) {
+    if (r.provider === "iconify" || r.provider === "unsplash") {
+      const cachedUrl = await mirrorExternalResult(r);
+      if (cachedUrl) {
+        onSelect({ ...r, thumbnail_url: cachedUrl, video_url: cachedUrl });
+        return;
+      }
+    }
+    onSelect(r);
+  }
 
   return (
     <div className="flex h-full flex-col">
