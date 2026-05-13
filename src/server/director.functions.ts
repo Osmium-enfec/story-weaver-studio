@@ -367,29 +367,60 @@ interface CompiledRow {
   end_ms: number;
 }
 
+interface ThemeTokens {
+  fg: string;
+  accent: string;
+  bg: string;
+}
+
+const DEFAULT_THEME_TOKENS: ThemeTokens = { fg: "#0f172a", accent: "#1f6feb", bg: "#ffffff" };
+
 function compilePlan(
   sceneId: string,
   sceneDurationMs: number,
   wordTimings: { text: string; start_ms: number; end_ms: number }[],
   candidatesById: Map<string, CandidateAsset>,
   plan: ScenePlan,
+  themeTokens: ThemeTokens,
 ): CompiledRow[] {
   const rows: CompiledRow[] = [];
   const els = plan.elements ?? [];
+  const hasWords = wordTimings.length > 0;
 
   // Resolve which layout preset to use, then materialize its slot rects.
   const layout = (plan.layout && getLayout(plan.layout)) || autoPickLayout(els.length);
   const slotRects = resolveLayoutPx(layout, Math.max(els.length, 1));
 
   els.forEach((el, idx) => {
-    // Resolve timing from word index AND grab the anchored word so the
-    // script-area chip can show the binding ("this animation belongs to this word").
-    const wIdx = Math.max(0, Math.min(el.anchor_word_index ?? 0, Math.max(0, wordTimings.length - 1)));
-    const anchorWord = wordTimings[wIdx]?.text ?? null;
-    const startMs = wordTimings.length > 0
+    // Word-anchor invariant: every element MUST bind to a real spoken word
+    // when word_timings exist. Drop elements with missing/out-of-range anchors
+    // so the timeline never shows visuals that don't match the voice.
+    let wIdx = el.anchor_word_index ?? -1;
+    if (hasWords) {
+      if (!Number.isFinite(wIdx) || wIdx < 0 || wIdx >= wordTimings.length) {
+        console.warn(`director: dropping element ${idx} — invalid anchor_word_index`, wIdx);
+        return;
+      }
+    } else {
+      wIdx = 0; // no words to bind to (silent scene)
+    }
+
+    const anchorWord = hasWords ? (wordTimings[wIdx]?.text ?? null) : null;
+    const startMs = hasWords
       ? Math.max(0, (wordTimings[wIdx]?.start_ms ?? 0) - 80)
       : Math.round(idx * 400);
-    const endMs = Math.min(sceneDurationMs, startMs + Math.max(400, el.duration_ms ?? 2500));
+    const elementDur = Math.max(400, el.duration_ms ?? 2500);
+    const endMs = Math.min(sceneDurationMs, startMs + elementDur);
+
+    // Compute end_word_index from duration so the script panel can highlight
+    // the FULL phrase this element covers, not just the single anchor word.
+    let endWIdx = wIdx;
+    if (hasWords) {
+      for (let i = wIdx; i < wordTimings.length; i++) {
+        if ((wordTimings[i]?.start_ms ?? 0) <= endMs) endWIdx = i;
+        else break;
+      }
+    }
 
     // Position: prefer slot from chosen layout. Fall back to legacy normalized rect.
     let position: { x: number; y: number; w: number; h: number };
@@ -415,6 +446,12 @@ function compilePlan(
       const role = el.text_role ?? "subheading";
       const sizeByRole: Record<string, number> = { heading: 72, subheading: 44, caption: 28 };
       const weightByRole: Record<string, number> = { heading: 700, subheading: 600, caption: 500 };
+      // Theme-aware color: heading uses fg, caption uses fg @ 70%, subheading uses accent.
+      const colorByRole: Record<string, string> = {
+        heading: themeTokens.fg,
+        subheading: themeTokens.accent,
+        caption: themeTokens.fg,
+      };
       rows.push({
         scene_id: sceneId,
         type: "text",
@@ -428,11 +465,13 @@ function compilePlan(
           text: el.text ?? "",
           role,
           word: anchorWord,
+          start_word_index: hasWords ? wIdx : null,
+          end_word_index: hasWords ? endWIdx : null,
           font_family: "Inter",
           font_size: sizeByRole[role] ?? 36,
           font_weight: weightByRole[role] ?? 600,
           line_height: 1.2,
-          color: "#0f172a",
+          color: colorByRole[role] ?? themeTokens.fg,
           text_animation: el.enter
             ? {
                 type: el.enter.type,
@@ -450,7 +489,7 @@ function compilePlan(
     const asset = el.asset_id ? candidatesById.get(el.asset_id) : null;
     if (!asset) return; // skip — LLM hallucinated id
     const type =
-      asset.provider === "iconscout" || asset.provider === "ai-image"
+      asset.provider === "iconscout" || asset.provider === "ai-image" || asset.provider === "iconify" || asset.provider === "unsplash"
         ? "iconscout"
         : asset.provider === "lottie"
           ? "lottie"
@@ -467,6 +506,8 @@ function compilePlan(
         name: asset.name,
         slug: asset.slug,
         word: anchorWord,
+        start_word_index: hasWords ? wIdx : null,
+        end_word_index: hasWords ? endWIdx : null,
         lottie_url: asset.lottie_url,
         video_url: asset.video_url,
         external_id: asset.external_id,
@@ -477,7 +518,10 @@ function compilePlan(
         rotation: 0,
         color_support: asset.color_support,
         tint: null,
-        remove_background: asset.provider === "iconscout" || asset.provider === "ai-image",
+        remove_background:
+          asset.provider === "iconscout" ||
+          asset.provider === "ai-image" ||
+          asset.provider === "iconify",
         text_animation: el.enter
           ? {
               type: el.enter.type,
@@ -489,6 +533,97 @@ function compilePlan(
       },
     });
   });
+  return rows;
+}
+
+/**
+ * Smart fallback: when the LLM returns no usable plan, drop a centered
+ * heading using the first words of the narration and (if a candidate is
+ * available) place the highest-tag-overlap asset alongside it. Both are
+ * anchored to real spoken words so the word-binding invariant holds.
+ */
+function buildFallbackRows(
+  sceneId: string,
+  sceneDurationMs: number,
+  wordTimings: { text: string; start_ms: number; end_ms: number }[],
+  candidates: CandidateAsset[],
+  themeTokens: ThemeTokens,
+  narration: string,
+): CompiledRow[] {
+  if (wordTimings.length === 0) return [];
+  const headingText = (narration || "").trim().split(/\s+/).slice(0, 6).join(" ");
+  const layout = autoPickLayout(2);
+  const slots = resolveLayoutPx(layout, 2);
+  const headingSlot = slots[0] ?? { x: 80, y: 80, w: 1120, h: 200 };
+  const assetSlot = slots[1] ?? { x: 80, y: 320, w: 1120, h: 320 };
+
+  const rows: CompiledRow[] = [];
+  const headingStart = Math.max(0, (wordTimings[0]?.start_ms ?? 0) - 80);
+  rows.push({
+    scene_id: sceneId,
+    type: "text",
+    position: headingSlot,
+    z_index: 0,
+    start_ms: headingStart,
+    end_ms: sceneDurationMs,
+    content: {
+      provider: "internal",
+      name: "Text",
+      text: headingText,
+      role: "heading",
+      word: wordTimings[0]?.text ?? null,
+      start_word_index: 0,
+      end_word_index: Math.min(5, wordTimings.length - 1),
+      font_family: "Inter",
+      font_size: 72,
+      font_weight: 700,
+      line_height: 1.2,
+      color: themeTokens.fg,
+      text_animation: { type: "fade", duration: 500, delay: 0, easing: "ease-out" },
+    },
+  });
+
+  const asset = candidates.find((c) => c.video_url || c.lottie_url) ?? candidates[0];
+  if (asset) {
+    const midIdx = Math.floor(wordTimings.length / 2);
+    const midStart = Math.max(0, (wordTimings[midIdx]?.start_ms ?? 0) - 80);
+    rows.push({
+      scene_id: sceneId,
+      type:
+        asset.provider === "iconscout" || asset.provider === "ai-image" || asset.provider === "iconify" || asset.provider === "unsplash"
+          ? "iconscout"
+          : asset.provider === "lottie"
+            ? "lottie"
+            : "animation",
+      position: assetSlot,
+      z_index: 1,
+      start_ms: midStart,
+      end_ms: sceneDurationMs,
+      content: {
+        provider: asset.provider,
+        name: asset.name,
+        slug: asset.slug,
+        word: wordTimings[midIdx]?.text ?? null,
+        start_word_index: midIdx,
+        end_word_index: wordTimings.length - 1,
+        lottie_url: asset.lottie_url,
+        video_url: asset.video_url,
+        external_id: asset.external_id,
+        loop: true,
+        autoplay: true,
+        speed: 1,
+        opacity: 1,
+        rotation: 0,
+        color_support: asset.color_support,
+        tint: null,
+        remove_background:
+          asset.provider === "iconscout" ||
+          asset.provider === "ai-image" ||
+          asset.provider === "iconify",
+        text_animation: { type: "scale", duration: 600, delay: 0, easing: "ease-out" },
+      },
+    });
+  }
   return rows;
 }
 
