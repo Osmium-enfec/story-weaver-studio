@@ -305,7 +305,7 @@ function buildUserPrompt(args: {
         .join("\n") +
       `\n\nMAPPING RULES (CRITICAL — this keeps the visuals in sync with the voice):
 - Produce exactly one element per beat, in the same order.
-- For kind=icon/image/diagram: PREFER the candidate whose beat_id matches this beat. If none, fall back to one whose source_query / tags / name best matches the beat's query.
+- For kind=icon/image/diagram/animation: PREFER the candidate whose beat_id matches this beat. If none, fall back to one whose source_query / tags / name best matches the beat's query. NEVER emit a text element for kind=animation — animation beats MUST resolve to an asset (Iconscout Lottie/MP4 candidate).
 - For kind=title/code/callout: emit a "text" element with the beat's label.
 - Use the beat's anchor_word_index AS the element's anchor_word_index — DO NOT shift it. This is what syncs the asset to the spoken word.
 - duration_ms should cover from this beat's anchor word to the next beat's anchor word (or to the end of the scene for the last beat).`
