@@ -365,7 +365,21 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
                 {m.gridOptions && (
                   <GridOptionsPicker options={m.gridOptions} busy={busy} onPick={pickGrid} />
                 )}
-                {m.storyboard && <StoryboardPreview sb={m.storyboard} />}
+                {m.storyboard && (
+                  <StoryboardPreview
+                    sb={m.storyboard}
+                    sceneId={activeSceneId}
+                    busy={busy}
+                    onUpdated={(sb) => {
+                      setStoryboard(sb);
+                      setMessages((prev) => {
+                        const copy = [...prev];
+                        copy[i] = { ...copy[i], storyboard: sb };
+                        return copy;
+                      });
+                    }}
+                  />
+                )}
               </div>
             ))}
             {busy && (
