@@ -1,6 +1,7 @@
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Loader2, Film, CheckSquare, Square, ArrowLeft } from "lucide-react";
+import { flushSync } from "react-dom";
+import { Download, Film, CheckSquare, Square, ArrowLeft } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,10 @@ import {
   type ExportQuality,
   type ExportFormat,
 } from "@/lib/scene-exporter";
+import {
+  exportDeterministic,
+  isDeterministicExportSupported,
+} from "@/lib/deterministic-exporter";
 
 export const Route = createFileRoute("/projects/$projectId/export")({
   component: ExportPage,
