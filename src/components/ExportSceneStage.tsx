@@ -2,7 +2,7 @@ import { forwardRef } from "react";
 import { AnimationBlockRenderer, TextBlockRenderer, type AnimationBlockContent } from "@/components/AnimationBlock";
 import { BackgroundLayer } from "@/components/BackgroundPicker";
 import { DESIGN } from "@/lib/grid";
-import type { SceneBackground } from "@/lib/firebase-theme";
+import type { SceneBackground } from "@/components/BackgroundPicker";
 
 export interface ExportElement {
   id: string;
