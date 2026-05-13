@@ -42,6 +42,7 @@ function renderLayoutSvg(layout: LayoutPreset, n: number): string {
       const h = Math.round(r.h * H);
       const fill = i === 0 ? "#6366f1" : "#cbd5e1";
       const text = i === 0 ? "#ffffff" : "#0f172a";
+      const fontSize = Math.max(7, Math.min(10, Math.round(Math.min(w, h) * 0.45)));
       return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" ry="6" fill="${fill}" opacity="${i === 0 ? 0.9 : 0.7}"/><text x="${x + w / 2}" y="${y + h / 2 + 4}" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="700" fill="${text}" text-anchor="middle">${i + 1}</text></g>`;
     })
     .join("");
