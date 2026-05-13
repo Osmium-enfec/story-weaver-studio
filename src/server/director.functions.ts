@@ -767,6 +767,7 @@ export const directProject = createServerFn({ method: "POST" })
                       preview_url: r.thumbnail_url ?? r.video_url ?? r.lottie_url,
                       video_url: r.video_url,
                       lottie_url: r.lottie_url,
+                      image_url: r.thumbnail_url ?? null,
                       external_id: r.external_id,
                       color_support: r.color_support ?? "fixed",
                       tags: [...(r.tags ?? []), "3d"],
