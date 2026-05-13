@@ -94,7 +94,7 @@ export const ExportSceneStage = forwardRef<HTMLDivElement, {
         background: "#ffffff",
       }}
     >
-      <BackgroundLayer background={scene.background} exportMode={exportMode} />
+      <BackgroundLayer background={scene.background} exportMode={false} />
       {scene.elements
         .slice()
         .sort((a, b) => a.z_index - b.z_index)
@@ -124,7 +124,7 @@ export const ExportSceneStage = forwardRef<HTMLDivElement, {
                   animating={isPlaying && visible}
                 />
               ) : (
-                visible ? <AnimationBlockRenderer content={el.content} exportMode={exportMode} /> : null
+                visible ? <AnimationBlockRenderer content={el.content} exportMode={false} /> : null
               )}
             </div>
           );
