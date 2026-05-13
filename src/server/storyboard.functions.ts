@@ -362,12 +362,13 @@ async function persistStoryboard(
   prevStoryboard: Partial<Storyboard> | null,
 ): Promise<Storyboard> {
   const linked = beats.map((b, i) => ({ ...b, next: i < beats.length - 1 ? beats[i + 1].id : null }));
+  const prev = (prevStoryboard ?? {}) as Partial<Storyboard> & { layout?: string };
   const sb: Storyboard & { layout?: string; layoutName?: string; layoutOptions?: string[] } = {
     // Preserve grid-stage choices (layout, layoutName) across storyboard rewrites
-    ...(prevStoryboard ?? {}),
+    ...prev,
     status,
     beats: linked,
-    svg: renderBeatsSvg(linked),
+    svg: renderBeatsSvg(linked, prev.layout ?? null),
     updated_at: new Date().toISOString(),
   };
   const { error } = await admin
