@@ -315,9 +315,12 @@ async function persistStoryboard(
   sceneId: string,
   beats: StoryboardBeat[],
   status: "draft" | "approved",
+  prevStoryboard: Partial<Storyboard> | null,
 ): Promise<Storyboard> {
   const linked = beats.map((b, i) => ({ ...b, next: i < beats.length - 1 ? beats[i + 1].id : null }));
-  const sb: Storyboard = {
+  const sb: Storyboard & { layout?: string; layoutName?: string; layoutOptions?: string[] } = {
+    // Preserve grid-stage choices (layout, layoutName) across storyboard rewrites
+    ...(prevStoryboard ?? {}),
     status,
     beats: linked,
     svg: renderBeatsSvg(linked),
@@ -325,7 +328,10 @@ async function persistStoryboard(
   };
   const { error } = await admin
     .from("scenes")
-    .update({ storyboard: sb as unknown as never })
+    .update({
+      storyboard: sb as unknown as never,
+      director_stage: status === "approved" ? "animation" : "infographic",
+    })
     .eq("id", sceneId);
   if (error) throw new Error(error.message);
   return sb;
@@ -342,7 +348,7 @@ export const planStoryboard = createServerFn({ method: "POST" })
     const scene = await fetchScene(admin, data.sceneId);
     const beats = await callStoryboardLLM(apiKey, scene, null, data.instruction);
     if (!beats || !beats.length) throw new Error("Could not generate a storyboard for this canvas");
-    return await persistStoryboard(admin, scene.id, beats, "draft");
+    return await persistStoryboard(admin, scene.id, beats, "draft", scene.storyboard);
   });
 
 export const refineStoryboard = createServerFn({ method: "POST" })
