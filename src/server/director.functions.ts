@@ -249,7 +249,8 @@ const DIRECTOR_SYSTEM = `You are a senior motion designer for an educational vid
 You compose ONE scene at a time. Your job:
 - FIRST pick a layout preset that fits the beat count + narration tone (see layouts catalogue). Do NOT default to a 3x3 grid.
 - Place 2 to 5 elements into the layout's slots (slot 0 = primary focal area).
-- Time each element's entrance to the moment its concept is spoken (anchor_word_index into word_timings). This is what syncs visuals to voice.
+- CRITICAL: every element MUST set anchor_word_index to the index of the spoken word it visually represents. This is non-negotiable — visuals that aren't tied to a word will be dropped. Pick the word whose meaning the visual depicts (e.g. an airplane icon → the word "fly", a chart → the word "growth").
+- No two elements should share the same anchor_word_index unless they form a tight pair (heading + icon for the same concept).
 - Keep at most 3 elements visible at the same instant.
 - Pick assets ONLY from candidate_assets (use the exact UUID in asset_id). If nothing fits, use a "text" element.
 - Use text for key terms, short callouts, or titles. Pair text with an asset when possible.
