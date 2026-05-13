@@ -617,7 +617,64 @@ export const directProject = createServerFn({ method: "POST" })
             }
           }
 
-          const candById = new Map(candidates.map((c) => [c.id, c]));
+          // Live-mirror Iconify + Unsplash for the keywords most likely to
+          // need imagery. Skip keywords that already have ≥2 playable local
+          // candidates to avoid wasting API calls.
+          try {
+            const localByKw = new Map<string, number>();
+            for (const c of candidates) {
+              const k = c.source_query;
+              if (k) localByKw.set(k, (localByKw.get(k) ?? 0) + 1);
+            }
+            const sbHint2 = data.storyboardHint as StoryboardBeatHint[] | undefined;
+            const sbBeatQueries = (sbHint2 ?? [])
+              .filter((b) => b.kind === "icon" || b.kind === "image" || b.kind === "diagram")
+              .map((b) => ({ beatId: b.id ?? "", query: (b.asset_query || b.label).trim() }))
+              .filter((p) => !!p.query);
+            const externalQueries = (sbBeatQueries.length ? sbBeatQueries.map((p) => p.query) : keywords)
+              .filter((kw) => (localByKw.get(kw) ?? 0) < 2)
+              .slice(0, 6);
+
+            if (externalQueries.length) {
+              const { byKeyword } = await ensureExternalForKeywords(externalQueries, {
+                iconsPerKeyword: 2,
+                photosPerKeyword: 1,
+                totalCap: 12,
+              });
+              const allIds = Array.from(new Set(Object.values(byKeyword).flat()));
+              if (allIds.length) {
+                const { data: rows } = await admin
+                  .from("animation_components")
+                  .select("id, name, slug, provider, video_url, lottie_url, thumbnail_url, external_id, color_support, tags")
+                  .in("id", allIds);
+                const rowById = new Map<string, any>((rows ?? []).map((r: any) => [r.id, r]));
+                for (const [kw, ids] of Object.entries(byKeyword)) {
+                  const beatId = sbBeatQueries.find((p) => p.query === kw)?.beatId;
+                  for (const id of ids) {
+                    const r = rowById.get(id);
+                    if (!r || candidates.some((c) => c.id === r.id)) continue;
+                    candidates.push({
+                      id: r.id,
+                      name: r.name,
+                      slug: r.slug,
+                      provider: r.provider,
+                      preview_url: r.thumbnail_url ?? r.video_url ?? r.lottie_url,
+                      video_url: r.video_url,
+                      lottie_url: r.lottie_url,
+                      external_id: r.external_id,
+                      color_support: r.color_support ?? "fixed",
+                      tags: r.tags ?? [],
+                      beat_id: beatId,
+                      source_query: kw,
+                    });
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.error("ensureExternalForKeywords", (e as Error).message);
+          }
+
 
           const prompt = buildUserPrompt({
             theme: themeName,
