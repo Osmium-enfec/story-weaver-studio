@@ -412,7 +412,7 @@ export function AnimationBlockRenderer({
   // Static image: iconify SVG, unsplash photo, ai-image, iconscout thumbnail
   const imageSrc =
     content.image_url ||
-    ((content.provider === "iconify" || content.provider === "unsplash" || content.provider === "ai-image")
+    ((content.provider === "iconify" || content.provider === "unsplash" || content.provider === "image" || content.provider === "iconscout")
       ? (content.video_url || content.lottie_url || null)
       : null);
   if (imageSrc) {
