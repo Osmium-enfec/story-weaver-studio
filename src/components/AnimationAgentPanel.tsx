@@ -11,6 +11,7 @@ import {
   planStoryboard,
   refineStoryboard,
   approveAndAnimate,
+  updateStoryboardBeat,
   type Storyboard,
 } from "@/server/storyboard.functions";
 import { proposeGrid, chooseGrid, type GridOption } from "@/server/grid.functions";
