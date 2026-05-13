@@ -268,20 +268,29 @@ function buildUserPrompt(args: {
     .slice(0, 30)
     .map(
       (c) =>
-        `- id=${c.id} name="${c.name}" provider=${c.provider} tags=[${c.tags.slice(0, 5).join(",")}]`,
+        `- id=${c.id} name="${c.name}" provider=${c.provider}${
+          c.beat_id ? ` beat_id=${c.beat_id}` : ""
+        }${c.source_query ? ` query="${c.source_query}"` : ""} tags=[${c.tags.slice(0, 5).join(",")}]`,
     )
     .join("\n");
   const sb = storyboard && storyboard.length
-    ? "\nAPPROVED STORYBOARD (use exactly this order, one element per beat):\n" +
+    ? "\nAPPROVED STORYBOARD (use exactly this order, ONE element per beat):\n" +
       storyboard
         .map(
           (b, i) =>
-            `${i + 1}. kind=${b.kind} label="${b.label}"${b.asset_query ? ` query="${b.asset_query}"` : ""}${
-              typeof b.anchor_word_index === "number" ? ` anchor_word_index=${b.anchor_word_index}` : ""
+            `${i + 1}. beat_id=${b.id ?? `b${i + 1}`} kind=${b.kind} label="${b.label}"${
+              b.asset_query ? ` query="${b.asset_query}"` : ""
+            }${typeof b.anchor_word_index === "number" ? ` anchor_word_index=${b.anchor_word_index}` : ""}${
+              b.narration_excerpt ? ` says="${b.narration_excerpt}"` : ""
             }`,
         )
         .join("\n") +
-      "\nFor each beat: pick the closest candidate UUID for kind=icon/image/diagram by matching the query against name/tags; for kind=title/code/callout use a text element with the label. Keep anchor_word_index as given."
+      `\n\nMAPPING RULES (CRITICAL — this keeps the visuals in sync with the voice):
+- Produce exactly one element per beat, in the same order.
+- For kind=icon/image/diagram: PREFER the candidate whose beat_id matches this beat. If none, fall back to one whose source_query / tags / name best matches the beat's query.
+- For kind=title/code/callout: emit a "text" element with the beat's label.
+- Use the beat's anchor_word_index AS the element's anchor_word_index — DO NOT shift it. This is what syncs the asset to the spoken word.
+- duration_ms should cover from this beat's anchor word to the next beat's anchor word (or to the end of the scene for the last beat).`
     : "";
   return [
     `Theme: ${theme}`,
@@ -289,7 +298,7 @@ function buildUserPrompt(args: {
     `Narration: ${narration}`,
     `word_timings (idx:text@start_ms): ${wt}`,
     "",
-    "candidate_assets (UUIDs you may reference):",
+    "candidate_assets (UUIDs you may reference; beat_id ties an asset to a specific beat):",
     cands || "(no library matches — use text elements)",
     sb,
     instruction ? `\nUSER INSTRUCTION: ${instruction}` : "",
