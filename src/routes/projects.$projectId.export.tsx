@@ -367,9 +367,9 @@ function ExportPage() {
         )}
       </section>
 
-      {/* Off-screen stages — one per selected scene, kept mounted so the
-          exporter can snapshot them. We hide visually but stay in the layout
-          tree (display:none breaks measurement, so we use absolute + opacity:0). */}
+      {/* Off-screen stage — only the currently-recording scene is mounted so
+          its CSS animations begin in lockstep with the audio. Each scene gets
+          a fresh key so React fully unmounts and remounts between scenes. */}
       <div
         aria-hidden
         style={{
@@ -384,24 +384,38 @@ function ExportPage() {
           overflow: "hidden",
         }}
       >
-        {selectedScenes.map((s) => (
-          <div
-            key={s.id}
-            style={{
-              position: "absolute",
-              left: 0,
-              top: 0,
-              width: DESIGN.w,
-              height: DESIGN.h,
-            }}
-          >
-            <ExportSceneStage
-              ref={(el) => { stageRefs.current[s.id] = el; }}
-              scene={s}
-              isPlaying={playingSceneId === s.id}
-            />
-          </div>
-        ))}
+        {(() => {
+          const s = selectedScenes.find((x) => x.id === playingSceneId);
+          if (!s) return null;
+          return (
+            <div
+              key={s.id}
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                width: DESIGN.w,
+                height: DESIGN.h,
+              }}
+            >
+              <ExportSceneStage
+                ref={(el) => {
+                  stageRefs.current[s.id] = el;
+                  if (el) {
+                    const r = mountResolvers.current[s.id];
+                    if (r) {
+                      mountResolvers.current[s.id] = null;
+                      r(el);
+                    }
+                  }
+                }}
+                scene={s}
+                isPlaying
+                exportMode
+              />
+            </div>
+          );
+        })()}
       </div>
 
       <p className="text-xs text-muted-foreground">
