@@ -34,7 +34,7 @@ export interface Storyboard {
   updated_at: string;
 }
 
-const BEAT_KINDS = ["title", "icon", "code", "diagram", "callout", "image"] as const;
+const BEAT_KINDS = ["title", "icon", "code", "diagram", "callout", "image", "animation"] as const;
 
 const STORYBOARD_TOOL = {
   type: "function" as const,
