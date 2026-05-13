@@ -442,13 +442,14 @@ function compilePlan(
 }
 
 export const directProject = createServerFn({ method: "POST" })
-  .inputValidator((d: { projectId: string; sceneId?: string; replace?: boolean; instruction?: string }) =>
+  .inputValidator((d: { projectId: string; sceneId?: string; replace?: boolean; instruction?: string; storyboardHint?: StoryboardBeatHint[] }) =>
     z
       .object({
         projectId: z.string().uuid(),
         sceneId: z.string().uuid().optional(),
         replace: z.boolean().optional(),
         instruction: z.string().max(500).optional(),
+        storyboardHint: z.array(z.any()).optional(),
       })
       .parse(d),
   )
