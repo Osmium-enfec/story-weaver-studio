@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { directProject, type StoryboardBeatHint } from "./director.functions";
+import { getLayout } from "@/lib/layouts";
 
 /**
  * Storyboard step — runs BEFORE animation. Produces a 3-7 beat infographic
