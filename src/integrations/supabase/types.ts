@@ -382,6 +382,7 @@ export type Database = {
           narration: string
           order_index: number
           project_id: string
+          storyboard: Json
           suggested_animation: string | null
           title: string | null
           transition: string
@@ -409,6 +410,7 @@ export type Database = {
           narration?: string
           order_index?: number
           project_id: string
+          storyboard?: Json
           suggested_animation?: string | null
           title?: string | null
           transition?: string
@@ -436,6 +438,7 @@ export type Database = {
           narration?: string
           order_index?: number
           project_id?: string
+          storyboard?: Json
           suggested_animation?: string | null
           title?: string | null
           transition?: string
