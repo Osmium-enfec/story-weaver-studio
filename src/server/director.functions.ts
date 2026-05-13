@@ -274,8 +274,9 @@ function buildUserPrompt(args: {
   candidates: CandidateAsset[];
   instruction?: string;
   storyboard?: StoryboardBeatHint[];
+  forcedLayoutId?: string;
 }) {
-  const { theme, narration, word_timings, duration_ms, candidates, instruction, storyboard } = args;
+  const { theme, narration, word_timings, duration_ms, candidates, instruction, storyboard, forcedLayoutId } = args;
   const wt = word_timings.slice(0, 60).map((w, i) => `${i}:${w.text}@${w.start_ms}`).join(" ");
   const cands = candidates
     .slice(0, 30)
@@ -305,6 +306,9 @@ function buildUserPrompt(args: {
 - Use the beat's anchor_word_index AS the element's anchor_word_index — DO NOT shift it. This is what syncs the asset to the spoken word.
 - duration_ms should cover from this beat's anchor word to the next beat's anchor word (or to the end of the scene for the last beat).`
     : "";
+  const layoutLock = forcedLayoutId
+    ? `\nLAYOUT LOCK: The user has approved layout "${forcedLayoutId}". You MUST set layout="${forcedLayoutId}" and place every element into one of its slots (slot 0 = primary). Do NOT pick a different layout.`
+    : "";
   return [
     `Theme: ${theme}`,
     `Scene duration: ${duration_ms}ms`,
@@ -313,6 +317,7 @@ function buildUserPrompt(args: {
     "",
     "LAYOUT PRESETS (pick one for `layout`, then place each element in a `slot` index 0..N-1):",
     layoutCatalogForPrompt(),
+    layoutLock,
     "",
     "candidate_assets (UUIDs you may reference; beat_id ties an asset to a specific beat):",
     cands || "(no library matches — use text elements)",
@@ -383,13 +388,18 @@ function compilePlan(
   candidatesById: Map<string, CandidateAsset>,
   plan: ScenePlan,
   themeTokens: ThemeTokens,
+  forcedLayoutId?: string,
 ): CompiledRow[] {
   const rows: CompiledRow[] = [];
   const els = plan.elements ?? [];
   const hasWords = wordTimings.length > 0;
 
   // Resolve which layout preset to use, then materialize its slot rects.
-  const layout = (plan.layout && getLayout(plan.layout)) || autoPickLayout(els.length);
+  // forcedLayoutId (from approved storyboard.layout) wins over plan.layout.
+  const layout =
+    (forcedLayoutId && getLayout(forcedLayoutId)) ||
+    (plan.layout && getLayout(plan.layout)) ||
+    autoPickLayout(els.length);
   const slotRects = resolveLayoutPx(layout, Math.max(els.length, 1));
 
   els.forEach((el, idx) => {
@@ -669,7 +679,7 @@ export const directProject = createServerFn({ method: "POST" })
 
     const sceneQuery = admin
       .from("scenes")
-      .select("id, narration, duration_ms, word_timings")
+      .select("id, narration, duration_ms, word_timings, storyboard")
       .eq("project_id", data.projectId)
       .order("order_index");
     const { data: scenes } = data.sceneId
@@ -680,6 +690,7 @@ export const directProject = createServerFn({ method: "POST" })
       narration: string | null;
       duration_ms: number | null;
       word_timings: { text: string; start_ms: number; end_ms: number }[] | null;
+      storyboard: { layout?: string } | null;
     }[];
 
     if (data.replace && list.length > 0) {
@@ -827,6 +838,8 @@ export const directProject = createServerFn({ method: "POST" })
 
           const candById = new Map(candidates.map((c) => [c.id, c]));
 
+          const forcedLayoutId = (s.storyboard as { layout?: string } | null)?.layout;
+
           const prompt = buildUserPrompt({
             theme: themeName,
             narration,
@@ -835,6 +848,7 @@ export const directProject = createServerFn({ method: "POST" })
             candidates,
             instruction: data.instruction,
             storyboard: data.storyboardHint as StoryboardBeatHint[] | undefined,
+            forcedLayoutId,
           });
           const plan = await callDirectorLLM(prompt, apiKey);
 
@@ -843,7 +857,7 @@ export const directProject = createServerFn({ method: "POST" })
           let rows: CompiledRow[] = [];
           let usedFallback = false;
           if (plan && plan.elements?.length) {
-            rows = compilePlan(s.id, durationMs, wt, candById, plan, themeTokens);
+            rows = compilePlan(s.id, durationMs, wt, candById, plan, themeTokens, forcedLayoutId);
           }
           if (rows.length === 0) {
             rows = buildFallbackRows(s.id, durationMs, wt, candidates, themeTokens, narration);

@@ -13,15 +13,17 @@ import {
   approveAndAnimate,
   type Storyboard,
 } from "@/server/storyboard.functions";
+import { proposeGrid, chooseGrid, type GridOption } from "@/server/grid.functions";
 
 const GEN_IMAGE_RE = /^\s*(generate|create|make|draw)\s+(an?\s+)?(image|picture|illustration|icon|photo|3d\s+icon)\s+(of|for|showing|with)?\s*(.+)$/i;
 
-type Mode = "storyboard" | "refine-anim";
+type Mode = "grid" | "storyboard" | "refine-anim";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
   storyboard?: Storyboard;
+  gridOptions?: GridOption[];
   scope?: "scene" | "all";
 }
 
@@ -49,8 +51,9 @@ const APPROVE_RE = /^\s*(approve|approved|looks good|lgtm|ship it|animate it|go 
 
 export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex, onApplied }: Props) {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<Mode>("storyboard");
+  const [mode, setMode] = useState<Mode>("grid");
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
+  const [chosenLayout, setChosenLayout] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -66,8 +69,34 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
   useEffect(() => {
     setMessages([]);
     setStoryboard(null);
-    setMode("storyboard");
+    setChosenLayout(null);
+    setMode("grid");
   }, [activeSceneId]);
+
+  const startGridStage = useCallback(
+    async (sceneId: string) => {
+      setBusy(true);
+      try {
+        const res = await proposeGrid({ data: { sceneId } });
+        setMode("grid");
+        setMessages((m) => [
+          ...m,
+          {
+            role: "assistant",
+            content: `Step 1 — pick a grid for canvas ${activeSceneIndex + 1}. I suggested ${res.options.length} layouts based on ~${res.beatCount} beats. Click one to lock it in.`,
+            gridOptions: res.options,
+          },
+        ]);
+      } catch (e) {
+        const msg = (e as Error).message || "Failed";
+        setMessages((m) => [...m, { role: "assistant", content: `Error: ${msg}` }]);
+        toast.error(msg);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [activeSceneIndex],
+  );
 
   const generateStoryboard = useCallback(
     async (sceneId: string, instruction?: string) => {
@@ -80,7 +109,7 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
           ...m,
           {
             role: "assistant",
-            content: `Here's the storyboard for canvas ${activeSceneIndex + 1} (${sb.beats.length} beats). Tell me what to change, or click Approve & animate.`,
+            content: `Step 2 — infographic for canvas ${activeSceneIndex + 1} (${sb.beats.length} beats). Tell me what to change, or click Approve & animate.`,
             storyboard: sb,
           },
         ]);
@@ -95,6 +124,26 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
     [activeSceneIndex],
   );
 
+  async function pickGrid(layoutId: string, layoutName: string) {
+    if (!activeSceneId || busy) return;
+    setBusy(true);
+    try {
+      await chooseGrid({ data: { sceneId: activeSceneId, layoutId } });
+      setChosenLayout(layoutId);
+      setMessages((m) => [
+        ...m,
+        { role: "user", content: `Use the "${layoutName}" grid` },
+      ]);
+      // Move on to storyboard generation immediately
+      await generateStoryboard(activeSceneId);
+    } catch (e) {
+      const msg = (e as Error).message || "Failed to pick grid";
+      setMessages((m) => [...m, { role: "assistant", content: `Error: ${msg}` }]);
+      toast.error(msg);
+      setBusy(false);
+    }
+  }
+
   // Listen for toolbar trigger
   useEffect(() => {
     function handler(e: Event) {
@@ -102,12 +151,14 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
       if (!detail?.sceneId) return;
       setOpen(true);
       setScope("scene");
-      setMode("storyboard");
-      void generateStoryboard(detail.sceneId);
+      setMode("grid");
+      setStoryboard(null);
+      setChosenLayout(null);
+      void startGridStage(detail.sceneId);
     }
     window.addEventListener("open-storyboard-agent", handler as EventListener);
     return () => window.removeEventListener("open-storyboard-agent", handler as EventListener);
-  }, [generateStoryboard]);
+  }, [startGridStage]);
 
   async function approveCurrent() {
     if (!activeSceneId || !storyboard) return;
@@ -206,7 +257,7 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
   }
 
   const showStoryboardCta = scope === "scene" && mode === "storyboard" && !!activeSceneId;
-  const starters = mode === "storyboard" ? STORYBOARD_STARTERS : ANIM_STARTERS;
+  const starters = mode === "grid" ? [] : mode === "storyboard" ? STORYBOARD_STARTERS : ANIM_STARTERS;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -244,23 +295,10 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
           </Button>
           {scope === "scene" && (
             <>
-              <span className="ml-2 text-muted-foreground">Mode:</span>
-              <Button
-                variant={mode === "storyboard" ? "default" : "outline"}
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => setMode("storyboard")}
-              >
-                Storyboard
-              </Button>
-              <Button
-                variant={mode === "refine-anim" ? "default" : "outline"}
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => setMode("refine-anim")}
-              >
-                Refine animation
-              </Button>
+              <span className="ml-2 text-muted-foreground">Stage:</span>
+              <StageBadge label="1. Grid" active={mode === "grid"} done={!!chosenLayout} />
+              <StageBadge label="2. Infographic" active={mode === "storyboard"} done={!!storyboard && storyboard.status === "approved"} />
+              <StageBadge label="3. Animation" active={mode === "refine-anim"} done={false} />
             </>
           )}
         </div>
@@ -270,11 +308,24 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
             {messages.length === 0 && (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  {mode === "storyboard"
-                    ? "Step 1 — plan the canvas as an infographic. Approve when it looks right, then I'll animate it synced to your voice."
-                    : "Tell me how to refine the existing animation on this canvas."}
+                  {mode === "grid"
+                    ? "Step 1 — pick a grid layout for this canvas. Then I'll fill it as an infographic, then animate it word-by-word."
+                    : mode === "storyboard"
+                      ? "Step 2 — refine the infographic. Approve when it looks right, then I'll animate it synced to your voice."
+                      : "Step 3 — refine the existing animation on this canvas."}
                 </p>
-                {showStoryboardCta && !storyboard && (
+                {scope === "scene" && activeSceneId && mode === "grid" && (
+                  <Button
+                    size="sm"
+                    onClick={() => activeSceneId && startGridStage(activeSceneId)}
+                    disabled={busy}
+                    className="gap-2"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Suggest grids
+                  </Button>
+                )}
+                {showStoryboardCta && !storyboard && mode === "storyboard" && (
                   <Button
                     size="sm"
                     onClick={() => activeSceneId && generateStoryboard(activeSceneId)}
@@ -310,6 +361,9 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
                   <div className="text-[10px] opacity-70 mb-1">All canvases</div>
                 )}
                 <div className="whitespace-pre-wrap">{m.content}</div>
+                {m.gridOptions && (
+                  <GridOptionsPicker options={m.gridOptions} busy={busy} onPick={pickGrid} />
+                )}
                 {m.storyboard && <StoryboardPreview sb={m.storyboard} />}
               </div>
             ))}
@@ -346,11 +400,13 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
               }
             }}
             placeholder={
-              mode === "storyboard"
-                ? "e.g. Make beat 2 a code snippet — or type 'approve' to animate"
-                : scope === "scene"
-                  ? "e.g. Make the icon bigger and centered"
-                  : "e.g. Use a consistent slide-up entrance everywhere"
+              mode === "grid"
+                ? "Pick a grid above, or type to suggest a different one (e.g. 'use two columns')"
+                : mode === "storyboard"
+                  ? "e.g. Make beat 2 a code snippet — or type 'approve' to animate"
+                  : scope === "scene"
+                    ? "e.g. Make the icon bigger and centered"
+                    : "e.g. Use a consistent slide-up entrance everywhere"
             }
             className="min-h-[70px] resize-none text-sm"
             disabled={busy}
@@ -364,6 +420,57 @@ export function AnimationAgentPanel({ projectId, activeSceneId, activeSceneIndex
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+function StageBadge({ label, active, done }: { label: string; active: boolean; done: boolean }) {
+  return (
+    <span
+      className={`text-[10px] px-2 py-0.5 rounded-full border ${
+        active
+          ? "bg-primary text-primary-foreground border-primary"
+          : done
+            ? "bg-green-100 text-green-900 border-green-300"
+            : "bg-muted text-muted-foreground border-border"
+      }`}
+    >
+      {label}
+      {done ? " ✓" : ""}
+    </span>
+  );
+}
+
+function GridOptionsPicker({
+  options,
+  busy,
+  onPick,
+}: {
+  options: GridOption[];
+  busy: boolean;
+  onPick: (id: string, name: string) => void;
+}) {
+  return (
+    <div className="mt-2 grid grid-cols-1 gap-2">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          onClick={() => onPick(o.id, o.name)}
+          disabled={busy}
+          className="text-left rounded-md border bg-background hover:border-primary transition-colors p-2 disabled:opacity-60"
+        >
+          <div
+            className="rounded overflow-hidden"
+            // SVG generated server-side from a strict shape
+            dangerouslySetInnerHTML={{ __html: o.svg }}
+          />
+          <div className="mt-1.5 flex items-baseline justify-between gap-2">
+            <span className="text-xs font-semibold">{o.name}</span>
+            <span className="text-[10px] text-muted-foreground">{o.beatCount} beats</span>
+          </div>
+          <div className="text-[11px] text-muted-foreground line-clamp-2">{o.description}</div>
+        </button>
+      ))}
+    </div>
   );
 }
 
