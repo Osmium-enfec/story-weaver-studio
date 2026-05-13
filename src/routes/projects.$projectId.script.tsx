@@ -1177,25 +1177,21 @@ function ScriptCanvas() {
                 </label>
                 <Button
                   size="sm"
-                  variant="ghost"
-                  className="h-6 px-2 text-xs"
+                  variant="outline"
+                  className="h-6 gap-1 px-2 text-xs"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (editingScript[s.id]) void flushNarration(s.id, s.narration);
-                    setEditingScript((m) => ({ ...m, [s.id]: !m[s.id] }));
+                    window.dispatchEvent(
+                      new CustomEvent("canvas-audio-record", { detail: { sceneId: s.id } }),
+                    );
                   }}
+                  title="Record voice — script is generated from your audio so animations stay in sync"
                 >
-                  {editingScript[s.id] ? "Done" : "Edit"}
+                  <span className="inline-block h-2 w-2 rounded-full bg-destructive" />
+                  Record
                 </Button>
               </div>
-              {editingScript[s.id] ? (
-                <Textarea
-                  value={s.narration}
-                  onChange={(e) => updateNarration(s.id, e.target.value)}
-                  placeholder="What is narrated while this canvas plays…"
-                  className="min-h-[80px] resize-y text-sm"
-                />
-              ) : s.narration ? (
+              {s.narration ? (
                 <div className="rounded-md bg-muted/30 p-2 text-sm leading-7">
                   <ClickableScript
                     text={s.narration}
@@ -1216,7 +1212,9 @@ function ScriptCanvas() {
                   />
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">No script yet. Click Edit to add one.</p>
+                <p className="text-xs text-muted-foreground">
+                  No script yet. Click <strong>Record</strong> to capture voice — we'll transcribe and sync animations to your words.
+                </p>
               )}
             </div>
             <CanvasAudioEditor
