@@ -62,7 +62,7 @@ function pickAlternatives(primary: LayoutPreset, beatCount: number): LayoutPrese
     })
     .sort((a, b) => a.score - b.score)
     .map((x) => x.l);
-  return [primary, others[0], others[1]].filter(Boolean) as LayoutPreset[];
+  return [primary, ...others] as LayoutPreset[];
 }
 
 interface SceneRow {
