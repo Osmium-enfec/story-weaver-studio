@@ -53,6 +53,7 @@ function ExportPage() {
   const [playingSceneId, setPlayingSceneId] = useState<string | null>(null);
   const [convertPct, setConvertPct] = useState<number | null>(null);
   const stageRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const mountResolvers = useRef<Record<string, ((el: HTMLDivElement) => void) | null>>({});
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [projectId]);
