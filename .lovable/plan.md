@@ -1,74 +1,142 @@
-# Text Tab Redesign Plan
+## Goal
 
-## 1. Restructure the Text panel UI
+Replace the current rule-based `seedScene` (keyword grid + grab-bag of icons) with an AI Director agent that produces production-quality scene compositions — asset choice, layout, entrance/exit animations, timing synced to `word_timings`, and cross-scene camera/transitions — guided by reference videos you provide.
 
-Replace the current 3-editor layout in `src/components/TextPanel.tsx` with a Canva-style layout:
+## Architecture
 
-**Section A — "Default text styles"** (matches your first screenshot)
-- Three large click-to-insert tiles: **Add a heading**, **Add a subheading**, **Add a little bit of body text**
-- Each tile previews the role's actual font/size/weight
-- A small gear icon on each tile opens the existing role editor (font family, size, weight, line-height, color, custom font upload) in a popover — keeps current power-user controls without cluttering the main view
+```text
+                ┌────────────────────────────────────┐
+   YouTube      │  1. Reference Profile Builder      │
+   refs ───────▶│  (one-time per project, GPT-5 vision│──▶ style_profile JSON
+                │   over sampled frames + transcript)│
+                └────────────────────────────────────┘
+                                  │
+                                  ▼
+   Scene  ┌─────────────────────────────────────────┐
+   data ─▶│ 2. Director (per-scene LLM call)        │──▶ scene_plan JSON
+          │  inputs: narration, word_timings,       │
+          │  duration, theme, style_profile,        │
+          │  candidate assets shortlist             │
+          └─────────────────────────────────────────┘
+                                  │
+                                  ▼
+          ┌─────────────────────────────────────────┐
+          │ 3. Compiler (deterministic TS)          │
+          │  scene_plan → scene_elements rows       │
+          │  + content.text_animation timings       │
+          │  + scene.transition / camera moves      │
+          └─────────────────────────────────────────┘
+                                  │
+                                  ▼
+                         scene_elements table
+```
 
-**Section B — "Font combinations"** (matches your second screenshot)
-- Grid of preset cards (2 columns)
-- Each card = a curated pairing (heading font + body font + optional accent color)
-- Click a card → inserts a 2-text-block group on the canvas (heading + subheading/body), pre-styled, positioned together
+Three stages so the LLM only does what it's good at (creative decisions) and deterministic code does what it must (exact pixel positions, valid DB rows, asset URLs).
 
-**Section C — "Text animation"** (new)
-- Shown in the right inspector when a text element is selected
-- Dropdown: None / Fade in / Slide up / Slide left / Typewriter / Word-by-word reveal / Scale in / Bounce
-- Inputs: duration (ms), delay (ms), easing
-- Stored on the element content as `text_animation: { type, duration, delay, easing }`
+## Stage 1 — Reference Profile Builder
 
-## 2. Where to get prebuilt font combinations (free)
+**New table** `project_style_profiles` (1 row per project):
+- `reference_urls text[]` — YouTube/Vimeo links you paste
+- `profile jsonb` — extracted style: pacing (avg ms/scene), motion vocabulary (pop-in, slide, draw-on, parallax), composition rules (focal point, asymmetric vs grid, max simultaneous elements), color/contrast bias, transition palette, "feel" tags
+- `summary text` — short prose for prompt injection
 
-All Google Fonts (already loaded via `ensureGoogleFont`) — no API key needed, just hardcode pairings as data:
+**New server function** `buildStyleProfile({ projectId, urls })`:
+1. Use YouTube Data API (or `yt-dlp` via a lightweight HTTP service — TBD: we may need to call an external service since the Worker can't run yt-dlp; alternative is to fetch oEmbed thumbnails + sample 6 frames via a free frame-grab API).
+2. Send sampled frames + auto-captions to **GPT-5** with vision, ask it to return strict JSON (tool-call schema) describing the style.
+3. Persist to `project_style_profiles`.
 
-- **fontpair.co** — 100+ curated pairings, all Google Fonts, free to copy the pairing list
-- **fontjoy.com** — algorithmic pairings, all Google Fonts
-- **Google Fonts "Knowledge → Pairings"** (fonts.google.com/knowledge) — official curated pairings
-- **Canva's free font pairings blog** — copy the names (the fonts themselves are on Google Fonts)
-- **typ.io** and **femmebot/google-fonts-pairing-list** (GitHub) — open lists
+**UI**: a "Reference videos" card on the script page — paste links, click "Analyze style", shows extracted summary so you can confirm/edit.
 
-We don't need to "import and save locally" — Google Fonts CDN already streams them on demand via `ensureGoogleFont`. We only need to store the **pairing metadata** (heading font name, body font name, weights, sample colors) as a static array in code. ~30–50 pairings is plenty.
+## Stage 2 — Director (per-scene)
 
-If you want fully offline / self-hosted later: download the .woff2 files from `google-webfonts-helper` (gwfh.mranftl.com) and host in Supabase Storage — but Google's CDN is already cached, fast, and free, so this is optional.
+**Server function** `directScene({ sceneId, mode })` where mode ∈ `{full, animations_only, layout_only}`.
 
-## 3. Text animation playback
+For each scene, build a tight prompt:
+- Theme + style_profile.summary
+- Narration + word_timings (truncated)
+- Scene duration, aspect ratio
+- **Candidate asset shortlist** (top 30) — pre-fetched by running existing `findInLibrary` for each noun/verb, plus a few Iconscout previews. Each candidate carries `{id, name, provider, preview_url, color_support, tags}`. The LLM picks from this list rather than hallucinating asset names.
 
-In `PlaybackDialog.tsx` and the preview route:
-- When a text element enters its visible window, apply the chosen CSS animation via a class + inline `animationDuration/Delay/TimingFunction`
-- For **word-by-word** and **typewriter**, render the text split into spans and stagger their animation-delay
-- Reuse the existing `animate-fade-in`, `animate-scale-in`, `animate-slide-in-right` keyframes from styles.css; add `animate-slide-up`, `animate-typewriter` if missing
-
-## 4. Data model changes
-
-Extend `AnimationBlockContent` in `src/components/AnimationBlock.tsx`:
-```ts
-text_animation?: {
-  type: "none" | "fade" | "slide-up" | "slide-left" | "scale" | "typewriter" | "word-reveal" | "bounce";
-  duration?: number;  // ms
-  delay?: number;     // ms
-  easing?: string;    // cubic-bezier or keyword
+Force structured output via OpenAI tool-calling. Schema:
+```json
+{
+  "layout": "grid3x3" | "focal_left" | "focal_center" | "split" | "stack" | "free",
+  "elements": [
+    {
+      "asset_id": "uuid-from-shortlist",
+      "role": "primary" | "support" | "label",
+      "position": { "x": 0..1, "y": 0..1, "w": 0..1, "h": 0..1 },
+      "anchor_word_index": 12,
+      "enter": { "type": "fade|slide-up|slide-left|scale|draw|pop", "duration_ms": 400, "easing": "ease-out" },
+      "exit":  { "type": "...", "duration_ms": 300 },
+      "emphasis": [{ "at_word_index": 18, "effect": "pulse|shake|bounce" }]
+    }
+  ],
+  "text_overlays": [
+    { "text": "useState", "style": "heading|caption|callout",
+      "position": {...}, "enter": {...}, "anchor_word_index": 5 }
+  ],
+  "scene_transition_in":  "cut|fade|slide|zoom",
+  "scene_transition_out": "cut|fade|slide|zoom",
+  "camera": [{ "at_ms": 1200, "zoom": 1.15, "pan_x": 0.1, "pan_y": 0 }]
 }
 ```
-And add a `font_pair_id?: string` so we can re-style a pair later.
 
-No DB migration needed — element content is JSON.
+Use **GPT-5** (highest quality; cost is fine per your note). Run scenes in parallel batches of 3-4.
 
-## 5. Files to touch
+## Stage 3 — Compiler
 
-- `src/components/TextPanel.tsx` — full rewrite of the panel UI (sections A, B, C selector)
-- `src/lib/font-pairs.ts` — **new**: static array of ~40 curated pairings
-- `src/components/AnimationBlock.tsx` — add `text_animation` to the type, render animation classes in `TextBlockRenderer`
-- `src/routes/projects.$projectId.script.tsx` — handle inserting a font-pair (creates 2 elements at once), expose animation controls in the right inspector when a text element is selected
-- `src/components/PlaybackDialog.tsx` — apply text animations during playback
-- `src/styles.css` — add a couple of keyframes (slide-up, typewriter, word-reveal stagger helper)
+Deterministic TS function `compilePlan(scene, plan)`:
+- Resolves `asset_id` → real `animation_components` row, falls back to next candidate if missing.
+- Converts normalized `position` (0..1) into the 1280×720 canvas pixels and applies collision/snap rules from `src/lib/grid.ts`.
+- Converts `anchor_word_index` → `start_ms` using `word_timings`, derives `end_ms` from next anchor or scene end.
+- Writes `text_animation` onto element `content` (already supported by `AnimationBlock` per `.lovable/plan.md`).
+- Updates `scenes.transition` and stores `camera` keyframes in `scenes.background` extra field or new `camera jsonb` column (TBD).
+- Inserts/updates `scene_elements` in one batch.
 
-## 6. Open questions before I build
+If the LLM returns garbage for a slot, fall back to the existing `seedScene` logic so we never make a scene worse.
 
-1. For the **font combination cards**, do you want the preview to show the actual pair name (like "Sparkle", "CALL NOW" in your screenshot — stylized samples), or just clean "Heading / Body" previews with the real fonts?
-2. Should clicking a font pair **replace** the current heading/subheading/paragraph defaults for the whole project, or just **insert** a styled pair onto the canvas as new elements?
-3. Animation scope: per-element (each text box has its own animation) — confirm? Or also a "animate all text on this scene" preset?
+## Trigger UX (both)
 
-Answer 1–3 and I'll implement.
+1. **Toolbar buttons** on `projects.$projectId.script.tsx` (replace existing auto-animate):
+   - "AI animate canvas" — calls `directScene({ sceneId, mode: "full" })`
+   - "AI animate all" — loops over scenes, shows progress toast
+
+2. **Chat agent panel** — new right-side drawer `AnimationAgentPanel.tsx`:
+   - Free-text instructions: *"make scene 3 more dramatic"*, *"swap the lock icon for a key"*, *"slow down the intro"*
+   - Sends `{ sceneId, instruction, currentPlan }` to a new `agentEdit` server function that returns a patched `scene_plan`, then runs the same compiler.
+   - Streams responses (SSE) so you see what the agent is doing.
+   - Keeps a per-scene history of plans so you can revert.
+
+## Schema changes (one migration)
+
+- `project_style_profiles` table (project_id, reference_urls, profile jsonb, summary, timestamps)
+- `scenes`: add `camera jsonb default '[]'`, `director_plan jsonb` (last plan, for chat history + re-compile without re-calling LLM)
+- `scene_elements.content.text_animation` — already JSON, no migration needed
+
+All `open_all_*` RLS to match existing tables.
+
+## Files to add / change
+
+**New**
+- `src/server/director.functions.ts` — `buildStyleProfile`, `directScene`, `agentEdit`
+- `src/lib/director/prompts.ts` — system prompts, schemas
+- `src/lib/director/compile.ts` — deterministic compiler
+- `src/lib/director/candidates.ts` — asset shortlist builder (reuses `findInLibrary`)
+- `src/lib/director/youtube.ts` — frame sampling + caption fetch
+- `src/components/AnimationAgentPanel.tsx` — chat drawer
+- `src/components/StyleReferenceCard.tsx` — reference-videos input
+
+**Modified**
+- `src/routes/projects.$projectId.script.tsx` — replace existing auto-animate buttons, mount agent panel + reference card
+- `src/server/voice.functions.ts` — keep `seedScene` as fallback, deprecate as primary path
+- `src/components/AnimationBlock.tsx` — render `text_animation`, emphasis pulses, camera keyframes during preview
+- `src/components/PlaybackDialog.tsx` — apply per-element enter/exit + scene camera moves
+
+## Open questions before I start coding
+
+1. **YouTube frame extraction**: easiest path is a tiny external service (Render/Fly worker running `yt-dlp` + `ffmpeg`). Alternative: skip frame analysis, feed only the YouTube transcript + your written notes about the style. Which do you prefer for v1?
+2. **Camera moves**: do you want them as actual zoom/pan during playback (requires `PlaybackDialog` rework), or skip for v1 and ship asset/layout/animation/transition first?
+3. **Ship order**: I recommend (a) Director + Compiler with existing assets, (b) Chat panel, (c) Style profile from references, (d) Camera. Each phase is shippable on its own. OK?
+
+Answer those three and I'll start with phase (a).
