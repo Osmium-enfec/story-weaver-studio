@@ -258,6 +258,23 @@ function ScriptCanvas() {
     }
   }
 
+  async function refetchSceneElements(sceneId?: string) {
+    const idQuery = supabase.from("scenes").select("id").eq("project_id", projectId);
+    const { data: rows } = sceneId ? await idQuery.eq("id", sceneId) : await idQuery;
+    const ids = (rows ?? []).map((r) => r.id);
+    const { data: els } = await supabase
+      .from("scene_elements")
+      .select("*")
+      .in("scene_id", ids)
+      .order("z_index");
+    const byScene = new Map<string, PlacedElement[]>();
+    for (const id of ids) byScene.set(id, []);
+    for (const e of (els ?? []) as unknown as PlacedElement[]) byScene.get(e.scene_id)?.push(e);
+    setScenes((prev) => prev.map((s) => (
+      byScene.has(s.id) ? { ...s, elements: snapElementsToGrid(byScene.get(s.id) ?? []) } : s
+    )));
+  }
+
   async function regenerateAnimations(opts?: { sceneId?: string; ai?: boolean }) {
     if (isSeeding) return;
     const onlyOne = !!opts?.sceneId;
@@ -273,21 +290,7 @@ function ScriptCanvas() {
         : await seedAnimationsForProject({ data: { projectId, replace: true, sceneId: opts?.sceneId } });
       const fb = "scenesFallback" in res && res.scenesFallback ? ` (${res.scenesFallback} fell back)` : "";
       toast.success(`Added ${res.elementsInserted} animations across ${res.sceneCount} canvas${res.sceneCount === 1 ? "" : "es"}${fb}`);
-      // Refetch elements
-      const idQuery = supabase.from("scenes").select("id").eq("project_id", projectId);
-      const { data: rows } = opts?.sceneId ? await idQuery.eq("id", opts.sceneId) : await idQuery;
-      const ids = (rows ?? []).map((r) => r.id);
-      const { data: els } = await supabase
-        .from("scene_elements")
-        .select("*")
-        .in("scene_id", ids)
-        .order("z_index");
-      const byScene = new Map<string, PlacedElement[]>();
-      for (const id of ids) byScene.set(id, []);
-      for (const e of (els ?? []) as unknown as PlacedElement[]) byScene.get(e.scene_id)?.push(e);
-      setScenes((prev) => prev.map((s) => (
-        byScene.has(s.id) ? { ...s, elements: snapElementsToGrid(byScene.get(s.id) ?? []) } : s
-      )));
+      await refetchSceneElements(opts?.sceneId);
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
