@@ -1,6 +1,7 @@
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Loader2, Film, CheckSquare, Square, ArrowLeft } from "lucide-react";
+import { flushSync } from "react-dom";
+import { Download, Film, CheckSquare, Square, ArrowLeft } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,10 @@ import {
   type ExportQuality,
   type ExportFormat,
 } from "@/lib/scene-exporter";
+import {
+  exportDeterministic,
+  isDeterministicExportSupported,
+} from "@/lib/deterministic-exporter";
 
 export const Route = createFileRoute("/projects/$projectId/export")({
   component: ExportPage,
@@ -124,8 +129,9 @@ function ExportPage() {
       toast.error("Pick at least one canvas to export");
       return;
     }
-    if (typeof MediaRecorder === "undefined") {
-      toast.error("This browser does not support video recording");
+    const useDeterministic = isDeterministicExportSupported();
+    if (!useDeterministic && typeof MediaRecorder === "undefined") {
+      toast.error("This browser does not support video export");
       return;
     }
     abortRef.current = new AbortController();
@@ -133,7 +139,6 @@ function ExportPage() {
     setProgress(0);
     setPhase("Initialising");
     try {
-      // Wait one tick so the off-screen stages have mounted
       await new Promise((r) => requestAnimationFrame(() => r(null)));
       const exporterScenes = selectedScenes.map((s) => ({
         id: s.id,
@@ -155,8 +160,10 @@ function ExportPage() {
               return;
             }
             mountResolvers.current[s.id] = (el) => resolve(el);
-            setSceneTimeMs(0);
-            setPlayingSceneId(s.id);
+            flushSync(() => {
+              setSceneTimeMs(0);
+              setPlayingSceneId(s.id);
+            });
           }),
         unmount: () => {
           mountResolvers.current[s.id] = null;
@@ -165,36 +172,65 @@ function ExportPage() {
         },
       }));
 
-      const webm = await exportScenesToBlob({
-        scenes: exporterScenes,
-        quality,
-        format,
-        includeAudio,
-        signal: abortRef.current.signal,
-        onPlayingScene: (sceneId) => {
-          setSceneTimeMs(0);
-          setPlayingSceneId(sceneId);
-        },
-        onSceneTime: (_sceneId, currentMs) => setSceneTimeMs(Math.round(currentMs)),
-        onProgress: ({ pct, phase }) => {
-          setProgress(pct);
-          setPhase(phase);
-        },
-      });
+      let finalBlob: Blob;
+      let ext: string;
 
-      let finalBlob = webm;
-      let ext = "webm";
-      if (format === "mp4") {
-        setPhase("Converting to MP4");
-        setConvertPct(0);
-        try {
-          finalBlob = await convertWebmToMp4(webm, (p) => setConvertPct(p));
-          ext = "mp4";
-        } catch (e) {
-          console.error(e);
-          toast.warning("MP4 conversion failed, downloading WebM instead");
-        } finally {
-          setConvertPct(null);
+      if (useDeterministic) {
+        const preset = QUALITY_PRESETS[quality];
+        finalBlob = await exportDeterministic({
+          scenes: exporterScenes,
+          width: preset.width,
+          height: preset.height,
+          fps: preset.fps,
+          videoBitrate: preset.bitsPerSecond,
+          includeAudio,
+          signal: abortRef.current.signal,
+          onPlayingScene: (sceneId) => {
+            flushSync(() => {
+              setSceneTimeMs(0);
+              setPlayingSceneId(sceneId);
+            });
+          },
+          onSceneTime: (_sceneId, currentMs) => {
+            flushSync(() => setSceneTimeMs(Math.round(currentMs)));
+          },
+          onProgress: ({ pct, phase }) => {
+            setProgress(pct);
+            setPhase(phase);
+          },
+        });
+        ext = "mp4";
+      } else {
+        const webm = await exportScenesToBlob({
+          scenes: exporterScenes,
+          quality,
+          format,
+          includeAudio,
+          signal: abortRef.current.signal,
+          onPlayingScene: (sceneId) => {
+            setSceneTimeMs(0);
+            setPlayingSceneId(sceneId);
+          },
+          onSceneTime: (_sceneId, currentMs) => setSceneTimeMs(Math.round(currentMs)),
+          onProgress: ({ pct, phase }) => {
+            setProgress(pct);
+            setPhase(phase);
+          },
+        });
+        finalBlob = webm;
+        ext = "webm";
+        if (format === "mp4") {
+          setPhase("Converting to MP4");
+          setConvertPct(0);
+          try {
+            finalBlob = await convertWebmToMp4(webm, (p) => setConvertPct(p));
+            ext = "mp4";
+          } catch (e) {
+            console.error(e);
+            toast.warning("MP4 conversion failed, downloading WebM instead");
+          } finally {
+            setConvertPct(null);
+          }
         }
       }
 
