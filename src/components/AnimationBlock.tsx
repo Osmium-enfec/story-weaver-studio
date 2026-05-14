@@ -408,6 +408,7 @@ function DeterministicVideo({
   );
 }
 
+export function AnimationBlockRenderer({
   content,
   exportMode = false,
   currentMs,
