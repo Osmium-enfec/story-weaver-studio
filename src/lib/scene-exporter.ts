@@ -3,7 +3,13 @@ import { DESIGN } from "@/lib/grid";
 import { prepareScenesAudio, scheduleScenesAudio, type SceneAudioInput } from "@/lib/audio-graph";
 import { exportDeterministic, isDeterministicExportSupported } from "@/lib/deterministic-exporter";
 
-export type ExportQuality = "720p" | "1080p" | "1080p60";
+export type ExportQuality =
+  | "720p"
+  | "1080p"
+  | "1080p60"
+  | "1440p"
+  | "4k"
+  | "4k60";
 export type ExportFormat = "webm" | "mp4";
 
 export interface QualityPreset {
@@ -11,12 +17,16 @@ export interface QualityPreset {
   height: number;
   fps: number;
   bitsPerSecond: number;
+  label: string;
 }
 
 export const QUALITY_PRESETS: Record<ExportQuality, QualityPreset> = {
-  "720p": { width: 1280, height: 720, fps: 30, bitsPerSecond: 6_000_000 },
-  "1080p": { width: 1920, height: 1080, fps: 30, bitsPerSecond: 12_000_000 },
-  "1080p60": { width: 1920, height: 1080, fps: 60, bitsPerSecond: 18_000_000 },
+  "720p":    { width: 1280, height: 720,  fps: 30, bitsPerSecond:  8_000_000, label: "720p · Standard" },
+  "1080p":   { width: 1920, height: 1080, fps: 30, bitsPerSecond: 16_000_000, label: "1080p · High" },
+  "1080p60": { width: 1920, height: 1080, fps: 60, bitsPerSecond: 24_000_000, label: "1080p60 · High" },
+  "1440p":   { width: 2560, height: 1440, fps: 30, bitsPerSecond: 30_000_000, label: "2K · Very High" },
+  "4k":      { width: 3840, height: 2160, fps: 30, bitsPerSecond: 60_000_000, label: "4K · Max" },
+  "4k60":    { width: 3840, height: 2160, fps: 60, bitsPerSecond: 90_000_000, label: "4K60 · Max" },
 };
 
 export interface ExporterScene extends SceneAudioInput {
