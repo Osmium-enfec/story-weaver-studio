@@ -185,9 +185,10 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
           width: el.position?.w ?? 100,
           height: el.position?.h ?? 100,
           zIndex: el.z_index ?? 0,
-          opacity,
-          transform: `scale(${scale})`,
+          opacity: iaOpacity,
+          transform: `translate(${translateX}px, ${translateY}px) scale(${scale}) rotate(${rotate}deg)`,
           transformOrigin: "center center",
+          filter: blurPx > 0 ? `blur(${blurPx}px)` : undefined,
           overflow: "hidden",
         };
 
