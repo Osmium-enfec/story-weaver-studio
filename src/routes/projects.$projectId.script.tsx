@@ -1305,7 +1305,7 @@ function ScriptCanvas() {
                         selectedContent={sel?.content}
                         onChange={
                           sel
-                            ? (next) =>
+                            ? (next: AnimationBlockContent["icon_animation"]) =>
                                 void updateElementContent(activeScene!.id, sel.id, { icon_animation: next })
                             : undefined
                         }
