@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useCallback, useEffect, useState } from "react";
 import { listAllRenderJobs } from "@/server/render-jobs.functions";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,8 @@ import { Download, ExternalLink, RefreshCw } from "lucide-react";
 export const Route = createFileRoute("/exports")({
   component: ExportsPage,
 });
+
+type Job = Awaited<ReturnType<typeof listAllRenderJobs>>["jobs"][number];
 
 function statusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
   if (status === "done") return "default";
@@ -32,13 +34,31 @@ function timeAgo(iso?: string | null) {
 
 function ExportsPage() {
   const list = useServerFn(listAllRenderJobs);
-  const { data, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ["render-jobs", "all"],
-    queryFn: () => list(),
-    refetchInterval: 3000,
-  });
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const jobs = data?.jobs ?? [];
+  const refresh = useCallback(async () => {
+    setFetching(true);
+    try {
+      const res = await list();
+      setJobs(res.jobs);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load jobs");
+    } finally {
+      setFetching(false);
+      setLoading(false);
+    }
+  }, [list]);
+
+  useEffect(() => {
+    refresh();
+    const id = setInterval(refresh, 3000);
+    return () => clearInterval(id);
+  }, [refresh]);
+
   const active = jobs.filter((j) => j.status === "pending" || j.status === "rendering");
   const finished = jobs.filter((j) => j.status !== "pending" && j.status !== "rendering");
 
@@ -51,13 +71,15 @@ function ExportsPage() {
             Track render progress and download finished videos.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+        <Button variant="outline" size="sm" onClick={refresh} disabled={fetching}>
+          <RefreshCw className={`mr-2 h-4 w-4 ${fetching ? "animate-spin" : ""}`} />
           Refresh
         </Button>
       </div>
 
-      {isLoading ? (
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : jobs.length === 0 ? (
         <p className="text-sm text-muted-foreground">No exports yet.</p>
@@ -71,13 +93,7 @@ function ExportsPage() {
   );
 }
 
-function Section({
-  title,
-  jobs,
-}: {
-  title: string;
-  jobs: Awaited<ReturnType<typeof listAllRenderJobs>>["jobs"];
-}) {
+function Section({ title, jobs }: { title: string; jobs: Job[] }) {
   if (!jobs.length) return null;
   return (
     <section className="space-y-3">
@@ -91,11 +107,7 @@ function Section({
   );
 }
 
-function JobRow({
-  job,
-}: {
-  job: Awaited<ReturnType<typeof listAllRenderJobs>>["jobs"][number];
-}) {
+function JobRow({ job }: { job: Job }) {
   const isDone = job.status === "done" && !!job.output_url;
   const isError = job.status === "error" || job.status === "failed";
   const isActive = job.status === "pending" || job.status === "rendering";
