@@ -16,6 +16,7 @@ import { BackgroundPicker, BackgroundLayer, type SceneBackground } from "@/compo
 import { ThemeBuilder } from "@/components/ThemeBuilder";
 import { TextPanel, type TextRole, type TextRoleStyle } from "@/components/TextPanel";
 import { ShapePanel } from "@/components/ShapePanel";
+import { IconAnimationPanel } from "@/components/IconAnimationPanel";
 import type { FontPair } from "@/lib/font-pairs";
 import type { BannerPreset } from "@/lib/banner-presets";
 import { PlaybackDialog } from "@/components/PlaybackDialog";
@@ -1258,10 +1259,11 @@ function ScriptCanvas() {
             </TabsList>
             <TabsContent value="animations" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
               <Tabs value={animationSubTab} onValueChange={setAnimationSubTab} className="flex h-full min-h-0 flex-col">
-                <TabsList className="m-3 grid shrink-0 grid-cols-3">
+                <TabsList className="m-3 grid shrink-0 grid-cols-4">
                   <TabsTrigger value="search" className="text-[11px]">Search</TabsTrigger>
                   <TabsTrigger value="shapes" className="text-[11px]">Shapes</TabsTrigger>
                   <TabsTrigger value="shape-edit" className="text-[11px]">Edit</TabsTrigger>
+                  <TabsTrigger value="animate" className="text-[11px]">Animate</TabsTrigger>
                 </TabsList>
                 <TabsContent value="search" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
                   <div className="shrink-0 border-b border-border px-4 py-2">
@@ -1289,6 +1291,24 @@ function ScriptCanvas() {
                         onInsertShape={(shape) => void addShape(shape)}
                         onChangeSelectedShape={sel ? (patch) => void updateElementContent(activeScene!.id, sel.id, patch) : undefined}
                         onChangeSelectedShapeSize={sel ? (size) => void updateElement(activeScene!.id, sel.id, { ...sel.position, ...size }) : undefined}
+                      />
+                    );
+                  })()}
+                </TabsContent>
+                <TabsContent value="animate" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
+                  {(() => {
+                    const sel = activeScene?.elements.find(
+                      (e) => e.id === selectedElementId && e.type !== "text",
+                    );
+                    return (
+                      <IconAnimationPanel
+                        selectedContent={sel?.content}
+                        onChange={
+                          sel
+                            ? (next: AnimationBlockContent["icon_animation"]) =>
+                                void updateElementContent(activeScene!.id, sel.id, { icon_animation: next })
+                            : undefined
+                        }
                       />
                     );
                   })()}

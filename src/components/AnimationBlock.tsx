@@ -69,6 +69,15 @@ export interface AnimationBlockContent {
     delay?: number;    // ms
     easing?: string;
   };
+  // entrance animation for icons / images / lottie / shapes (non-text blocks)
+  icon_animation?: {
+    type:
+      | "none" | "fade" | "slide-up" | "slide-down" | "slide-left" | "slide-right"
+      | "scale" | "pop" | "bounce" | "spin" | "flip" | "blur";
+    duration?: number; // ms
+    delay?: number;    // ms
+    easing?: string;
+  };
   // simple vector shapes
   shape_type?: ShapeType;
   shape_stroke_width?: number;
@@ -444,8 +453,39 @@ export function AnimationBlockRenderer({
     filter: combinedFilter,
   };
 
-  if (content.shape_type) {
+  const ICON_ANIM_KEYFRAME: Record<string, string> = {
+    fade: "icon-fade-in",
+    "slide-up": "icon-slide-up",
+    "slide-down": "icon-slide-down",
+    "slide-left": "icon-slide-left",
+    "slide-right": "icon-slide-right",
+    scale: "icon-scale-in",
+    pop: "icon-pop",
+    bounce: "icon-bounce",
+    spin: "icon-spin-in",
+    flip: "icon-flip-in",
+    blur: "icon-blur-in",
+  };
+  const ia = content.icon_animation;
+  const iaName = ia && ia.type !== "none" ? ICON_ANIM_KEYFRAME[ia.type] : null;
+  const animWrap = (children: React.ReactNode) => {
+    if (!iaName) return children;
     return (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          animation: `${iaName} ${ia!.duration ?? 600}ms ${ia!.easing ?? "ease-out"} ${ia!.delay ?? 0}ms both`,
+          transformOrigin: "center center",
+        }}
+      >
+        {children}
+      </div>
+    );
+  };
+
+  if (content.shape_type) {
+    return animWrap(
       <div style={wrapperStyle} className="pointer-events-none flex h-full w-full items-center justify-center">
         <ShapeGlyph
           type={content.shape_type}
@@ -458,7 +498,7 @@ export function AnimationBlockRenderer({
 
   if (content.provider === "image" && (content.video_url || content.lottie_url)) {
     const src = content.video_url || content.lottie_url!;
-    return (
+    return animWrap(
       <div style={wrapperStyle} className="pointer-events-none">
         {content.remove_background && <WhiteKeyFilterDef />}
         <img
@@ -471,7 +511,7 @@ export function AnimationBlockRenderer({
   }
 
   if (isLottie) {
-    return (
+    return animWrap(
       <div style={wrapperStyle} className="pointer-events-none">
         {content.remove_background && <WhiteKeyFilterDef />}
         <LottiePlayer
@@ -486,7 +526,7 @@ export function AnimationBlockRenderer({
   }
 
   if (content.provider === "iconscout" && content.video_url) {
-    return (
+    return animWrap(
       <div
         style={{ ...wrapperStyle, isolation: "isolate", overflow: "hidden" }}
         className="pointer-events-none"
@@ -516,7 +556,7 @@ export function AnimationBlockRenderer({
     // monochrome alpha mask that takes the theme color we paint underneath.
     if (content.provider === "iconify") {
       const tint = content.tint || content.color || "#0f172a";
-      return (
+      return animWrap(
         <div style={wrapperStyle} className="pointer-events-none">
           <div
             style={{
@@ -531,15 +571,15 @@ export function AnimationBlockRenderer({
               maskPosition: "center",
               WebkitMaskSize: "contain",
               maskSize: "contain",
-              opacity: 0,
-              animation: "anim-block-fade-in 220ms ease-out 60ms forwards",
+              opacity: iaName ? 1 : 0,
+              animation: iaName ? undefined : "anim-block-fade-in 220ms ease-out 60ms forwards",
             }}
           />
           <style>{`@keyframes anim-block-fade-in { to { opacity: 1; } }`}</style>
         </div>
       );
     }
-    return (
+    return animWrap(
       <div style={wrapperStyle} className="pointer-events-none">
         {content.remove_background && <WhiteKeyFilterDef />}
         <img
@@ -550,8 +590,8 @@ export function AnimationBlockRenderer({
             width: "100%",
             height: "100%",
             objectFit: "contain",
-            opacity: 0,
-            animation: "anim-block-fade-in 220ms ease-out 60ms forwards",
+            opacity: iaName ? 1 : 0,
+            animation: iaName ? undefined : "anim-block-fade-in 220ms ease-out 60ms forwards",
           }}
         />
         <style>{`@keyframes anim-block-fade-in { to { opacity: 1; } }`}</style>
@@ -561,7 +601,7 @@ export function AnimationBlockRenderer({
 
   // Fallback: internal placeholder block — show the anchored word, not the asset_query
   const fallbackLabel = (content.word || content.text || "").trim();
-  return (
+  return animWrap(
     <div
       style={wrapperStyle}
       className="flex h-full w-full items-center justify-center rounded-md bg-primary/5 text-center"
@@ -575,3 +615,4 @@ export function AnimationBlockRenderer({
     </div>
   );
 }
+
