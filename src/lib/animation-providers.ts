@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { searchIconscout } from "@/server/iconscout.functions";
 import { searchIconify, cacheIconifyIcon } from "@/server/iconify.functions";
 import { searchUnsplash, cacheUnsplashPhoto } from "@/server/unsplash.functions";
+import { searchFreepik, cacheFreepikAsset } from "@/server/freepik.functions";
 
 export type AnimationProvider =
   | "internal"
@@ -10,7 +11,8 @@ export type AnimationProvider =
   | "iconscout"
   | "image"
   | "iconify"
-  | "unsplash";
+  | "unsplash"
+  | "freepik";
 
 const IMAGE_EXT_RE = /\.(gif|png|jpe?g|webp|avif|svg)$/i;
 
