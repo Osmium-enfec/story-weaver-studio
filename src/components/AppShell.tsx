@@ -15,6 +15,7 @@ export function AppShell() {
           <nav className="flex items-center gap-1 text-sm">
             <NavLink to="/" label="Dashboard" />
             <NavLink to="/assets" label="Assets" />
+            <NavLink to="/exports" label="Exports" />
             <NavLink to="/settings" label="Settings" />
           </nav>
         </div>
