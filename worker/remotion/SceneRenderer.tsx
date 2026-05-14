@@ -283,6 +283,7 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
 
         return null;
       })}
+      </div>
     </AbsoluteFill>
   );
 };
