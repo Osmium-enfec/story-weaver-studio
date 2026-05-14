@@ -16,9 +16,32 @@ interface LocalItem {
   name: string;
   category: string;
   kind: LocalKind;
+  provider: string;
   url?: string | null;
   thumbnail?: string | null;
   tags: string[];
+}
+
+type FilterId = "all" | "lottie" | "icon" | "iconscout" | "image" | "video" | "audio" | "component" | "upload";
+
+const FILTERS: { id: FilterId; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "lottie", label: "Lottie" },
+  { id: "icon", label: "Icon" },
+  { id: "iconscout", label: "Iconscout" },
+  { id: "image", label: "Image" },
+  { id: "video", label: "Video" },
+  { id: "audio", label: "Audio" },
+  { id: "component", label: "Component" },
+  { id: "upload", label: "Upload" },
+];
+
+function matchesFilter(item: LocalItem, f: FilterId): boolean {
+  if (f === "all") return true;
+  if (f === "icon") return item.provider === "iconify";
+  if (f === "iconscout") return item.provider === "iconscout";
+  if (f === "upload") return item.provider === "upload";
+  return item.kind === f;
 }
 
 function classifyExt(name: string): LocalKind {
