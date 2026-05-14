@@ -1,6 +1,6 @@
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+import { DotLottieReact, type DotLottie } from "@lottiefiles/dotlottie-react";
 import { Sparkles } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { AnimationProvider } from "@/lib/animation-providers";
 
 // Measure text natural pixel size using a canvas at the given font.
@@ -300,12 +300,129 @@ function WhiteKeyFilterDef() {
   );
 }
 
+/**
+ * Lottie player that supports two modes:
+ *  - real-time autoplay (editor / preview / on-screen playback)
+ *  - deterministic mode (`deterministicMs` provided) where the playhead is
+ *    parked at a frame derived from virtual scene time. Required by the
+ *    deterministic exporter so each captured frame is reproducible.
+ */
+function LottiePlayer({
+  src,
+  loop,
+  autoplay,
+  speed,
+  deterministicMs,
+}: {
+  src: string;
+  loop: boolean;
+  autoplay: boolean;
+  speed: number;
+  deterministicMs?: number;
+}) {
+  const ref = useRef<DotLottie | null>(null);
+  const isDeterministic = typeof deterministicMs === "number";
+
+  useEffect(() => {
+    const dl = ref.current;
+    if (!dl || !isDeterministic) return;
+    try {
+      const totalFrames = dl.totalFrames || 0;
+      const fps = (dl as unknown as { frameRate?: number }).frameRate || 30;
+      if (totalFrames <= 0 || fps <= 0) return;
+      const totalDurMs = (totalFrames / fps) * 1000;
+      const t = (deterministicMs ?? 0) * (speed || 1);
+      const positionMs = loop ? t % totalDurMs : Math.min(t, totalDurMs);
+      const frame = (positionMs / 1000) * fps;
+      dl.pause();
+      dl.setFrame(Math.max(0, Math.min(totalFrames - 1, frame)));
+    } catch { /* ignore — dotlottie not ready yet */ }
+  }, [deterministicMs, isDeterministic, loop, speed]);
+
+  return (
+    <DotLottieReact
+      src={src}
+      loop={loop}
+      autoplay={!isDeterministic && autoplay}
+      speed={speed}
+      dotLottieRefCallback={(dl) => {
+        ref.current = dl;
+        if (isDeterministic && dl) {
+          try { dl.pause(); } catch { /* */ }
+        }
+      }}
+      style={{ width: "100%", height: "100%" }}
+    />
+  );
+}
+
+/**
+ * <video> wrapper. In deterministic mode, seeks to virtual time instead of
+ * playing in real time. Without this, the exporter captures whatever frame
+ * the video happens to be on at snapshot time (random, often the first
+ * frame), which is why iconscout video clips appeared frozen.
+ */
+function DeterministicVideo({
+  src,
+  loop,
+  autoplay,
+  deterministicMs,
+}: {
+  src: string;
+  loop: boolean;
+  autoplay: boolean;
+  deterministicMs?: number;
+}) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  const isDeterministic = typeof deterministicMs === "number";
+
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || !isDeterministic) return;
+    if (!v.duration || isNaN(v.duration)) return;
+    const t = (deterministicMs ?? 0) / 1000;
+    const target = loop ? t % v.duration : Math.min(t, Math.max(0, v.duration - 0.001));
+    if (Math.abs(v.currentTime - target) > 0.01) {
+      try { v.currentTime = target; } catch { /* */ }
+    }
+  }, [deterministicMs, isDeterministic, loop]);
+
+  return (
+    <video
+      ref={ref}
+      src={src}
+      crossOrigin="anonymous"
+      autoPlay={!isDeterministic && autoplay}
+      loop={loop}
+      muted
+      playsInline
+      preload="auto"
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: "contain",
+        opacity: isDeterministic ? 1 : 0,
+        animation: isDeterministic ? undefined : "anim-block-fade-in 180ms ease-out 80ms forwards",
+      }}
+    />
+  );
+}
+
 export function AnimationBlockRenderer({
   content,
   exportMode = false,
+  currentMs,
 }: {
   content: AnimationBlockContent;
   exportMode?: boolean;
+  /**
+   * Virtual scene time, in ms, when the exporter is driving frames
+   * deterministically. When provided, Lottie playhead and <video>
+   * currentTime are synced to this value so each captured frame is
+   * reproducible (real-time autoplay would otherwise produce stale or
+   * skipped frames at snapshot time).
+   */
+  currentMs?: number;
 }) {
   const isLottie =
     (content.provider === "lottie" || content.provider === "upload") && !!content.lottie_url;
@@ -339,20 +456,6 @@ export function AnimationBlockRenderer({
     );
   }
 
-  if (exportMode && (isLottie || (content.provider === "iconscout" && content.video_url))) {
-    return (
-      <div
-        style={wrapperStyle}
-        className="flex h-full w-full items-center justify-center rounded-md bg-primary/10 text-center"
-      >
-        <div>
-          <Sparkles className="mx-auto h-5 w-5 text-primary" />
-          <p className="mt-1 text-xs font-medium text-primary">{content.name}</p>
-        </div>
-      </div>
-    );
-  }
-
   if (content.provider === "image" && (content.video_url || content.lottie_url)) {
     const src = content.video_url || content.lottie_url!;
     return (
@@ -371,12 +474,12 @@ export function AnimationBlockRenderer({
     return (
       <div style={wrapperStyle} className="pointer-events-none">
         {content.remove_background && <WhiteKeyFilterDef />}
-        <DotLottieReact
+        <LottiePlayer
           src={content.lottie_url!}
           loop={content.loop ?? true}
-          autoplay={content.autoplay ?? true}
+          autoplay={!exportMode && (content.autoplay ?? true)}
           speed={content.speed ?? 1}
-          style={{ width: "100%", height: "100%" }}
+          deterministicMs={exportMode ? currentMs ?? 0 : undefined}
         />
       </div>
     );
@@ -389,25 +492,16 @@ export function AnimationBlockRenderer({
         className="pointer-events-none"
       >
         {content.remove_background && <WhiteKeyFilterDef />}
-        <video
+        <DeterministicVideo
           src={content.video_url}
-          crossOrigin="anonymous"
-          autoPlay={content.autoplay ?? true}
           loop={content.loop ?? true}
-          muted
-          playsInline
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "contain",
-            opacity: 0,
-            animation: "anim-block-fade-in 180ms ease-out 80ms forwards",
-          }}
+          autoplay={!exportMode && (content.autoplay ?? true)}
+          deterministicMs={exportMode ? currentMs ?? 0 : undefined}
         />
-        <style>{`@keyframes anim-block-fade-in { to { opacity: 1; } }`}</style>
       </div>
     );
   }
+
 
   // Static image: iconify SVG, unsplash photo, ai-image, iconscout thumbnail
   const imageSrc =

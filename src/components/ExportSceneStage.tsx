@@ -172,7 +172,13 @@ export const ExportSceneStage = forwardRef<HTMLDivElement, {
                   animating={exportMode ? false : isPlaying && visible}
                 />
               ) : (
-                visible ? <AnimationBlockRenderer content={el.content} exportMode={false} /> : null
+                visible ? (
+                  <AnimationBlockRenderer
+                    content={el.content}
+                    exportMode={exportMode}
+                    currentMs={Math.max(0, currentMs - revealMs)}
+                  />
+                ) : null
               )}
             </div>
           );
