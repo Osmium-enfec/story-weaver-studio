@@ -3,6 +3,7 @@ import { z } from "zod";
 import { runRender } from "./render.js";
 import { updateJob } from "./supabase.js";
 import { startQueueLoop, claimJob, releaseJob } from "./queue.js";
+import { transcodeStorageVideo } from "./transcode.js";
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
