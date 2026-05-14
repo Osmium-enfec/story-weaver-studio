@@ -25,6 +25,11 @@ export interface ExportSceneData {
   voice_cuts?: { start_ms: number; end_ms: number }[];
 }
 
+// Match PlaybackDialog reveal animation durations exactly so export looks
+// identical to the in-app preview.
+const TEXT_REVEAL_MS = 150;
+const BLOCK_REVEAL_MS = 350;
+
 function normalizeWord(word: string) {
   return word.toLowerCase().replace(/[^a-z0-9_-]/g, "");
 }
@@ -47,14 +52,29 @@ function audibleOffsetMs(scene: ExportSceneData, wordStartMs: number): number | 
   return elapsed + Math.max(0, wordStartMs - cursor);
 }
 
+/**
+ * Reveal time for an element. Mirrors `PlaybackDialog` exactly:
+ *   • Elements NOT bound to a spoken word reveal at scene start (t=0),
+ *     so they animate in together with the scene fade-in.
+ *   • Word-bound elements reveal at the audible-time offset of that word.
+ *   • If a word-bound element's word never fires, fall back near the end
+ *     so it still appears (matches the "leftover" pass in PlaybackDialog).
+ */
 function elementRevealMs(scene: ExportSceneData, el: ExportElement): number {
   const timings = scene.word_timings ?? [];
   const startWordIndex = (el.content as AnimationBlockContent & { start_word_index?: number | null }).start_word_index;
+
+  const boundWord = el.content.word ? normalizeWord(el.content.word) : "";
+
+  // No word binding → reveal at scene start (matches preview's autoReveal set).
+  if (!boundWord && (typeof startWordIndex !== "number" || !timings[startWordIndex])) {
+    return 0;
+  }
+
   if (typeof startWordIndex === "number" && timings[startWordIndex]) {
     return audibleOffsetMs(scene, timings[startWordIndex].start_ms) ?? timings[startWordIndex].start_ms;
   }
 
-  const boundWord = el.content.word ? normalizeWord(el.content.word) : "";
   if (boundWord) {
     const occurrence = Math.max(1, el.content.occurrence ?? 1);
     let seen = 0;
@@ -65,10 +85,10 @@ function elementRevealMs(scene: ExportSceneData, el: ExportElement): number {
         return audibleOffsetMs(scene, timing.start_ms) ?? timing.start_ms;
       }
     }
+    // Word-bound but its word never fires → reveal near the end (preview does the same).
+    return Math.max(0, (scene.duration_ms ?? 0) - 800);
   }
 
-  if (typeof el.start_ms === "number" && el.start_ms > 0) return el.start_ms;
-  if (boundWord) return Math.max(0, (scene.duration_ms ?? 0) - 800);
   return 0;
 }
 
@@ -76,6 +96,12 @@ function elementRevealMs(scene: ExportSceneData, el: ExportElement): number {
  * Off-screen render of a single scene at the canonical design resolution
  * (DESIGN.w × DESIGN.h). The exporter scales/snapshots this DOM. We never
  * mount this visibly in the editor — `position: fixed` + far off-screen.
+ *
+ * In export mode we DO NOT use CSS transitions: those animate on wall-clock
+ * time, but the deterministic exporter advances virtual time per frame,
+ * which would produce wrong-speed (or skipped) reveal animations. Instead
+ * we compute opacity/scale ourselves from `currentMs` so each frame is
+ * fully deterministic and matches the editor's preview speed exactly.
  */
 export const ExportSceneStage = forwardRef<HTMLDivElement, {
   scene: ExportSceneData;
@@ -100,7 +126,18 @@ export const ExportSceneStage = forwardRef<HTMLDivElement, {
         .sort((a, b) => a.z_index - b.z_index)
         .map((el) => {
           const isText = el.type === "text" || typeof el.content.text === "string" || !!el.content.role;
-          const visible = !isPlaying || currentMs >= elementRevealMs(scene, el);
+          const revealMs = elementRevealMs(scene, el);
+          const since = currentMs - revealMs;
+          const revealDur = isText ? TEXT_REVEAL_MS : BLOCK_REVEAL_MS;
+
+          // Deterministic eased progress 0..1 for the reveal animation.
+          const rawT = !isPlaying ? 1 : Math.max(0, Math.min(1, since / revealDur));
+          const t = rawT < 1 ? 1 - Math.pow(1 - rawT, 3) : 1; // ease-out cubic ≈ "ease"
+
+          const opacity = !isPlaying ? 1 : (since < 0 ? 0 : t);
+          const scale = isText ? 1 : 0.92 + 0.08 * (since < 0 ? 0 : t);
+          const visible = opacity > 0;
+
           return (
             <div
               key={el.id}
@@ -111,9 +148,18 @@ export const ExportSceneStage = forwardRef<HTMLDivElement, {
                 width: el.position.w,
                 height: el.position.h,
                 zIndex: el.z_index,
-                opacity: visible ? 1 : 0,
-                transform: visible && !isText ? "scale(1)" : !isText ? "scale(0.92)" : undefined,
-                transition: isText ? "opacity 150ms ease" : "opacity 350ms ease, transform 350ms ease",
+                opacity,
+                transform: !isText ? `scale(${scale})` : undefined,
+                transformOrigin: "center center",
+                // No CSS transition in exportMode — exporter drives every frame
+                // via `currentMs`, so the in-app preview path keeps a small
+                // transition for smoothness when the same component is used
+                // outside the exporter.
+                transition: exportMode
+                  ? "none"
+                  : isText
+                    ? "opacity 150ms ease"
+                    : "opacity 350ms ease, transform 350ms ease",
                 overflow: "hidden",
               }}
             >
@@ -121,7 +167,9 @@ export const ExportSceneStage = forwardRef<HTMLDivElement, {
                 <TextBlockRenderer
                   key={`${el.id}-${visible ? "visible" : "hidden"}`}
                   content={el.content}
-                  animating={isPlaying && visible}
+                  // In export mode, suppress per-letter CSS animations because
+                  // they're wall-clock based; show the final text deterministically.
+                  animating={exportMode ? false : isPlaying && visible}
                 />
               ) : (
                 visible ? <AnimationBlockRenderer content={el.content} exportMode={false} /> : null
