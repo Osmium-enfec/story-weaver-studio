@@ -9,7 +9,7 @@ const LOTTIE_EXT_RE = /\.(json|lottie)$/i;
 const VIDEO_EXT_RE = /\.(mp4|webm|mov)$/i;
 const AUDIO_EXT_RE = /\.(mp3|wav|ogg|m4a)$/i;
 
-type LocalKind = "image" | "lottie" | "video" | "audio" | "component";
+type LocalKind = "image" | "lottie" | "video" | "audio" | "component" | "3d";
 
 interface LocalItem {
   id: string;
@@ -17,18 +17,20 @@ interface LocalItem {
   category: string;
   kind: LocalKind;
   provider: string;
+  assetType?: string | null;
   url?: string | null;
   thumbnail?: string | null;
   tags: string[];
 }
 
-type FilterId = "all" | "lottie" | "icon" | "iconscout" | "image" | "video" | "audio" | "component" | "upload";
+type FilterId = "all" | "lottie" | "icon" | "iconscout" | "3d" | "image" | "video" | "audio" | "component" | "upload";
 
 const FILTERS: { id: FilterId; label: string }[] = [
   { id: "all", label: "All" },
   { id: "lottie", label: "Lottie" },
   { id: "icon", label: "Icon" },
   { id: "iconscout", label: "Iconscout" },
+  { id: "3d", label: "3D" },
   { id: "image", label: "Image" },
   { id: "video", label: "Video" },
   { id: "audio", label: "Audio" },
@@ -39,8 +41,10 @@ const FILTERS: { id: FilterId; label: string }[] = [
 function matchesFilter(item: LocalItem, f: FilterId): boolean {
   if (f === "all") return true;
   if (f === "icon") return item.provider === "iconify";
-  if (f === "iconscout") return item.provider === "iconscout";
+  if (f === "iconscout") return item.provider === "iconscout" && item.assetType !== "3d";
   if (f === "upload") return item.provider === "upload";
+  if (f === "3d") return item.assetType === "3d";
+  if (f === "image") return item.kind === "image" && item.assetType !== "3d";
   return item.kind === f;
 }
 
