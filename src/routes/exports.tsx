@@ -55,8 +55,6 @@ function ExportsPage() {
 
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, 3000);
-    return () => clearInterval(id);
   }, [refresh]);
 
   const active = jobs.filter((j) => j.status === "pending" || j.status === "rendering");
