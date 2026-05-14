@@ -81,6 +81,32 @@ async function downloadToBucket(
   return uploadBuffer(admin, buf, path, contentType);
 }
 
+/**
+ * Ask the render worker to re-encode a freshly-uploaded video to H.264
+ * yuv420p + AAC so Remotion's bundled compositor can decode it.
+ * Best-effort: if the worker is offline we keep the original file.
+ */
+async function transcodeOnWorker(bucket: string, path: string) {
+  const url = process.env.RENDER_WORKER_URL;
+  const secret = process.env.RENDER_WORKER_SECRET;
+  if (!url) return;
+  try {
+    const res = await fetch(`${url.replace(/\/$/, "")}/transcode`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(secret ? { "x-worker-secret": secret } : {}),
+      },
+      body: JSON.stringify({ bucket, path }),
+    });
+    if (!res.ok) {
+      console.warn("[transcode] worker returned", res.status, await res.text());
+    }
+  } catch (err) {
+    console.warn("[transcode] worker unreachable", err);
+  }
+}
+
 // ---------- Lottie color helpers ----------
 
 function rgbToHex(r: number, g: number, b: number) {
