@@ -1,5 +1,5 @@
 import { AbsoluteFill, Series, Audio, useVideoConfig } from "remotion";
-import { SceneRenderer } from "./SceneRenderer.js";
+import { SceneRenderer } from "./SceneRenderer";
 
 interface Scene {
   id: string;

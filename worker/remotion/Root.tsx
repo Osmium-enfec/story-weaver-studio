@@ -1,5 +1,5 @@
 import { Composition } from "remotion";
-import { MainVideo } from "./MainVideo.js";
+import { MainVideo } from "./MainVideo";
 
 export const Root: React.FC = () => (
   <Composition
