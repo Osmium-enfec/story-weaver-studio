@@ -118,8 +118,11 @@ function ExportPage() {
   );
 
   const estSeconds = useMemo(() => {
-    // Heuristic: ~2× realtime for 1080p30, ~3× for 60fps, ~1.3× for 720p.
-    const factor = quality === "1080p60" ? 3 : quality === "1080p" ? 2 : 1.3;
+    // Heuristic: scales with pixels × fps relative to 1080p30 baseline (~2× realtime).
+    const p = QUALITY_PRESETS[quality];
+    const pixelFactor = (p.width * p.height) / (1920 * 1080);
+    const fpsFactor = p.fps / 30;
+    const factor = 2 * pixelFactor * fpsFactor;
     const mp4Extra = format === "mp4" ? totalDurationMs * 0.5 : 0;
     return Math.round((totalDurationMs * factor + mp4Extra) / 1000);
   }, [totalDurationMs, quality, format]);
