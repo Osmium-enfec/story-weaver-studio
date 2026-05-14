@@ -1294,6 +1294,24 @@ function ScriptCanvas() {
                     );
                   })()}
                 </TabsContent>
+                <TabsContent value="animate" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
+                  {(() => {
+                    const sel = activeScene?.elements.find(
+                      (e) => e.id === selectedElementId && e.type !== "text",
+                    );
+                    return (
+                      <IconAnimationPanel
+                        selectedContent={sel?.content}
+                        onChange={
+                          sel
+                            ? (next) =>
+                                void updateElementContent(activeScene!.id, sel.id, { icon_animation: next })
+                            : undefined
+                        }
+                      />
+                    );
+                  })()}
+                </TabsContent>
               </Tabs>
             </TabsContent>
             <TabsContent value="background" className="m-0 min-h-0 flex-1 overflow-y-auto border-t border-border">
