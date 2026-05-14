@@ -8,7 +8,7 @@
     "dev": "node --import tsx/esm --watch src/server.ts"
   },
   "dependencies": {
-    "@remotion/bundler": "^4.0.० ",
+    "@remotion/bundler": "^4.0.0",
     "@remotion/renderer": "^4.0.0",
     "@remotion/lottie": "^4.0.0",
     "@remotion/google-fonts": "^4.0.0",
