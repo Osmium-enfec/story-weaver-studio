@@ -216,11 +216,17 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
           );
         }
 
-        const videoSrc =
+        const rawVideoSrc =
           c.video_url ||
           (c.preview_url && /\.(mp4|webm|mov)(\?|$)/i.test(c.preview_url)
             ? c.preview_url
             : null);
+        // Skip if the "video" url is actually an image (svg/png/jpg) —
+        // happens when icon assets get stored in video_url by mistake.
+        const videoSrc =
+          rawVideoSrc && !/\.(svg|png|jpe?g|gif|webp|avif)(\?|$)/i.test(rawVideoSrc)
+            ? rawVideoSrc
+            : null;
         if (videoSrc) {
           return (
             <VideoElement
