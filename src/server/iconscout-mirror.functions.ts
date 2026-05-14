@@ -81,6 +81,32 @@ async function downloadToBucket(
   return uploadBuffer(admin, buf, path, contentType);
 }
 
+/**
+ * Ask the render worker to re-encode a freshly-uploaded video to H.264
+ * yuv420p + AAC so Remotion's bundled compositor can decode it.
+ * Best-effort: if the worker is offline we keep the original file.
+ */
+async function transcodeOnWorker(bucket: string, path: string) {
+  const url = process.env.RENDER_WORKER_URL;
+  const secret = process.env.RENDER_WORKER_SECRET;
+  if (!url) return;
+  try {
+    const res = await fetch(`${url.replace(/\/$/, "")}/transcode`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(secret ? { "x-worker-secret": secret } : {}),
+      },
+      body: JSON.stringify({ bucket, path }),
+    });
+    if (!res.ok) {
+      console.warn("[transcode] worker returned", res.status, await res.text());
+    }
+  } catch (err) {
+    console.warn("[transcode] worker unreachable", err);
+  }
+}
+
 // ---------- Lottie color helpers ----------
 
 function rgbToHex(r: number, g: number, b: number) {
@@ -227,6 +253,7 @@ export const cacheIconscoutItem = createServerFn({ method: "POST" })
     const ct = ext === "json" ? "application/json" : "video/mp4";
     const path = `iconscout/${data.external_id}.${ext}`;
     const publicUrl = await downloadToBucket(admin, data.preview_url, path, ct);
+    if (ext === "mp4") await transcodeOnWorker(BUCKET, path);
 
     const { data: inserted, error } = await admin
       .from("animation_components")
@@ -345,6 +372,7 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
             }
             const path = `iconscout/${externalId}.mp4`;
             const publicUrl = await downloadToBucket(admin, previewUrl, path, "video/mp4");
+            await transcodeOnWorker(BUCKET, path);
             const { error } = await admin.from("animation_components").insert({
               slug: it.slug || `iconscout-${externalId}`,
               name: it.name || `Animation ${externalId}`,
@@ -537,6 +565,7 @@ export const mirrorIconscoutSelected = createServerFn({ method: "POST" })
           ? `iconscout/${it.external_id}.mp4`
           : `iconscout/${it.asset_type}/${it.external_id.replace(/^[a-z0-9]+-/, "")}.png`;
         const publicUrl = await downloadToBucket(admin, it.preview_url, path, ct);
+        if (isLottie) await transcodeOnWorker(BUCKET, path);
 
         const { error } = await admin.from("animation_components").insert({
           slug: it.slug,

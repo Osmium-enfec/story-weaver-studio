@@ -3,6 +3,7 @@ import { z } from "zod";
 import { runRender } from "./render.js";
 import { updateJob } from "./supabase.js";
 import { startQueueLoop, claimJob, releaseJob } from "./queue.js";
+import { transcodeStorageVideo } from "./transcode.js";
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
@@ -51,6 +52,34 @@ app.post("/render", (req, res) => {
       });
     })
     .finally(() => releaseJob(jobId));
+});
+
+const TranscodeBody = z.object({
+  bucket: z.string().min(1).max(128),
+  path: z.string().min(1).max(1024),
+  force: z.boolean().optional(),
+});
+
+/**
+ * On-demand transcode of a video already in Supabase Storage.
+ * Re-encodes in place to H.264 yuv420p + AAC mp4 so Remotion's bundled
+ * compositor can decode it. Synchronous: returns when done.
+ */
+app.post("/transcode", async (req, res) => {
+  if (req.header("x-worker-secret") !== SECRET) {
+    return res.status(401).json({ error: "unauthorized" });
+  }
+  const parsed = TranscodeBody.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.message });
+  }
+  try {
+    const result = await transcodeStorageVideo(parsed.data);
+    res.json(result);
+  } catch (err) {
+    console.error("transcode failed", parsed.data, err);
+    res.status(500).json({ error: String((err as Error)?.message ?? err) });
+  }
 });
 
 const PORT = Number(process.env.PORT ?? 8080);
