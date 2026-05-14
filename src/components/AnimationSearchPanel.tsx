@@ -17,7 +17,7 @@ interface Props {
   onSelect: (a: AnimationResult) => void;
 }
 
-type ProviderFilter = "all" | "lottie" | "iconscout" | "iconify" | "unsplash" | "internal" | "upload";
+type ProviderFilter = "all" | "lottie" | "iconscout" | "iconify" | "unsplash" | "freepik" | "internal" | "upload";
 
 const FILTERS: { id: ProviderFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -25,6 +25,7 @@ const FILTERS: { id: ProviderFilter; label: string }[] = [
   { id: "iconscout", label: "Iconscout" },
   { id: "iconify", label: "Iconify" },
   { id: "unsplash", label: "Unsplash" },
+  { id: "freepik", label: "Freepik" },
   { id: "internal", label: "Local" },
   { id: "upload", label: "Uploads" },
 ];
@@ -83,12 +84,13 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
     iconscout: results.filter((r) => r.provider === "iconscout").length,
     iconify: results.filter((r) => r.provider === "iconify").length,
     unsplash: results.filter((r) => r.provider === "unsplash").length,
+    freepik: results.filter((r) => r.provider === "freepik").length,
     internal: results.filter((r) => r.provider === "internal").length,
     upload: results.filter((r) => r.provider === "upload").length,
   };
 
   async function handleSelect(r: AnimationResult) {
-    if (r.provider === "iconify" || r.provider === "unsplash") {
+    if (r.provider === "iconify" || r.provider === "unsplash" || r.provider === "freepik") {
       const cachedUrl = await mirrorExternalResult(r);
       if (cachedUrl) {
         onSelect({ ...r, thumbnail_url: cachedUrl, video_url: cachedUrl });
@@ -182,7 +184,7 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
               className="group flex flex-col items-stretch overflow-hidden rounded-lg border border-border bg-background text-left transition-all hover:border-primary hover:shadow-sm"
             >
               <div className="relative aspect-square bg-muted/40">
-                {(r.provider === "image" || r.provider === "iconify" || r.provider === "unsplash") && r.thumbnail_url ? (
+                {(r.provider === "image" || r.provider === "iconify" || r.provider === "unsplash" || r.provider === "freepik") && r.thumbnail_url ? (
                   <img
                     src={r.thumbnail_url}
                     alt={r.name}

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Image, Film, Music, Code2, Sparkles, Download, HardDrive } from "lucide-react";
 import { IconscoutMirrorPanel } from "@/components/IconscoutMirrorPanel";
+import { FreepikMirrorPanel } from "@/components/FreepikMirrorPanel";
 import { LocalMediaPanel } from "@/components/LocalMediaPanel";
 
 export const Route = createFileRoute("/assets")({ component: Assets });
@@ -13,6 +14,7 @@ const TABS = [
   { key: "components", label: "Programming Components", icon: Code2 },
   { key: "lottie", label: "Lottie Library", icon: Sparkles },
   { key: "mirror", label: "Mirror Iconscout", icon: Download },
+  { key: "freepik", label: "Mirror Freepik", icon: Download },
   { key: "backgrounds", label: "Backgrounds", icon: Film },
   { key: "audio", label: "Audio", icon: Music },
 ] as const;
@@ -66,6 +68,8 @@ function Assets() {
         <LocalMediaPanel />
       ) : tab === "mirror" ? (
         <IconscoutMirrorPanel />
+      ) : tab === "freepik" ? (
+        <FreepikMirrorPanel />
       ) : tab === "components" ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {components.map((c) => (

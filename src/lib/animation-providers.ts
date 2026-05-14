@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { searchIconscout } from "@/server/iconscout.functions";
 import { searchIconify, cacheIconifyIcon } from "@/server/iconify.functions";
 import { searchUnsplash, cacheUnsplashPhoto } from "@/server/unsplash.functions";
+import { searchFreepik, cacheFreepikAsset } from "@/server/freepik.functions";
 
 export type AnimationProvider =
   | "internal"
@@ -10,7 +11,8 @@ export type AnimationProvider =
   | "iconscout"
   | "image"
   | "iconify"
-  | "unsplash";
+  | "unsplash"
+  | "freepik";
 
 const IMAGE_EXT_RE = /\.(gif|png|jpe?g|webp|avif|svg)$/i;
 
@@ -170,16 +172,36 @@ async function searchUnsplashResults({ query, limit = 20 }: SearchOpts): Promise
   }));
 }
 
+async function searchFreepikResults({ query, limit = 20 }: SearchOpts): Promise<AnimationResult[]> {
+  if (!query.trim()) return [];
+  const { items } = await searchFreepik({
+    data: { query: query.trim(), asset_type: "photo", limit: Math.min(limit, 30) },
+  });
+  return items.map((i) => ({
+    id: `freepik:${i.asset_type}:${i.id}`,
+    provider: "freepik" as const,
+    name: i.name,
+    category: i.author ? `Freepik · ${i.author}` : "Freepik",
+    tags: [],
+    concepts: [],
+    external_id: i.id,
+    thumbnail_url: i.preview_url,
+    video_url: i.asset_type === "video" ? i.preview_url : null,
+    color_support: "fixed" as const,
+  }));
+}
+
 export async function searchAllAnimations(opts: SearchOpts): Promise<AnimationResult[]> {
-  const [internal, lottie, uploads, iconscout, iconify, unsplash] = await Promise.all([
+  const [internal, lottie, uploads, iconscout, iconify, unsplash, freepik] = await Promise.all([
     searchInternal(opts).catch(() => []),
     searchLottie(opts).catch(() => []),
     searchUploads(opts).catch(() => []),
     searchIconscoutResults(opts).catch(() => []),
     searchIconifyResults(opts).catch(() => []),
     searchUnsplashResults(opts).catch(() => []),
+    searchFreepikResults(opts).catch(() => []),
   ]);
-  return [...lottie, ...iconscout, ...iconify, ...unsplash, ...internal, ...uploads];
+  return [...lottie, ...iconscout, ...iconify, ...unsplash, ...freepik, ...internal, ...uploads];
 }
 
 /**
@@ -203,6 +225,23 @@ export async function mirrorExternalResult(r: AnimationResult): Promise<string |
         },
       });
       return out.thumbnail_url ?? null;
+    }
+    if (r.provider === "freepik" && r.external_id) {
+      // id format: freepik:<asset_type>:<id>
+      const [, assetType] = r.id.split(":");
+      const at = (assetType as "photo" | "vector" | "video" | "icon") || "photo";
+      const out = await cacheFreepikAsset({
+        data: {
+          resource_id: r.external_id,
+          asset_type: at,
+          name: r.name,
+          preview_url: r.thumbnail_url ?? undefined,
+          author: r.category?.replace(/^Freepik · /, "") ?? undefined,
+          palette: [],
+          category: "Freepik",
+        },
+      });
+      return at === "video" ? out.video_url ?? null : out.thumbnail_url ?? null;
     }
   } catch (e) {
     console.error("mirrorExternalResult failed", e);
