@@ -118,8 +118,11 @@ function ExportPage() {
   );
 
   const estSeconds = useMemo(() => {
-    // Heuristic: ~2× realtime for 1080p30, ~3× for 60fps, ~1.3× for 720p.
-    const factor = quality === "1080p60" ? 3 : quality === "1080p" ? 2 : 1.3;
+    // Heuristic: scales with pixels × fps relative to 1080p30 baseline (~2× realtime).
+    const p = QUALITY_PRESETS[quality];
+    const pixelFactor = (p.width * p.height) / (1920 * 1080);
+    const fpsFactor = p.fps / 30;
+    const factor = 2 * pixelFactor * fpsFactor;
     const mp4Extra = format === "mp4" ? totalDurationMs * 0.5 : 0;
     return Math.round((totalDurationMs * factor + mp4Extra) / 1000);
   }, [totalDurationMs, quality, format]);
@@ -326,9 +329,10 @@ function ExportPage() {
 
         <div>
           <Label className="text-xs uppercase tracking-wide text-muted-foreground">Quality</Label>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {(Object.keys(QUALITY_PRESETS) as ExportQuality[]).map((q) => {
               const p = QUALITY_PRESETS[q];
+              const mbps = Math.round(p.bitsPerSecond / 1_000_000);
               return (
                 <Button
                   key={q}
@@ -336,14 +340,18 @@ function ExportPage() {
                   size="sm"
                   onClick={() => setQuality(q)}
                   disabled={running}
+                  className="h-auto flex-col items-start py-2"
                 >
-                  {q} · {p.fps}fps
+                  <span className="font-medium">{p.label}</span>
+                  <span className="text-[10px] opacity-70">
+                    {p.width}×{p.height} · {p.fps}fps · {mbps} Mbps
+                  </span>
                 </Button>
               );
             })}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Recommended: 1080p · 30fps. Use 1080p60 for very animated content.
+            Pick <strong>4K · Max</strong> for the sharpest output. 4K renders are slower and produce larger files. 1080p · High is the recommended balance.
           </p>
         </div>
 
