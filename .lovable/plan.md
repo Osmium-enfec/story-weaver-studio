@@ -1,211 +1,53 @@
-## Plan: make export reliable and smooth
+# Add Freepik provider (photos, vectors, icons, videos)
 
-### 1. Stop using the current browser recorder as the primary export path
+Quick note on naming: **Magnific** is Freepik's AI image *upscaler* (a separate paid endpoint that takes an image and returns a higher-res one). The thing that lets us *search* Freepik's library is the **Freepik Stock Content API**. This plan wires up the Stock Content API. If you actually want the Magnific upscaler too, that's a separate small add-on we can layer on after.
 
-- The current export starts a realtime `MediaRecorder`, then tries to snapshot React/DOM frames with `html-to-image` while the clock is already running.
-- When snapshots are slow, the recorder captures the blank/last canvas for long periods, causing white starts, dropped motion, and audio/visual desync.
-- MP4 conversion in-browser is also fragile, as shown by the ffmpeg-core import failure.
+## What you'll get
 
-### 2. Make server-side rendering the main export flow
+1. **Freepik tab** in the inline `AnimationSearchPanel` (next to Iconify / Unsplash / Iconscout). Search across photos, vectors, icons, and videos. Clicking a result mirrors the asset into Lovable storage and inserts it into the scene.
+2. **Freepik mirror panel** in `/assets` → "Mirror" tab (mirrors the existing `IconscoutMirrorPanel` UX) for batch-importing into `animation_components`.
+3. **Color palette filter** — Freepik's API exposes a fixed palette (black, white, red, orange, yellow, green, turquoise, blue, lilac, pink, gray, brown). The UI shows color swatches; selecting one filters results server-side via the API's `filters[color]` param. Each mirrored asset stores its dominant palette colors so you can re-filter the local library too.
 
-- Use the existing `render_jobs` queue and render worker architecture as the primary export button behavior.
-- On export start, enqueue a job with selected canvases, quality, format, audio setting, and scene scope.
-- Show job status/progress on the export page and provide the final downloadable MP4 URL when the render is done.
-- Keep cancellation/status UI, but avoid pretending the browser tab is rendering the final video.
+## How it'll work (technical)
 
-### 3. Rebuild the worker’s Remotion renderer to match the real scene data
+**Secret**
+- Add `FREEPIK_API_KEY` via `add_secret` (you said you have one).
 
-- Replace the placeholder Remotion scene renderer with a deterministic renderer that uses:
-  - scene backgrounds: color, gradient, image, video where possible
-  - `scene_elements` positions and z-index
-  - text blocks with fonts, colors, scaling, and text backgrounds
-  - images/icons/shapes/static assets
-  - animation/video assets rendered at their timeline position
-- Use `start_ms`, `end_ms`, and `content.start_word_index` to reveal elements at the correct voice timing.
-- Convert CSS/timer-based reveals into frame-based Remotion animation so every frame is reproducible and smooth.
+**Server functions** (`src/server/freepik.functions.ts`)
+- `searchFreepik({ query, asset_type, color?, page })` → calls `https://api.freepik.com/v1/resources` with header `x-freepik-api-key`. Returns normalized `{ id, name, preview_url, type, palette[] }[]`.
+- `cacheFreepikAsset({ resource_id })` → calls `/v1/resources/{id}/download` to get the actual file URL, fetches it server-side, uploads to the `lottie-uploads` bucket (or a new `freepik-cache` bucket — see DB section), and inserts/updates a row in `animation_components` with provider `freepik`.
 
-### 4. Fix timing and audio in the worker render
+Both go through `createServerFn` (no edge functions). The API key is read from `process.env.FREEPIK_API_KEY` inside the handler.
 
-- Compute scene durations from `duration_ms` and selected scope.
-- Render at fixed FPS with Remotion instead of realtime browser capture.
-- Add scene voice audio to the Remotion timeline, respecting existing trim/cut/fade settings as closely as practical.
-- Ensure visual element reveal times use the same trimmed/cut scene-local timeline as the audible voice.
+**Provider plumbing** (`src/lib/animation-providers.ts`)
+- Add `"freepik"` to the `AnimationProvider` union.
+- Add `searchFreepikResults()` and include it in `searchAllAnimations`'s `Promise.all`.
+- Extend `mirrorExternalResult()` to handle `provider === "freepik"`.
 
-### 5. Update the export page UX around queued rendering
+**UI** (`src/components/AnimationSearchPanel.tsx`)
+- Add `freepik` to the `FILTERS` list with a count badge.
+- Add an asset-type selector (Photos / Vectors / Icons / Videos) and a color-swatch row that only appears when the Freepik filter is active. Both feed into the search call.
+- Render Freepik results using `<img>` for photos/vectors/icons and `<video>` for videos (same pattern as Unsplash / Iconscout).
 
-- Replace the current “keep this tab open” browser render copy with queued render status.
-- Show latest render jobs, progress, failed errors, and completed download links.
-- If the worker is not configured, show a clear setup/configuration message instead of falling back to the broken browser export silently.
+**Mirror panel** (`src/components/FreepikMirrorPanel.tsx`, new)
+- Mirrors `IconscoutMirrorPanel` structure: search bar, asset-type tabs, color swatches, grid of results, multi-select, "Mirror N selected" button that calls `cacheFreepikAsset` for each.
+- Wire into `/assets` Mirror tab alongside the existing Iconscout panel.
 
-### 6. Keep a browser preview-only renderer separate
+**Database** (one migration)
+- Extend the `animation_components.provider` check (or enum) to allow `'freepik'`.
+- Add a `palette text[]` column to `animation_components` so we can persist the dominant colors returned by Freepik (also lets you filter the local library by color later).
+- Storage: reuse the public `lottie-uploads` bucket for cached files (consistent with how Iconify/Unsplash mirror works today). No new bucket needed unless you'd prefer separation.
 
-- Keep the existing client-side renderer only for preview/debug if needed, not for production export.
-- Remove or de-emphasize in-browser MP4 transcoding for the main path; final output should come from the worker as MP4.
+## Edge cases & limits
 
-### Technical notes
+- Freepik's API is paid and rate-limited; the search server fn will surface their error envelope through toast messages (same as Iconscout today).
+- Some Freepik assets are "Premium" and require a Premium API tier to download. We'll detect 402/403 from `/download` and show a clear error in the UI rather than silently failing.
+- Videos can be large; mirroring will stream the response into Storage rather than buffering it in memory.
 
-- No database schema change is likely needed because `render_jobs` already exists.
-- The main code changes will be in:
-  - `src/routes/projects.$projectId.export.tsx`
-  - `src/server/render-jobs.functions.ts`
-  - `worker/remotion/MainVideo.tsx`
-  - `worker/remotion/Root.tsx`
-  - `worker/src/render.ts`
-- This turns export from “record what the browser can keep up with” into “render every frame deterministically,” which is the proper architecture for export-heavy video apps.  
-  
-  
-few chat gpt options  
-Best approach:
-  ### 1. Use one timeline source
-  Create a single timeline clock:
-  ```
+## Out of scope (ask if you want these)
 
-  ```
-  ```
-  const fps = 30;
-  const frameDuration = 1000 / fps;
+- Magnific upscaler integration (separate endpoint, separate pricing).
+- AI image generation via Freepik's Mystic / Flux endpoints.
+- Per-user Freepik attribution display (we'll store author + license URL on the row, but not render it yet).
 
-  for (let frame = 0; frame < totalFrames; frame++) {
-    const timeMs = frame * frameDuration;
-    renderCanvasAtTime(timeMs);
-    captureFrame();
-  }
-  ```
-  Do **not** use `requestAnimationFrame`, CSS animation timing, or real-time delays during export.
-  ### 2. Render animations manually
-  Every object should calculate its state from `timeMs`:
-  ```
-
-  ```
-  ```
-  function getAnimatedValue(keyframes, timeMs) {
-    // find surrounding keyframes
-    // interpolate value
-  }
-  ```
-  Example:
-  ```
-
-  ```
-  ```
-  const x = lerp(startX, endX, progress);
-  const opacity = lerp(0, 1, progress);
-  ```
-  This ensures frame 45 is always exactly frame 45.
-  ### 3. Export frame-by-frame
-  For video export:
-  1.   
-  Render frame to canvas  
-
-  2.   
-  Convert canvas to image frame  
-
-  3.   
-  Feed frames into encoder  
-
-  Use:
-  - **WebCodecs** for modern browser video encoding  
-
-  - **ffmpeg.wasm** if you need broader export features  
-
-  -   
-  Server-side FFmpeg for best quality and speed  
-
-  ### 4. Avoid recording the live canvas
-  This usually causes:
-  -   
-  animation timing mismatch  
-
-  -   
-  dropped frames  
-
-  -   
-  low-quality output  
-
-  -   
-  lag on heavy designs  
-
-  Avoid relying on:
-  ```
-
-  ```
-  ```
-  canvas.captureStream()
-  MediaRecorder
-  ```
-  for final professional export.
-  It is okay for preview, not ideal for Canva-like export.
-  ### 5. Separate preview and export
-  Preview can use real time:
-  ```
-
-  ```
-  ```
-  currentTime = performance.now() - startTime;
-  ```
-  Export should use fixed time:
-  ```
-
-  ```
-  ```
-  currentTime = frameIndex * (1000 / fps);
-  ```
-  ### 6. Use high-resolution export canvas
-  For export, create a separate canvas:
-  ```
-
-  ```
-  ```
-  exportCanvas.width = designWidth * scale;
-  exportCanvas.height = designHeight * scale;
-  ctx.scale(scale, scale);
-  ```
-  Example:
-  ```
-
-  ```
-  ```
-  scale = 2; // for better quality
-  ```
-  ### Recommended architecture
-  ```
-
-  ```
-  ```
-  Design JSON
-     ↓
-  Timeline Engine
-     ↓
-  Renderer
-     ↓
-  Frame Exporter
-     ↓
-  Video Encoder
-  ```
-  Your design JSON should store:
-  ```
-
-  ```
-  ```
-  {
-    "objects": [
-      {
-        "type": "text",
-        "x": 100,
-        "y": 100,
-        "animations": [
-          {
-            "property": "opacity",
-            "from": 0,
-            "to": 1,
-            "start": 500,
-            "duration": 1000,
-            "easing": "easeOut"
-          }
-        ]
-      }
-    ]
-  }
-  ```
-  Then export by evaluating every object at each timestamp.
-  Most likely fix: **stop recording the animation live** and instead **render each frame at exact timestamps**.
+After you approve, the implementation order will be: migration → secret check → server fns → providers lib → search panel UI → mirror panel UI.
