@@ -9,6 +9,7 @@
  *     node worker/scripts/transcode-webm-voices.mjs
  */
 import { createClient } from "@supabase/supabase-js";
+import ws from "ws";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
@@ -25,7 +26,8 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
 }
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, {
-  auth: { persistSession: false },
+  auth: { persistSession: false, autoRefreshToken: false },
+  realtime: { transport: ws },
 });
 
 const BUCKET = "voice-uploads";
