@@ -79,9 +79,20 @@ export async function runRender(jobId: string) {
 
   await updateJob(jobId, { progress: 12 });
 
+  const fsSync = await import("node:fs");
+  const candidates = [
+    process.env.REMOTION_CHROME_EXECUTABLE,
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+  ].filter(Boolean) as string[];
+  const chromePath = candidates.find((p) => {
+    try { return fsSync.existsSync(p); } catch { return false; }
+  });
+
   const browser = await openBrowser("chrome", {
-    browserExecutable:
-      process.env.REMOTION_CHROME_EXECUTABLE ?? "/usr/bin/chromium",
+    browserExecutable: chromePath ?? null,
     chromiumOptions: {
       gl: "swangle",
       ignoreCertificateErrors: false,
