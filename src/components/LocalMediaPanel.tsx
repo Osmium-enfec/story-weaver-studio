@@ -9,7 +9,7 @@ const LOTTIE_EXT_RE = /\.(json|lottie)$/i;
 const VIDEO_EXT_RE = /\.(mp4|webm|mov)$/i;
 const AUDIO_EXT_RE = /\.(mp3|wav|ogg|m4a)$/i;
 
-type LocalKind = "image" | "lottie" | "video" | "audio" | "component";
+type LocalKind = "image" | "lottie" | "video" | "audio" | "component" | "3d";
 
 interface LocalItem {
   id: string;
@@ -17,18 +17,20 @@ interface LocalItem {
   category: string;
   kind: LocalKind;
   provider: string;
+  assetType?: string | null;
   url?: string | null;
   thumbnail?: string | null;
   tags: string[];
 }
 
-type FilterId = "all" | "lottie" | "icon" | "iconscout" | "image" | "video" | "audio" | "component" | "upload";
+type FilterId = "all" | "lottie" | "icon" | "iconscout" | "3d" | "image" | "video" | "audio" | "component" | "upload";
 
 const FILTERS: { id: FilterId; label: string }[] = [
   { id: "all", label: "All" },
   { id: "lottie", label: "Lottie" },
   { id: "icon", label: "Icon" },
   { id: "iconscout", label: "Iconscout" },
+  { id: "3d", label: "3D" },
   { id: "image", label: "Image" },
   { id: "video", label: "Video" },
   { id: "audio", label: "Audio" },
@@ -39,8 +41,10 @@ const FILTERS: { id: FilterId; label: string }[] = [
 function matchesFilter(item: LocalItem, f: FilterId): boolean {
   if (f === "all") return true;
   if (f === "icon") return item.provider === "iconify";
-  if (f === "iconscout") return item.provider === "iconscout";
+  if (f === "iconscout") return item.provider === "iconscout" && item.assetType !== "3d";
   if (f === "upload") return item.provider === "upload";
+  if (f === "3d") return item.assetType === "3d";
+  if (f === "image") return item.kind === "image" && item.assetType !== "3d";
   return item.kind === f;
 }
 
@@ -76,7 +80,7 @@ export function LocalMediaPanel() {
           for (let from = 0; ; from += pageSize) {
             const { data, error } = await supabase
               .from("animation_components")
-              .select("id,name,slug,category,tags,lottie_url,thumbnail_url,video_url,provider")
+              .select("id,name,slug,category,tags,lottie_url,thumbnail_url,video_url,provider,default_props")
               .order("created_at", { ascending: false })
               .range(from, from + pageSize - 1);
             if (error) throw error;
@@ -109,11 +113,14 @@ export function LocalMediaPanel() {
           };
         });
 
-        const comps: LocalItem[] = (compsRes.data ?? []).map((c) => {
+        const comps: LocalItem[] = (compsRes.data ?? []).map((c: any) => {
+          const assetType: string | null = c.default_props?.asset_type ?? null;
           const kind: LocalKind = c.lottie_url
             ? "lottie"
             : c.video_url
             ? "video"
+            : assetType === "3d"
+            ? "3d"
             : c.thumbnail_url
             ? "image"
             : "component";
@@ -123,6 +130,7 @@ export function LocalMediaPanel() {
             category: c.category || "Components",
             kind,
             provider: c.provider || "internal",
+            assetType,
             url: c.lottie_url || c.video_url || c.thumbnail_url,
             thumbnail: c.thumbnail_url,
             tags: c.tags ?? [],
@@ -247,7 +255,7 @@ export function LocalMediaPanel() {
               className="group flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-all hover:border-primary hover:shadow-sm"
             >
               <div className="relative aspect-square bg-muted/40">
-                {it.kind === "image" && it.thumbnail ? (
+                {(it.kind === "image" || it.kind === "3d") && it.thumbnail ? (
                   <img src={it.thumbnail} alt={it.name} className="h-full w-full object-contain" />
                 ) : it.kind === "lottie" && it.url ? (
                   <DotLottieReact src={it.url} loop autoplay style={{ width: "100%", height: "100%" }} />
