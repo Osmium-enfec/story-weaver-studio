@@ -126,18 +126,57 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
             easing: Easing.out(Easing.cubic),
           },
         );
-        const scale = isText
-          ? 1
-          : interpolate(
-              frame,
-              [revealFrame, revealFrame + dur],
-              [0.92, 1],
-              {
-                extrapolateLeft: "clamp",
-                extrapolateRight: "clamp",
-                easing: Easing.out(Easing.cubic),
-              },
-            );
+
+        // Per-element entrance for non-text blocks (mirrors AnimationBlock CSS keyframes)
+        const ia = el.content?.icon_animation as
+          | { type?: string; duration?: number; delay?: number }
+          | undefined;
+        const iaDurFrames = !isText && ia && ia.type && ia.type !== "none"
+          ? Math.max(1, Math.round(((ia.duration ?? 600) / 1000) * fps))
+          : dur;
+        const iaDelayFrames = !isText && ia && ia.type && ia.type !== "none"
+          ? Math.max(0, Math.round(((ia.delay ?? 0) / 1000) * fps))
+          : 0;
+        const iaStart = revealFrame + iaDelayFrames;
+        const iaEnd = iaStart + iaDurFrames;
+        const iaT = interpolate(frame, [iaStart, iaEnd], [0, 1], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+          easing: Easing.out(Easing.cubic),
+        });
+
+        let translateX = 0;
+        let translateY = 0;
+        let scale = isText ? 1 : interpolate(frame, [revealFrame, revealFrame + dur], [0.92, 1], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+          easing: Easing.out(Easing.cubic),
+        });
+        let rotate = 0;
+        let blurPx = 0;
+        let iaOpacity = opacity;
+
+        if (!isText && ia && ia.type && ia.type !== "none") {
+          iaOpacity = iaT;
+          switch (ia.type) {
+            case "fade": scale = 1; break;
+            case "scale": scale = 0.7 + 0.3 * iaT; break;
+            case "pop":
+              scale = iaT < 0.6 ? 0.4 + (1.15 - 0.4) * (iaT / 0.6) : 1.15 - 0.15 * ((iaT - 0.6) / 0.4);
+              break;
+            case "bounce":
+              scale = 0.8 + 0.2 * iaT;
+              translateY = iaT < 0.6 ? -40 + 48 * (iaT / 0.6) : 8 - 8 * ((iaT - 0.6) / 0.4);
+              break;
+            case "slide-up":    scale = 1; translateY = 28 * (1 - iaT); break;
+            case "slide-down":  scale = 1; translateY = -28 * (1 - iaT); break;
+            case "slide-left":  scale = 1; translateX = 36 * (1 - iaT); break;
+            case "slide-right": scale = 1; translateX = -36 * (1 - iaT); break;
+            case "spin":  scale = 0.6 + 0.4 * iaT; rotate = -180 * (1 - iaT); break;
+            case "flip":  scale = 1; rotate = 0; break; // perspective 3D not modeled here
+            case "blur":  scale = 1.05 - 0.05 * iaT; blurPx = 14 * (1 - iaT); break;
+          }
+        }
 
         const style: React.CSSProperties = {
           position: "absolute",
