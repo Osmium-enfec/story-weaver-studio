@@ -17,7 +17,7 @@ interface Props {
   onSelect: (a: AnimationResult) => void;
 }
 
-type ProviderFilter = "all" | "lottie" | "iconscout" | "iconify" | "unsplash" | "internal" | "upload";
+type ProviderFilter = "all" | "lottie" | "iconscout" | "iconify" | "unsplash" | "freepik" | "internal" | "upload";
 
 const FILTERS: { id: ProviderFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -25,6 +25,7 @@ const FILTERS: { id: ProviderFilter; label: string }[] = [
   { id: "iconscout", label: "Iconscout" },
   { id: "iconify", label: "Iconify" },
   { id: "unsplash", label: "Unsplash" },
+  { id: "freepik", label: "Freepik" },
   { id: "internal", label: "Local" },
   { id: "upload", label: "Uploads" },
 ];
