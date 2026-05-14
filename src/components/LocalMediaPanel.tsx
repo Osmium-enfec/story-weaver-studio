@@ -102,6 +102,7 @@ export function LocalMediaPanel() {
             name: f.name.replace(/\.[^.]+$/i, ""),
             category: kind === "image" ? "Images" : kind === "lottie" ? "Lottie" : kind === "video" ? "Videos" : "Audio",
             kind,
+            provider: "upload",
             url: data.publicUrl,
             thumbnail: kind === "image" ? data.publicUrl : null,
             tags: [],
