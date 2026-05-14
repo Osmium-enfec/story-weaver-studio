@@ -556,7 +556,7 @@ export function AnimationBlockRenderer({
     // monochrome alpha mask that takes the theme color we paint underneath.
     if (content.provider === "iconify") {
       const tint = content.tint || content.color || "#0f172a";
-      return (
+      return animWrap(
         <div style={wrapperStyle} className="pointer-events-none">
           <div
             style={{
@@ -571,15 +571,15 @@ export function AnimationBlockRenderer({
               maskPosition: "center",
               WebkitMaskSize: "contain",
               maskSize: "contain",
-              opacity: 0,
-              animation: "anim-block-fade-in 220ms ease-out 60ms forwards",
+              opacity: iaName ? 1 : 0,
+              animation: iaName ? undefined : "anim-block-fade-in 220ms ease-out 60ms forwards",
             }}
           />
           <style>{`@keyframes anim-block-fade-in { to { opacity: 1; } }`}</style>
         </div>
       );
     }
-    return (
+    return animWrap(
       <div style={wrapperStyle} className="pointer-events-none">
         {content.remove_background && <WhiteKeyFilterDef />}
         <img
@@ -590,8 +590,8 @@ export function AnimationBlockRenderer({
             width: "100%",
             height: "100%",
             objectFit: "contain",
-            opacity: 0,
-            animation: "anim-block-fade-in 220ms ease-out 60ms forwards",
+            opacity: iaName ? 1 : 0,
+            animation: iaName ? undefined : "anim-block-fade-in 220ms ease-out 60ms forwards",
           }}
         />
         <style>{`@keyframes anim-block-fade-in { to { opacity: 1; } }`}</style>
@@ -601,7 +601,7 @@ export function AnimationBlockRenderer({
 
   // Fallback: internal placeholder block — show the anchored word, not the asset_query
   const fallbackLabel = (content.word || content.text || "").trim();
-  return (
+  return animWrap(
     <div
       style={wrapperStyle}
       className="flex h-full w-full items-center justify-center rounded-md bg-primary/5 text-center"
@@ -615,3 +615,4 @@ export function AnimationBlockRenderer({
     </div>
   );
 }
+
