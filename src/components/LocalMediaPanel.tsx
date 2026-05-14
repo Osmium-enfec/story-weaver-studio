@@ -190,7 +190,7 @@ export function LocalMediaPanel() {
             onChange={(e) => {
               const value = e.target.value;
               setQuery(value);
-              if (value.trim()) setActiveCategory("all");
+              if (value.trim()) setActiveFilter("all");
             }}
             placeholder="Search local media…"
             className="h-9 pl-8 text-sm"
@@ -208,29 +208,23 @@ export function LocalMediaPanel() {
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        <button
-          onClick={() => setActiveCategory("all")}
-          className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-            activeCategory === "all"
-              ? "border-primary bg-primary text-primary-foreground"
-              : "border-border bg-background hover:bg-accent"
-          }`}
-        >
-          All ({items.length})
-        </button>
-        {categories.map(([cat, count]) => (
-          <button
-            key={cat}
-            onClick={() => setActiveCategory(cat)}
-            className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-              activeCategory === cat
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-background hover:bg-accent"
-            }`}
-          >
-            {cat} ({count})
-          </button>
-        ))}
+        {FILTERS.map((f) => {
+          const active = activeFilter === f.id;
+          const count = counts[f.id] ?? 0;
+          return (
+            <button
+              key={f.id}
+              onClick={() => setActiveFilter(f.id)}
+              className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                active
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background hover:bg-accent"
+              }`}
+            >
+              {f.label} ({count})
+            </button>
+          );
+        })}
       </div>
 
       {loading ? (
