@@ -300,7 +300,114 @@ function WhiteKeyFilterDef() {
   );
 }
 
-export function AnimationBlockRenderer({
+/**
+ * Lottie player that supports two modes:
+ *  - real-time autoplay (editor / preview / on-screen playback)
+ *  - deterministic mode (`deterministicMs` provided) where the playhead is
+ *    parked at a frame derived from virtual scene time. Required by the
+ *    deterministic exporter so each captured frame is reproducible.
+ */
+function LottiePlayer({
+  src,
+  loop,
+  autoplay,
+  speed,
+  deterministicMs,
+}: {
+  src: string;
+  loop: boolean;
+  autoplay: boolean;
+  speed: number;
+  deterministicMs?: number;
+}) {
+  const ref = useRef<DotLottie | null>(null);
+  const isDeterministic = typeof deterministicMs === "number";
+
+  useEffect(() => {
+    const dl = ref.current;
+    if (!dl || !isDeterministic) return;
+    try {
+      const totalFrames = dl.totalFrames || 0;
+      const fps = dl.frameRate || 30;
+      if (totalFrames <= 0 || fps <= 0) return;
+      const totalDurMs = (totalFrames / fps) * 1000;
+      const t = (deterministicMs ?? 0) * (speed || 1);
+      const positionMs = loop ? t % totalDurMs : Math.min(t, totalDurMs);
+      const frame = (positionMs / 1000) * fps;
+      dl.pause();
+      dl.setFrame(Math.max(0, Math.min(totalFrames - 1, frame)));
+    } catch { /* ignore — dotlottie not ready yet */ }
+  }, [deterministicMs, isDeterministic, loop, speed]);
+
+  return (
+    <DotLottieReact
+      src={src}
+      loop={loop}
+      autoplay={!isDeterministic && autoplay}
+      speed={speed}
+      dotLottieRefCallback={(dl) => {
+        ref.current = dl;
+        if (isDeterministic && dl) {
+          try { dl.pause(); } catch { /* */ }
+        }
+      }}
+      style={{ width: "100%", height: "100%" }}
+    />
+  );
+}
+
+/**
+ * <video> wrapper. In deterministic mode, seeks to virtual time instead of
+ * playing in real time. Without this, the exporter captures whatever frame
+ * the video happens to be on at snapshot time (random, often the first
+ * frame), which is why iconscout video clips appeared frozen.
+ */
+function DeterministicVideo({
+  src,
+  loop,
+  autoplay,
+  deterministicMs,
+}: {
+  src: string;
+  loop: boolean;
+  autoplay: boolean;
+  deterministicMs?: number;
+}) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  const isDeterministic = typeof deterministicMs === "number";
+
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || !isDeterministic) return;
+    if (!v.duration || isNaN(v.duration)) return;
+    const t = (deterministicMs ?? 0) / 1000;
+    const target = loop ? t % v.duration : Math.min(t, Math.max(0, v.duration - 0.001));
+    if (Math.abs(v.currentTime - target) > 0.01) {
+      try { v.currentTime = target; } catch { /* */ }
+    }
+  }, [deterministicMs, isDeterministic, loop]);
+
+  return (
+    <video
+      ref={ref}
+      src={src}
+      crossOrigin="anonymous"
+      autoPlay={!isDeterministic && autoplay}
+      loop={loop}
+      muted
+      playsInline
+      preload="auto"
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: "contain",
+        opacity: isDeterministic ? 1 : 0,
+        animation: isDeterministic ? undefined : "anim-block-fade-in 180ms ease-out 80ms forwards",
+      }}
+    />
+  );
+}
+
   content,
   exportMode = false,
   currentMs,
