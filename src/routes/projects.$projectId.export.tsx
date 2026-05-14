@@ -1,271 +1,131 @@
-import { createFileRoute, useParams } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { flushSync } from "react-dom";
-import { Download, Film, CheckSquare, Square, ArrowLeft } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { createFileRoute, useParams, Link } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { Download, Film, ArrowLeft, Server, Cloud, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useProject } from "@/components/project-context";
-import { DESIGN } from "@/lib/grid";
-import { ExportSceneStage, type ExportSceneData, type ExportElement } from "@/components/ExportSceneStage";
-import {
-  exportScenesToBlob,
-  convertWebmToMp4,
-  QUALITY_PRESETS,
-  type ExportQuality,
-  type ExportFormat,
-} from "@/lib/scene-exporter";
-import {
-  exportDeterministic,
-  isDeterministicExportSupported,
-} from "@/lib/deterministic-exporter";
+import { QUALITY_PRESETS, type ExportQuality } from "@/lib/scene-exporter";
+import { enqueueRenderJob, getRenderJob } from "@/server/render-jobs.functions";
 
 export const Route = createFileRoute("/projects/$projectId/export")({
   component: ExportPage,
 });
 
-interface SceneRow extends ExportSceneData {
-  order_index: number;
-  duration_ms: number;
-  voice_url: string | null;
-  voice_start_ms: number | null;
-  voice_end_ms: number | null;
-  voice_trim_start_ms: number;
-  voice_trim_end_ms: number | null;
-  voice_cuts: { start_ms: number; end_ms: number }[];
-  voice_volume: number;
-  voice_fade_in_ms: number;
-  voice_fade_out_ms: number;
+// Resolutions the server worker supports natively.
+const WORKER_RESOLUTIONS = new Set<ExportQuality>([
+  "720p",
+  "1080p",
+  "1080p60",
+  "4k",
+  "4k60",
+]);
+
+type QualityTier = "standard" | "high" | "max";
+
+function qualityTierFor(q: ExportQuality): QualityTier {
+  if (q === "4k" || q === "4k60") return "max";
+  if (q === "1080p60" || q === "1440p") return "high";
+  return "high";
 }
 
-const DEFAULT_BG = { type: "color" as const, value: "#ffffff" };
+interface JobState {
+  id: string;
+  status: "pending" | "rendering" | "done" | "failed";
+  progress: number;
+  output_url: string | null;
+  error: string | null;
+}
 
 function ExportPage() {
   const { projectId } = useParams({ from: "/projects/$projectId/export" });
   const { project } = useProject();
-  const [scenes, setScenes] = useState<SceneRow[]>([]);
-  const [scope, setScope] = useState<"all" | "select">("all");
-  const [picked, setPicked] = useState<Record<string, boolean>>({});
-  const [quality, setQuality] = useState<ExportQuality>("1080p");
-  const [format, setFormat] = useState<ExportFormat>("webm");
+  const enqueue = useServerFn(enqueueRenderJob);
+  const fetchJob = useServerFn(getRenderJob);
+
+  const [quality, setQuality] = useState<ExportQuality>("4k");
   const [includeAudio, setIncludeAudio] = useState(true);
   const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [phase, setPhase] = useState<string>("");
-  const [playingSceneId, setPlayingSceneId] = useState<string | null>(null);
-  const [sceneTimeMs, setSceneTimeMs] = useState(0);
-  const [convertPct, setConvertPct] = useState<number | null>(null);
-  const stageRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const mountResolvers = useRef<Record<string, ((el: HTMLDivElement) => void) | null>>({});
-  const abortRef = useRef<AbortController | null>(null);
+  const [job, setJob] = useState<JobState | null>(null);
+  const pollRef = useRef<number | null>(null);
 
-  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [projectId]);
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) window.clearTimeout(pollRef.current);
+    };
+  }, []);
 
-  async function load() {
-    const { data: rows, error } = await supabase
-      .from("scenes")
-      .select("id, order_index, background, duration_ms, word_timings, voice_url, voice_start_ms, voice_end_ms, voice_trim_start_ms, voice_trim_end_ms, voice_cuts, voice_volume, voice_fade_in_ms, voice_fade_out_ms")
-      .eq("project_id", projectId)
-      .order("order_index");
-    if (error) { toast.error(error.message); return; }
-    const sceneIds = (rows ?? []).map((r) => r.id);
-    const { data: els } = await supabase
-      .from("scene_elements")
-      .select("*")
-      .in("scene_id", sceneIds)
-      .order("z_index");
-    const byScene = new Map<string, ExportElement[]>();
-    for (const id of sceneIds) byScene.set(id, []);
-    for (const e of (els ?? []) as unknown as ((ExportElement & { scene_id: string })[])) {
-      byScene.get(e.scene_id)?.push(e);
-    }
-    const built: SceneRow[] = (rows ?? []).map((r) => {
-      const bg = (r as unknown as { background: ExportSceneData["background"] | null }).background ?? DEFAULT_BG;
-      return {
-        id: r.id,
-        order_index: r.order_index,
-        background: bg,
-        elements: byScene.get(r.id) ?? [],
-        duration_ms: (r as unknown as { duration_ms: number }).duration_ms ?? 4000,
-        word_timings: ((r as unknown as { word_timings: { text: string; start_ms: number; end_ms: number }[] | null }).word_timings) ?? [],
-        voice_url: r.voice_url,
-        voice_start_ms: r.voice_start_ms,
-        voice_end_ms: r.voice_end_ms,
-        voice_trim_start_ms: r.voice_trim_start_ms ?? 0,
-        voice_trim_end_ms: r.voice_trim_end_ms,
-        voice_cuts: (r.voice_cuts as { start_ms: number; end_ms: number }[]) ?? [],
-        voice_volume: r.voice_volume ?? 1,
-        voice_fade_in_ms: r.voice_fade_in_ms ?? 0,
-        voice_fade_out_ms: r.voice_fade_out_ms ?? 0,
-      };
-    });
-    setScenes(built);
-    setPicked(Object.fromEntries(built.map((s) => [s.id, true])));
-  }
-
-  const selectedScenes = useMemo(() => {
-    if (scope === "all") return scenes;
-    return scenes.filter((s) => picked[s.id]);
-  }, [scenes, picked, scope]);
-
-  const totalDurationMs = useMemo(
-    () => selectedScenes.reduce((s, sc) => s + sc.duration_ms, 0),
-    [selectedScenes],
-  );
-
-  const estSeconds = useMemo(() => {
-    // Heuristic: scales with pixels × fps relative to 1080p30 baseline (~2× realtime).
-    const p = QUALITY_PRESETS[quality];
-    const pixelFactor = (p.width * p.height) / (1920 * 1080);
-    const fpsFactor = p.fps / 30;
-    const factor = 2 * pixelFactor * fpsFactor;
-    const mp4Extra = format === "mp4" ? totalDurationMs * 0.5 : 0;
-    return Math.round((totalDurationMs * factor + mp4Extra) / 1000);
-  }, [totalDurationMs, quality, format]);
-
-  async function runExport() {
-    if (selectedScenes.length === 0) {
-      toast.error("Pick at least one canvas to export");
+  async function startRender() {
+    if (!WORKER_RESOLUTIONS.has(quality)) {
+      toast.error(
+        `${quality} isn't supported by the server renderer yet. Pick 720p, 1080p, 1080p60, 4K, or 4K60.`,
+      );
       return;
     }
-    const useDeterministic = isDeterministicExportSupported();
-    if (!useDeterministic && typeof MediaRecorder === "undefined") {
-      toast.error("This browser does not support video export");
-      return;
-    }
-    abortRef.current = new AbortController();
     setRunning(true);
-    setProgress(0);
-    setPhase("Initialising");
+    setJob(null);
     try {
-      await new Promise((r) => requestAnimationFrame(() => r(null)));
-      const exporterScenes = selectedScenes.map((s) => ({
-        id: s.id,
-        duration_ms: s.duration_ms,
-        voice_url: s.voice_url,
-        voice_start_ms: s.voice_start_ms,
-        voice_end_ms: s.voice_end_ms,
-        voice_trim_start_ms: s.voice_trim_start_ms,
-        voice_trim_end_ms: s.voice_trim_end_ms,
-        voice_cuts: s.voice_cuts,
-        voice_volume: s.voice_volume,
-        voice_fade_in_ms: s.voice_fade_in_ms,
-        voice_fade_out_ms: s.voice_fade_out_ms,
-        mount: () =>
-          new Promise<HTMLElement>((resolve) => {
-            const existing = stageRefs.current[s.id];
-            if (existing) {
-              resolve(existing);
-              return;
-            }
-            mountResolvers.current[s.id] = (el) => resolve(el);
-            flushSync(() => {
-              setSceneTimeMs(0);
-              setPlayingSceneId(s.id);
-            });
-          }),
-        unmount: () => {
-          mountResolvers.current[s.id] = null;
-          stageRefs.current[s.id] = null;
-          setPlayingSceneId((cur) => (cur === s.id ? null : cur));
+      const res = await enqueue({
+        data: {
+          projectId,
+          settings: {
+            resolution: quality,
+            quality: qualityTierFor(quality),
+            includeAudio,
+          },
         },
-      }));
-
-      let finalBlob: Blob;
-      let ext: string;
-
-      if (useDeterministic) {
-        const preset = QUALITY_PRESETS[quality];
-        finalBlob = await exportDeterministic({
-          scenes: exporterScenes,
-          width: preset.width,
-          height: preset.height,
-          fps: preset.fps,
-          videoBitrate: preset.bitsPerSecond,
-          includeAudio,
-          signal: abortRef.current.signal,
-          onPlayingScene: (sceneId) => {
-            flushSync(() => {
-              setSceneTimeMs(0);
-              setPlayingSceneId(sceneId);
-            });
-          },
-          onSceneTime: (_sceneId, currentMs) => {
-            flushSync(() => setSceneTimeMs(Math.round(currentMs)));
-          },
-          onProgress: ({ pct, phase }) => {
-            setProgress(pct);
-            setPhase(phase);
-          },
-        });
-        ext = "mp4";
-      } else {
-        const webm = await exportScenesToBlob({
-          scenes: exporterScenes,
-          quality,
-          format,
-          includeAudio,
-          signal: abortRef.current.signal,
-          onPlayingScene: (sceneId) => {
-            setSceneTimeMs(0);
-            setPlayingSceneId(sceneId);
-          },
-          onSceneTime: (_sceneId, currentMs) => setSceneTimeMs(Math.round(currentMs)),
-          onProgress: ({ pct, phase }) => {
-            setProgress(pct);
-            setPhase(phase);
-          },
-        });
-        finalBlob = webm;
-        ext = "webm";
-        if (format === "mp4") {
-          setPhase("Converting to MP4");
-          setConvertPct(0);
-          try {
-            finalBlob = await convertWebmToMp4(webm, (p) => setConvertPct(p));
-            ext = "mp4";
-          } catch (e) {
-            console.error(e);
-            toast.warning("MP4 conversion failed, downloading WebM instead");
-          } finally {
-            setConvertPct(null);
-          }
-        }
-      }
-
-      const url = URL.createObjectURL(finalBlob);
-      const a = document.createElement("a");
-      const baseName = (project.title || "code-motion").replace(/[^\w-]+/g, "-");
-      const sceneSuffix =
-        selectedScenes.length === 1 ? `-scene-${selectedScenes[0].order_index + 1}` : "";
-      a.href = url;
-      a.download = `${baseName}${sceneSuffix}-${quality}.${ext}`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-      toast.success("Export complete");
+      });
+      const j = res.job;
+      setJob({
+        id: j.id,
+        status: j.status,
+        progress: j.progress ?? 0,
+        output_url: j.output_url ?? null,
+        error: j.error ?? null,
+      });
+      toast.success("Render queued on server");
+      poll(j.id);
     } catch (e) {
-      const msg = (e as Error).message;
-      if (msg !== "Aborted") {
-        console.error(e);
-        toast.error(msg);
-      }
-    } finally {
+      console.error(e);
+      toast.error((e as Error).message);
       setRunning(false);
-      setPlayingSceneId(null);
-      setProgress(0);
-      setPhase("");
     }
   }
 
-  function cancel() {
-    abortRef.current?.abort();
+  function poll(jobId: string) {
+    const tick = async () => {
+      try {
+        const { job: j } = await fetchJob({ data: { jobId } });
+        setJob({
+          id: j.id,
+          status: j.status as JobState["status"],
+          progress: j.progress ?? 0,
+          output_url: j.output_url ?? null,
+          error: j.error ?? null,
+        });
+        if (j.status === "done") {
+          setRunning(false);
+          toast.success("Render complete");
+          return;
+        }
+        if (j.status === "failed") {
+          setRunning(false);
+          toast.error(j.error || "Render failed");
+          return;
+        }
+        pollRef.current = window.setTimeout(tick, 2000);
+      } catch (e) {
+        console.error(e);
+        pollRef.current = window.setTimeout(tick, 4000);
+      }
+    };
+    tick();
   }
+
+  const baseName = (project.title || "code-motion").replace(/[^\w-]+/g, "-");
 
   return (
     <div className="mx-auto max-w-3xl p-6 space-y-6">
@@ -278,71 +138,34 @@ function ExportPage() {
         <h1 className="text-2xl font-semibold flex items-center gap-2">
           <Download className="h-6 w-6" /> Export
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Renders your canvases at full quality with synced voice. Takes longer
-          than realtime — keep this tab open until it's done.
+        <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5">
+          <Server className="h-4 w-4" />
+          Frame-accurate server-side render. You can close this tab — the job keeps running.
         </p>
       </div>
 
       <section className="rounded-lg border bg-card p-4 space-y-4">
-        <div>
-          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Scope</Label>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Button
-              variant={scope === "all" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setScope("all")}
-              disabled={running}
-            >
-              Whole project ({scenes.length} canvas{scenes.length === 1 ? "" : "es"})
-            </Button>
-            <Button
-              variant={scope === "select" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setScope("select")}
-              disabled={running}
-            >
-              Pick canvases
-            </Button>
-          </div>
-          {scope === "select" && (
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {scenes.map((s) => {
-                const on = !!picked[s.id];
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => setPicked((p) => ({ ...p, [s.id]: !on }))}
-                    disabled={running}
-                    className={`flex items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition-colors ${
-                      on ? "border-primary bg-primary/10" : "border-border bg-card hover:bg-muted/50"
-                    }`}
-                  >
-                    <span>Canvas {s.order_index + 1}</span>
-                    {on ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4 text-muted-foreground" />}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
         <div>
           <Label className="text-xs uppercase tracking-wide text-muted-foreground">Quality</Label>
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {(Object.keys(QUALITY_PRESETS) as ExportQuality[]).map((q) => {
               const p = QUALITY_PRESETS[q];
               const mbps = Math.round(p.bitsPerSecond / 1_000_000);
+              const supported = WORKER_RESOLUTIONS.has(q);
               return (
                 <Button
                   key={q}
                   variant={quality === q ? "default" : "outline"}
                   size="sm"
                   onClick={() => setQuality(q)}
-                  disabled={running}
+                  disabled={running || !supported}
                   className="h-auto flex-col items-start py-2"
+                  title={supported ? "" : "Not supported by server renderer"}
                 >
-                  <span className="font-medium">{p.label}</span>
+                  <span className="font-medium">
+                    {p.label}
+                    {!supported && " (n/a)"}
+                  </span>
                   <span className="text-[10px] opacity-70">
                     {p.width}×{p.height} · {p.fps}fps · {mbps} Mbps
                   </span>
@@ -351,35 +174,8 @@ function ExportPage() {
             })}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Pick <strong>4K · Max</strong> for the sharpest output. 4K renders are slower and produce larger files. 1080p · High is the recommended balance.
+            Pick <strong>4K · Max</strong> for the sharpest output. Output format is MP4 (H.264 + AAC).
           </p>
-        </div>
-
-        <div>
-          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Format</Label>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Button
-              variant={format === "webm" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFormat("webm")}
-              disabled={running}
-            >
-              WebM (faster)
-            </Button>
-            <Button
-              variant={format === "mp4" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFormat("mp4")}
-              disabled={running}
-            >
-              MP4 (universal)
-            </Button>
-          </div>
-          {format === "mp4" && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              Adds an extra transcoding pass after recording (~30–60s).
-            </p>
-          )}
         </div>
 
         <div className="flex items-center justify-between">
@@ -391,94 +187,58 @@ function ExportPage() {
         </div>
 
         <div className="flex items-center justify-between border-t border-border pt-3">
-          <div className="text-sm text-muted-foreground">
-            {selectedScenes.length} canvas{selectedScenes.length === 1 ? "" : "es"} ·{" "}
-            {(totalDurationMs / 1000).toFixed(1)}s output · ~{estSeconds}s render time
+          <div className="text-sm text-muted-foreground flex items-center gap-1.5">
+            <Cloud className="h-4 w-4" /> Renders on your server worker
           </div>
-          {running ? (
-            <Button variant="outline" onClick={cancel}>Cancel</Button>
-          ) : (
-            <Button onClick={runExport} disabled={selectedScenes.length === 0}>
-              <Film className="mr-2 h-4 w-4" /> Start export
-            </Button>
-          )}
+          <Button onClick={startRender} disabled={running}>
+            <Film className="mr-2 h-4 w-4" />
+            {running ? "Rendering…" : "Start export"}
+          </Button>
         </div>
 
-        {running && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>{phase || "Working…"}</span>
-              <span>{progress}%</span>
+        {job && (
+          <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-mono text-muted-foreground">Job {job.id.slice(0, 8)}</span>
+              <span className="capitalize font-medium flex items-center gap-1">
+                {job.status === "done" && <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />}
+                {job.status === "failed" && <XCircle className="h-3.5 w-3.5 text-destructive" />}
+                {job.status}
+              </span>
             </div>
-            <Progress value={progress} />
-            {convertPct != null && (
+            {job.status !== "done" && job.status !== "failed" && (
               <>
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>MP4 transcode</span>
-                  <span>{convertPct}%</span>
-                </div>
-                <Progress value={convertPct} />
+                <Progress value={job.progress} />
+                <div className="text-xs text-muted-foreground text-right">{job.progress}%</div>
               </>
+            )}
+            {job.status === "done" && job.output_url && (
+              <div className="flex items-center gap-2">
+                <Button asChild size="sm">
+                  <a href={job.output_url} download={`${baseName}-${quality}.mp4`}>
+                    <Download className="mr-2 h-4 w-4" /> Download MP4
+                  </a>
+                </Button>
+                <a
+                  href={job.output_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-muted-foreground underline"
+                >
+                  Open in new tab
+                </a>
+              </div>
+            )}
+            {job.status === "failed" && job.error && (
+              <p className="text-xs text-destructive whitespace-pre-wrap">{job.error}</p>
             )}
           </div>
         )}
       </section>
 
-      {/* Off-screen stage — only the currently-recording scene is mounted so
-          its CSS animations begin in lockstep with the audio. Each scene gets
-          a fresh key so React fully unmounts and remounts between scenes. */}
-      <div
-        aria-hidden
-        style={{
-          position: "fixed",
-          left: 0,
-          top: 0,
-          width: DESIGN.w,
-          height: DESIGN.h,
-          pointerEvents: "none",
-          opacity: 0,
-          zIndex: -1,
-          overflow: "hidden",
-        }}
-      >
-        {(() => {
-          const s = selectedScenes.find((x) => x.id === playingSceneId);
-          if (!s) return null;
-          return (
-            <div
-              key={s.id}
-              style={{
-                position: "absolute",
-                left: 0,
-                top: 0,
-                width: DESIGN.w,
-                height: DESIGN.h,
-              }}
-            >
-              <ExportSceneStage
-                ref={(el) => {
-                  stageRefs.current[s.id] = el;
-                  if (el) {
-                    const r = mountResolvers.current[s.id];
-                    if (r) {
-                      mountResolvers.current[s.id] = null;
-                      r(el);
-                    }
-                  }
-                }}
-                scene={s}
-                isPlaying
-                currentMs={sceneTimeMs}
-                exportMode
-              />
-            </div>
-          );
-        })()}
-      </div>
-
       <p className="text-xs text-muted-foreground">
-        Tip: animated Lottie / video backgrounds are captured as a still frame.
-        For text, images, icons and shapes the export matches the editor exactly.
+        Renders run on your dedicated worker (Remotion + Chromium + ffmpeg). Each frame is computed
+        deterministically — no realtime browser recording, no dropped frames.
       </p>
     </div>
   );
