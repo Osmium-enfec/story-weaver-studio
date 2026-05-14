@@ -35,7 +35,11 @@ async function getBundle(): Promise<string> {
 export async function runRender(jobId: string) {
   await updateJob(jobId, { status: "rendering", progress: 1 });
 
-  const { job, scenes } = await fetchJobBundle(jobId);
+  const { job, scenes: rawScenes } = await fetchJobBundle(jobId);
+  const scenes = Array.isArray(rawScenes) ? rawScenes : [];
+  if (scenes.length === 0) {
+    throw new Error(`job ${jobId} has no scenes for project ${job?.project_id}`);
+  }
   const settings = job.settings ?? {};
 
   // Default to MAX QUALITY: 4k @ 30fps, CRF 14 (visually lossless).
@@ -50,7 +54,7 @@ export async function runRender(jobId: string) {
 
   const totalMs =
     scenes.reduce(
-      (sum: number, s: any) => sum + (s.duration_ms ?? 4000),
+      (sum: number, s: any) => sum + (s?.duration_ms ?? 4000),
       0,
     ) || 4000;
   const durationInFrames = Math.max(
