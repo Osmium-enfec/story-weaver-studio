@@ -84,6 +84,7 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
     iconscout: results.filter((r) => r.provider === "iconscout").length,
     iconify: results.filter((r) => r.provider === "iconify").length,
     unsplash: results.filter((r) => r.provider === "unsplash").length,
+    freepik: results.filter((r) => r.provider === "freepik").length,
     internal: results.filter((r) => r.provider === "internal").length,
     upload: results.filter((r) => r.provider === "upload").length,
   };
