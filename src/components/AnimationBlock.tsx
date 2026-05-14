@@ -498,7 +498,7 @@ export function AnimationBlockRenderer({
 
   if (content.provider === "image" && (content.video_url || content.lottie_url)) {
     const src = content.video_url || content.lottie_url!;
-    return (
+    return animWrap(
       <div style={wrapperStyle} className="pointer-events-none">
         {content.remove_background && <WhiteKeyFilterDef />}
         <img
@@ -511,7 +511,7 @@ export function AnimationBlockRenderer({
   }
 
   if (isLottie) {
-    return (
+    return animWrap(
       <div style={wrapperStyle} className="pointer-events-none">
         {content.remove_background && <WhiteKeyFilterDef />}
         <LottiePlayer
@@ -526,7 +526,7 @@ export function AnimationBlockRenderer({
   }
 
   if (content.provider === "iconscout" && content.video_url) {
-    return (
+    return animWrap(
       <div
         style={{ ...wrapperStyle, isolation: "isolate", overflow: "hidden" }}
         className="pointer-events-none"
