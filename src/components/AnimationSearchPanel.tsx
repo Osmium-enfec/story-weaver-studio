@@ -90,7 +90,7 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
   };
 
   async function handleSelect(r: AnimationResult) {
-    if (r.provider === "iconify" || r.provider === "unsplash") {
+    if (r.provider === "iconify" || r.provider === "unsplash" || r.provider === "freepik") {
       const cachedUrl = await mirrorExternalResult(r);
       if (cachedUrl) {
         onSelect({ ...r, thumbnail_url: cachedUrl, video_url: cachedUrl });
