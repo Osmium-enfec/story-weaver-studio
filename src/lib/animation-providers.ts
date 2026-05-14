@@ -226,6 +226,23 @@ export async function mirrorExternalResult(r: AnimationResult): Promise<string |
       });
       return out.thumbnail_url ?? null;
     }
+    if (r.provider === "freepik" && r.external_id) {
+      // id format: freepik:<asset_type>:<id>
+      const [, assetType] = r.id.split(":");
+      const at = (assetType as "photo" | "vector" | "video" | "icon") || "photo";
+      const out = await cacheFreepikAsset({
+        data: {
+          resource_id: r.external_id,
+          asset_type: at,
+          name: r.name,
+          preview_url: r.thumbnail_url ?? undefined,
+          author: r.category?.replace(/^Freepik · /, "") ?? undefined,
+          palette: [],
+          category: "Freepik",
+        },
+      });
+      return at === "video" ? out.video_url ?? null : out.thumbnail_url ?? null;
+    }
   } catch (e) {
     console.error("mirrorExternalResult failed", e);
   }
