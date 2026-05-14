@@ -26,7 +26,8 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
 }
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, {
-  auth: { persistSession: false },
+  auth: { persistSession: false, autoRefreshToken: false },
+  realtime: { transport: ws },
 });
 
 const BUCKET = "voice-uploads";
