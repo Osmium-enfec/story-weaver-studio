@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node --import tsx/esm src/server.ts",
-    "dev": "node --import tsx/esm --watch src/server.ts"
+    "dev": "node --import tsx/esm --watch src/server.ts",
+    "transcode:existing": "node --import tsx/esm scripts/transcode-existing.ts"
   },
   "dependencies": {
     "@remotion/bundler": "^4.0.0",
