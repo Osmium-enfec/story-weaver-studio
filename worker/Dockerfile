@@ -1,12 +1,13 @@
-# Remotion needs Chromium + ffmpeg. Use the official Remotion-friendly base.
 FROM node:20-bookworm-slim
 
-# Install Chromium dependencies + ffmpeg
+# Chromium + ffmpeg + fonts for high-fidelity rendering (Lottie, emoji, CJK)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     ffmpeg \
     fonts-liberation \
     fonts-noto-color-emoji \
+    fonts-noto-cjk \
+    fonts-inter \
     libnss3 \
     libatk1.0-0 \
     libatk-bridge2.0-0 \
@@ -21,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpango-1.0-0 \
     libcairo2 \
     libasound2 \
+    libxshmfence1 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 

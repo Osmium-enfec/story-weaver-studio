@@ -4,101 +4,136 @@ import {
   selectComposition,
   openBrowser,
 } from "@remotion/renderer";
-import { createClient } from "@supabase/supabase-js";
 import path from "node:path";
 import fs from "node:fs/promises";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { fetchJob, postUpdate } from "./server.js";
+import { sb, fetchJobBundle, updateJob } from "./supabase.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const sb = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
-
-const RESOLUTIONS: Record<string, { w: number; h: number }> = {
-  "720p": { w: 1280, h: 720 },
-  "1080p": { w: 1920, h: 1080 },
-  "4k": { w: 3840, h: 2160 },
+const RES: Record<string, { w: number; h: number; fps: number }> = {
+  "720p":    { w: 1280, h: 720,  fps: 30 },
+  "1080p":   { w: 1920, h: 1080, fps: 30 },
+  "1080p60": { w: 1920, h: 1080, fps: 60 },
+  "4k":      { w: 3840, h: 2160, fps: 30 },
+  "4k60":    { w: 3840, h: 2160, fps: 60 },
 };
 
+// Bundle once, reuse across renders. Re-bundling per render is the #1 perf mistake.
+let bundledOnce: string | null = null;
+
+async function getBundle(): Promise<string> {
+  if (bundledOnce) return bundledOnce;
+  bundledOnce = await bundle({
+    entryPoint: path.resolve(__dirname, "../remotion/index.ts"),
+    webpackOverride: (c) => c,
+  });
+  return bundledOnce;
+}
+
 export async function runRender(jobId: string) {
-  await postUpdate(jobId, { status: "rendering", progress: 1 });
+  await updateJob(jobId, { status: "rendering", progress: 1 });
 
-  const { job, scenes } = await fetchJob(jobId);
+  const { job, scenes } = await fetchJobBundle(jobId);
   const settings = job.settings ?? {};
-  const res = RESOLUTIONS[settings.resolution as string] ?? RESOLUTIONS["1080p"];
 
-  // Total frames @ 30fps: sum of scene durations
-  const fps = 30;
-  const totalMs = scenes.reduce(
-    (sum: number, s: any) => sum + (s.duration_ms ?? 5000),
-    0,
-  ) || 5000;
-  const durationInFrames = Math.max(30, Math.round((totalMs / 1000) * fps));
+  // Default to MAX QUALITY: 4k @ 30fps, CRF 14 (visually lossless).
+  const resKey = (settings.resolution as string) ?? "4k";
+  const res = RES[resKey] ?? RES["4k"];
+  const crf =
+    settings.quality === "max"
+      ? 12
+      : settings.quality === "high"
+      ? 16
+      : 20;
 
-  const inputProps = { scenes, project: job.projects ?? null };
+  const totalMs =
+    scenes.reduce(
+      (sum: number, s: any) => sum + (s.duration_ms ?? 4000),
+      0,
+    ) || 4000;
+  const durationInFrames = Math.max(
+    res.fps,
+    Math.round((totalMs / 1000) * res.fps),
+  );
+
+  const inputProps = {
+    scenes,
+    includeAudio: settings.includeAudio !== false,
+    width: res.w,
+    height: res.h,
+    fps: res.fps,
+  };
 
   const outDir = await fs.mkdtemp(path.join(os.tmpdir(), "render-"));
   const outPath = path.join(outDir, `${jobId}.mp4`);
 
-  await postUpdate(jobId, { progress: 5 });
+  await updateJob(jobId, { progress: 5 });
 
-  const bundled = await bundle({
-    entryPoint: path.resolve(__dirname, "../remotion/index.ts"),
-    webpackOverride: (c) => c,
-  });
+  const serveUrl = await getBundle();
 
-  await postUpdate(jobId, { progress: 15 });
+  await updateJob(jobId, { progress: 12 });
 
   const browser = await openBrowser("chrome", {
     browserExecutable:
       process.env.REMOTION_CHROME_EXECUTABLE ?? "/usr/bin/chromium",
     chromiumOptions: {
-      args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
+      gl: "swangle",
+      ignoreCertificateErrors: false,
+      headless: true,
+      enableMultiProcessOnLinux: true,
     },
   });
 
-  const composition = await selectComposition({
-    serveUrl: bundled,
-    id: "main",
-    inputProps,
-    puppeteerInstance: browser,
-  });
+  try {
+    const composition = await selectComposition({
+      serveUrl,
+      id: "main",
+      inputProps,
+      puppeteerInstance: browser,
+    });
 
-  await renderMedia({
-    composition: {
-      ...composition,
-      width: res.w,
-      height: res.h,
-      fps,
-      durationInFrames,
-    },
-    serveUrl: bundled,
-    codec: "h264",
-    outputLocation: outPath,
-    inputProps,
-    puppeteerInstance: browser,
-    concurrency: 1,
-    onProgress: ({ progress }) => {
-      // 15..90 range during render
-      const p = 15 + Math.round(progress * 75);
-      postUpdate(jobId, { progress: p }).catch(() => {});
-    },
-  });
+    await renderMedia({
+      composition: {
+        ...composition,
+        width: res.w,
+        height: res.h,
+        fps: res.fps,
+        durationInFrames,
+      },
+      serveUrl,
+      codec: "h264",
+      crf,
+      pixelFormat: "yuv420p",
+      audioCodec: "aac",
+      audioBitrate: "320k",
+      enforceAudioTrack: true,
+      outputLocation: outPath,
+      inputProps,
+      puppeteerInstance: browser,
+      concurrency: Number(process.env.RENDER_CONCURRENCY ?? 2),
+      timeoutInMilliseconds: 120_000,
+      chromiumOptions: {
+        gl: "swangle",
+        headless: true,
+      },
+      onProgress: ({ progress }) => {
+        const pct = Math.min(95, 12 + Math.round(progress * 80));
+        void updateJob(jobId, { progress: pct });
+      },
+    });
+  } finally {
+    await browser.close({ silent: true }).catch(() => {});
+  }
 
-  await browser.close({ silent: false });
+  await updateJob(jobId, { progress: 96 });
 
-  await postUpdate(jobId, { progress: 92 });
-
-  // Upload to Lovable Cloud Storage
-  const fileBytes = await fs.readFile(outPath);
+  const bytes = await fs.readFile(outPath);
   const storagePath = `renders/${jobId}.mp4`;
   const { error: upErr } = await sb.storage
     .from("animation-cache")
-    .upload(storagePath, fileBytes, {
+    .upload(storagePath, bytes, {
       contentType: "video/mp4",
       upsert: true,
     });
@@ -108,10 +143,10 @@ export async function runRender(jobId: string) {
     .from("animation-cache")
     .getPublicUrl(storagePath);
 
-  await postUpdate(jobId, {
+  await updateJob(jobId, {
     status: "done",
     progress: 100,
-    outputUrl: pub.publicUrl,
+    output_url: pub.publicUrl,
   });
 
   await fs.rm(outDir, { recursive: true, force: true });

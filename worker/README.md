@@ -1,67 +1,86 @@
-# Code Motion Render Worker — Deploy on Render.com
+# CodeMotion Render Worker
 
-Renders Remotion videos for the Lovable app and uploads MP4s to Lovable Cloud Storage.
+Production render worker for CodeMotion. Frame-accurate Remotion
+rendering on headless Chromium, exporting up to **4K H.264 / AAC**.
 
-## Deploy on Render.com (no CLI needed)
+## What it renders
 
-### 1. Push this `worker/` folder to a GitHub repo
-Render deploys from GitHub. Easiest path:
-1. Create a new GitHub repo (e.g. `code-motion-render-worker`) — can be private.
-2. Copy the contents of this `worker/` folder into the repo root and push.
+- Frame-accurate text reveals (per-word, voice-trim aware)
+- Lottie animations via `@remotion/lottie` (deterministic playhead)
+- Video clips via `<OffthreadVideo>` (exact frame extraction)
+- Images, shapes, gradients, image backgrounds
+- Voiceover audio per scene, trimmed to match
 
-> If you'd rather keep everything in one repo, you can also point Render at a subdirectory — see step 3.
+## Endpoints
 
-### 2. Sign in to Render
-Go to https://render.com and sign up / log in (free, GitHub login works).
+- `GET  /healthz` – liveness probe
+- `POST /render`  – kick a render. Body: `{ "jobId": "<uuid>" }`.
+  Header: `x-worker-secret: <RENDER_WORKER_SECRET>`.
 
-### 3. Create the service
-1. Click **New +** → **Web Service**.
-2. Connect your GitHub account and pick the repo from step 1.
-3. Render will auto-detect the `render.yaml` and `Dockerfile`. Confirm:
-   - **Runtime**: Docker
-   - **Plan**: Standard ($25/mo — needed for Chromium + ffmpeg headroom)
-   - **Region**: pick the closest one
-   - **Branch**: `main`
-   - If you put the worker in a subfolder of a bigger repo, set **Root Directory** to `worker`.
-4. Click **Create Web Service**. The first build takes ~5–8 min (Chromium + ffmpeg image is ~1.5 GB).
+If the kick fails, the polling loop (`queue.ts`) will pick the job up within
+~5 s as long as it is `status = 'pending'` in the `render_jobs` table.
 
-### 4. Set the environment variables
-In the service dashboard → **Environment** → **Add Environment Variable**, add all four:
+## Settings the app can pass per job
 
-| Key | Value |
-|-----|-------|
-| `RENDER_WORKER_SECRET` | Run `openssl rand -hex 32` locally and paste the output. **Save this — you'll give it to Lovable.** |
-| `LOVABLE_APP_URL` | `https://project--adee30b3-ab01-48b5-858a-891d7104de3b.lovable.app` |
-| `SUPABASE_URL` | (from your Lovable Cloud secrets) |
-| `SUPABASE_SERVICE_ROLE_KEY` | (from your Lovable Cloud secrets) |
+```jsonc
+// render_jobs.settings
+{
+  "resolution": "4k",       // "720p" | "1080p" | "1080p60" | "4k" | "4k60"
+  "quality":    "max",      // "max" (CRF 12) | "high" (CRF 16) | "standard" (CRF 20)
+  "includeAudio": true
+}
+```
 
-Click **Save Changes** — Render will redeploy automatically.
+Defaults: `4k`, `max`, audio on.
 
-### 5. Grab your URL
-Top of the service page: e.g. `https://code-motion-render-worker.onrender.com`. That's your `RENDER_WORKER_URL`.
+## Environment
 
-### 6. Plug back into Lovable
-In the Lovable chat, paste:
-- `RENDER_WORKER_URL` = `https://code-motion-render-worker.onrender.com`
-- `RENDER_WORKER_SECRET` = the random string from step 4
+```
+SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+RENDER_WORKER_SECRET=<openssl rand -hex 32>
+PORT=8080
+RENDER_CONCURRENCY=2
+REMOTION_CHROME_EXECUTABLE=/usr/bin/chromium
+QUEUE_POLL_MS=5000
+```
 
-I'll add them as secrets and the Export page will start firing real renders.
+## Deploy
 
----
+See `docs/SERVER_RENDER_WORKER.md` in the main repo for the full DigitalOcean
+droplet + systemd + Caddy walkthrough. TL;DR:
 
-## Notes about the Render.com free/standard tier
-- The **Standard** plan ($25/mo) keeps the service warm 24/7 — no cold starts.
-- The **Free** plan sleeps after 15 min of inactivity AND has only 512 MB RAM — **not enough** for Remotion + Chromium. Don't use free.
-- If 4K renders crash with OOM, bump the plan to **Pro** (4 GB RAM) in the dashboard.
-
-## Test locally (optional)
 ```bash
-cd worker
-npm install
-RENDER_WORKER_SECRET=dev \
-LOVABLE_APP_URL=https://project--adee30b3-ab01-48b5-858a-891d7104de3b.lovable.app \
-SUPABASE_URL=... \
-SUPABASE_SERVICE_ROLE_KEY=... \
-npm run dev
-curl http://localhost:8080
+# On the droplet
+git clone <repo> && cd <repo>/worker
+npm install --legacy-peer-deps
+# copy .env (see above)
+node --import tsx/esm src/server.ts
+# or use the provided Dockerfile / render.yaml
+```
+
+## File layout
+
+```
+worker/
+├── Dockerfile
+├── package.json
+├── render.yaml                # render.com one-click config (optional)
+├── tsconfig.json
+├── remotion/
+│   ├── index.ts               # registerRoot
+│   ├── Root.tsx               # Composition + calculateMetadata
+│   ├── MainVideo.tsx          # Series of scenes + per-scene <Audio>
+│   ├── SceneRenderer.tsx      # frame-accurate reveal logic
+│   └── elements/
+│       ├── TextElement.tsx
+│       ├── LottieElement.tsx
+│       ├── VideoElement.tsx
+│       ├── ImageElement.tsx
+│       └── ShapeElement.tsx
+└── src/
+    ├── server.ts              # Express HTTP API
+    ├── render.ts              # bundle + render + upload (cached bundle)
+    ├── queue.ts               # polling fallback + concurrency guard
+    └── supabase.ts            # service-role client + job helpers
 ```

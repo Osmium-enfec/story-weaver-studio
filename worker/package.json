@@ -1,6 +1,6 @@
 {
   "name": "code-motion-render-worker",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,6 +10,8 @@
   "dependencies": {
     "@remotion/bundler": "^4.0.0",
     "@remotion/renderer": "^4.0.0",
+    "@remotion/lottie": "^4.0.0",
+    "@remotion/google-fonts": "^4.0.0",
     "@supabase/supabase-js": "^2.45.0",
     "express": "^4.21.0",
     "remotion": "^4.0.0",
