@@ -9,6 +9,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { sb, fetchJobBundle, updateJob } from "./supabase.js";
+import { normalizeSceneVoices } from "./normalize-voice.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -43,6 +44,11 @@ export async function runRender(jobId: string) {
   if (scenes.length === 0) {
     throw new Error(`job ${jobId} has no scenes for project ${job?.project_id}`);
   }
+
+  // Transcode any non-mp3 voice tracks (e.g. browser MediaRecorder .webm/opus)
+  // before handing scenes to Remotion — its bundled ffmpeg has no opus decoder.
+  await normalizeSceneVoices(scenes);
+
   const settings = job.settings ?? {};
 
   // Default to MAX QUALITY: 4k @ 30fps, CRF 14 (visually lossless).
