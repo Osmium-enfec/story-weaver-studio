@@ -1,13 +1,12 @@
-import { OffthreadVideo } from "remotion";
+import { Html5Video } from "remotion";
 
 const VIDEO_RE = /\.(mp4|webm|mov|m4v|mkv)(\?|$)/i;
 
 /**
- * Use OffthreadVideo so Remotion extracts the exact frame via ffmpeg per
- * composition frame. If the src is actually an image (svg/png/jpg) — which
- * happens when an Iconify/Iconscout icon got mis-classified as a video — fall
- * back to <img> so the bundled compositor doesn't error with
- * "Decoder not found".
+ * Use Html5Video instead of OffthreadVideo for remote mirrored clips. The
+ * OffthreadVideo path calls Remotion's ffmpeg frame extractor, which can fail
+ * with "Decoder not found" even for otherwise browser-playable MP4 assets.
+ * If the src is actually an image (svg/png/jpg), fall back to <img>.
  */
 export const VideoElement: React.FC<{
   el: any;
@@ -19,9 +18,10 @@ export const VideoElement: React.FC<{
   return (
     <div style={style}>
       {isVideo ? (
-        <OffthreadVideo
+        <Html5Video
           src={src}
           muted
+          loop
           style={{ width: "100%", height: "100%", objectFit: "contain" }}
         />
       ) : (
