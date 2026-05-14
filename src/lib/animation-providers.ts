@@ -172,16 +172,36 @@ async function searchUnsplashResults({ query, limit = 20 }: SearchOpts): Promise
   }));
 }
 
+async function searchFreepikResults({ query, limit = 20 }: SearchOpts): Promise<AnimationResult[]> {
+  if (!query.trim()) return [];
+  const { items } = await searchFreepik({
+    data: { query: query.trim(), asset_type: "photo", limit: Math.min(limit, 30) },
+  });
+  return items.map((i) => ({
+    id: `freepik:${i.asset_type}:${i.id}`,
+    provider: "freepik" as const,
+    name: i.name,
+    category: i.author ? `Freepik · ${i.author}` : "Freepik",
+    tags: [],
+    concepts: [],
+    external_id: i.id,
+    thumbnail_url: i.preview_url,
+    video_url: i.asset_type === "video" ? i.preview_url : null,
+    color_support: "fixed" as const,
+  }));
+}
+
 export async function searchAllAnimations(opts: SearchOpts): Promise<AnimationResult[]> {
-  const [internal, lottie, uploads, iconscout, iconify, unsplash] = await Promise.all([
+  const [internal, lottie, uploads, iconscout, iconify, unsplash, freepik] = await Promise.all([
     searchInternal(opts).catch(() => []),
     searchLottie(opts).catch(() => []),
     searchUploads(opts).catch(() => []),
     searchIconscoutResults(opts).catch(() => []),
     searchIconifyResults(opts).catch(() => []),
     searchUnsplashResults(opts).catch(() => []),
+    searchFreepikResults(opts).catch(() => []),
   ]);
-  return [...lottie, ...iconscout, ...iconify, ...unsplash, ...internal, ...uploads];
+  return [...lottie, ...iconscout, ...iconify, ...unsplash, ...freepik, ...internal, ...uploads];
 }
 
 /**
