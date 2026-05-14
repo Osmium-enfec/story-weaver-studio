@@ -59,7 +59,7 @@ export function LocalMediaPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [activeFilter, setActiveFilter] = useState<FilterId>("all");
   const [page, setPage] = useState(1);
 
   useEffect(() => {
