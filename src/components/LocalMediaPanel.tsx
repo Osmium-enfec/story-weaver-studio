@@ -16,9 +16,32 @@ interface LocalItem {
   name: string;
   category: string;
   kind: LocalKind;
+  provider: string;
   url?: string | null;
   thumbnail?: string | null;
   tags: string[];
+}
+
+type FilterId = "all" | "lottie" | "icon" | "iconscout" | "image" | "video" | "audio" | "component" | "upload";
+
+const FILTERS: { id: FilterId; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "lottie", label: "Lottie" },
+  { id: "icon", label: "Icon" },
+  { id: "iconscout", label: "Iconscout" },
+  { id: "image", label: "Image" },
+  { id: "video", label: "Video" },
+  { id: "audio", label: "Audio" },
+  { id: "component", label: "Component" },
+  { id: "upload", label: "Upload" },
+];
+
+function matchesFilter(item: LocalItem, f: FilterId): boolean {
+  if (f === "all") return true;
+  if (f === "icon") return item.provider === "iconify";
+  if (f === "iconscout") return item.provider === "iconscout";
+  if (f === "upload") return item.provider === "upload";
+  return item.kind === f;
 }
 
 function classifyExt(name: string): LocalKind {
@@ -36,12 +59,12 @@ export function LocalMediaPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [activeFilter, setActiveFilter] = useState<FilterId>("all");
   const [page, setPage] = useState(1);
 
   useEffect(() => {
     setPage(1);
-  }, [query, activeCategory]);
+  }, [query, activeFilter]);
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -79,6 +102,7 @@ export function LocalMediaPanel() {
             name: f.name.replace(/\.[^.]+$/i, ""),
             category: kind === "image" ? "Images" : kind === "lottie" ? "Lottie" : kind === "video" ? "Videos" : "Audio",
             kind,
+            provider: "upload",
             url: data.publicUrl,
             thumbnail: kind === "image" ? data.publicUrl : null,
             tags: [],
@@ -98,6 +122,7 @@ export function LocalMediaPanel() {
             name: c.name,
             category: c.category || "Components",
             kind,
+            provider: c.provider || "internal",
             url: c.lottie_url || c.video_url || c.thumbnail_url,
             thumbnail: c.thumbnail_url,
             tags: c.tags ?? [],
@@ -118,16 +143,22 @@ export function LocalMediaPanel() {
     void loadItems();
   }, [loadItems]);
 
-  const categories = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const it of items) map.set(it.category, (map.get(it.category) ?? 0) + 1);
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  const counts = useMemo(() => {
+    const map = {} as Record<FilterId, number>;
+    for (const f of FILTERS) map[f.id] = 0;
+    map.all = items.length;
+    for (const it of items) {
+      for (const f of FILTERS) {
+        if (f.id !== "all" && matchesFilter(it, f.id)) map[f.id] += 1;
+      }
+    }
+    return map;
   }, [items]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return items.filter((it) => {
-      if (activeCategory !== "all" && it.category !== activeCategory) return false;
+      if (!matchesFilter(it, activeFilter)) return false;
       if (!q) return true;
       return (
         it.name.toLowerCase().includes(q) ||
@@ -135,7 +166,7 @@ export function LocalMediaPanel() {
         it.tags.some((t) => t.toLowerCase().includes(q))
       );
     });
-  }, [items, query, activeCategory]);
+  }, [items, query, activeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -159,7 +190,7 @@ export function LocalMediaPanel() {
             onChange={(e) => {
               const value = e.target.value;
               setQuery(value);
-              if (value.trim()) setActiveCategory("all");
+              if (value.trim()) setActiveFilter("all");
             }}
             placeholder="Search local media…"
             className="h-9 pl-8 text-sm"
@@ -177,29 +208,23 @@ export function LocalMediaPanel() {
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        <button
-          onClick={() => setActiveCategory("all")}
-          className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-            activeCategory === "all"
-              ? "border-primary bg-primary text-primary-foreground"
-              : "border-border bg-background hover:bg-accent"
-          }`}
-        >
-          All ({items.length})
-        </button>
-        {categories.map(([cat, count]) => (
-          <button
-            key={cat}
-            onClick={() => setActiveCategory(cat)}
-            className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-              activeCategory === cat
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-background hover:bg-accent"
-            }`}
-          >
-            {cat} ({count})
-          </button>
-        ))}
+        {FILTERS.map((f) => {
+          const active = activeFilter === f.id;
+          const count = counts[f.id] ?? 0;
+          return (
+            <button
+              key={f.id}
+              onClick={() => setActiveFilter(f.id)}
+              className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                active
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background hover:bg-accent"
+              }`}
+            >
+              {f.label} ({count})
+            </button>
+          );
+        })}
       </div>
 
       {loading ? (
