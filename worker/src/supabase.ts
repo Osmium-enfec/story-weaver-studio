@@ -1,9 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
+import ws from "ws";
 
 export const sb = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { persistSession: false, autoRefreshToken: false } },
+  {
+    auth: { persistSession: false, autoRefreshToken: false },
+    // Node 20 has no global WebSocket; supabase-js v2 realtime needs one even
+    // if we never subscribe. Provide `ws` to avoid the boot-time crash.
+    realtime: { transport: ws as unknown as typeof WebSocket },
+  },
 );
 
 export interface JobBundle {
