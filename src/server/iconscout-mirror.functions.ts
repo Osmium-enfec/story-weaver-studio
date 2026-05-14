@@ -565,6 +565,7 @@ export const mirrorIconscoutSelected = createServerFn({ method: "POST" })
           ? `iconscout/${it.external_id}.mp4`
           : `iconscout/${it.asset_type}/${it.external_id.replace(/^[a-z0-9]+-/, "")}.png`;
         const publicUrl = await downloadToBucket(admin, it.preview_url, path, ct);
+        if (isLottie) await transcodeOnWorker(BUCKET, path);
 
         const { error } = await admin.from("animation_components").insert({
           slug: it.slug,
