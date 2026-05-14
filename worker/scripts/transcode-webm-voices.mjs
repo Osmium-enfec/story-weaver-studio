@@ -9,6 +9,7 @@
  *     node worker/scripts/transcode-webm-voices.mjs
  */
 import { createClient } from "@supabase/supabase-js";
+import ws from "ws";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
