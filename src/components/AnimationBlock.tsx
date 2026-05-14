@@ -453,8 +453,39 @@ export function AnimationBlockRenderer({
     filter: combinedFilter,
   };
 
-  if (content.shape_type) {
+  const ICON_ANIM_KEYFRAME: Record<string, string> = {
+    fade: "icon-fade-in",
+    "slide-up": "icon-slide-up",
+    "slide-down": "icon-slide-down",
+    "slide-left": "icon-slide-left",
+    "slide-right": "icon-slide-right",
+    scale: "icon-scale-in",
+    pop: "icon-pop",
+    bounce: "icon-bounce",
+    spin: "icon-spin-in",
+    flip: "icon-flip-in",
+    blur: "icon-blur-in",
+  };
+  const ia = content.icon_animation;
+  const iaName = ia && ia.type !== "none" ? ICON_ANIM_KEYFRAME[ia.type] : null;
+  const animWrap = (children: React.ReactNode) => {
+    if (!iaName) return children;
     return (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          animation: `${iaName} ${ia!.duration ?? 600}ms ${ia!.easing ?? "ease-out"} ${ia!.delay ?? 0}ms both`,
+          transformOrigin: "center center",
+        }}
+      >
+        {children}
+      </div>
+    );
+  };
+
+  if (content.shape_type) {
+    return animWrap(
       <div style={wrapperStyle} className="pointer-events-none flex h-full w-full items-center justify-center">
         <ShapeGlyph
           type={content.shape_type}
