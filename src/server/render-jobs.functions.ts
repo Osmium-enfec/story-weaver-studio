@@ -65,6 +65,38 @@ export const listRenderJobs = createServerFn({ method: "GET" })
     return { jobs: jobs ?? [] };
   });
 
+export const listAllRenderJobs = createServerFn({ method: "GET" }).handler(
+  async () => {
+    const sb = admin();
+    const { data: jobs, error } = await sb
+      .from("render_jobs")
+      .select("id, project_id, status, progress, output_url, error, created_at, completed_at, settings")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) throw new Error(error.message);
+
+    const projectIds = Array.from(
+      new Set((jobs ?? []).map((j) => j.project_id).filter(Boolean) as string[]),
+    );
+    let projectMap: Record<string, string> = {};
+    if (projectIds.length) {
+      const { data: projects } = await sb
+        .from("projects")
+        .select("id, title")
+        .in("id", projectIds);
+      projectMap = Object.fromEntries(
+        (projects ?? []).map((p) => [p.id as string, (p.title as string) ?? "Untitled"]),
+      );
+    }
+    return {
+      jobs: (jobs ?? []).map((j) => ({
+        ...j,
+        project_title: projectMap[j.project_id as string] ?? "Untitled project",
+      })),
+    };
+  },
+);
+
 export const getRenderJob = createServerFn({ method: "GET" })
   .inputValidator((input: { jobId: string }) => input)
   .handler(async ({ data }) => {
