@@ -9,6 +9,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { sb, fetchJobBundle, updateJob } from "./supabase.js";
+import { normalizeSceneVoices } from "./normalize-voice.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
