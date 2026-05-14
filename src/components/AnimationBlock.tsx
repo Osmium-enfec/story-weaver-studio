@@ -328,7 +328,7 @@ function LottiePlayer({
     if (!dl || !isDeterministic) return;
     try {
       const totalFrames = dl.totalFrames || 0;
-      const fps = dl.frameRate || 30;
+      const fps = (dl as unknown as { frameRate?: number }).frameRate || 30;
       if (totalFrames <= 0 || fps <= 0) return;
       const totalDurMs = (totalFrames / fps) * 1000;
       const t = (deterministicMs ?? 0) * (speed || 1);
