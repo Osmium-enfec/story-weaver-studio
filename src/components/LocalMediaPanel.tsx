@@ -122,6 +122,7 @@ export function LocalMediaPanel() {
             name: c.name,
             category: c.category || "Components",
             kind,
+            provider: c.provider || "internal",
             url: c.lottie_url || c.video_url || c.thumbnail_url,
             thumbnail: c.thumbnail_url,
             tags: c.tags ?? [],
