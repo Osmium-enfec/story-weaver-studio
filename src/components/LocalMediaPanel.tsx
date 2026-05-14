@@ -255,7 +255,7 @@ export function LocalMediaPanel() {
               className="group flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-all hover:border-primary hover:shadow-sm"
             >
               <div className="relative aspect-square bg-muted/40">
-                {it.kind === "image" && it.thumbnail ? (
+                {(it.kind === "image" || it.kind === "3d") && it.thumbnail ? (
                   <img src={it.thumbnail} alt={it.name} className="h-full w-full object-contain" />
                 ) : it.kind === "lottie" && it.url ? (
                   <DotLottieReact src={it.url} loop autoplay style={{ width: "100%", height: "100%" }} />
