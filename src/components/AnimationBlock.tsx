@@ -303,9 +303,18 @@ function WhiteKeyFilterDef() {
 export function AnimationBlockRenderer({
   content,
   exportMode = false,
+  currentMs,
 }: {
   content: AnimationBlockContent;
   exportMode?: boolean;
+  /**
+   * Virtual scene time, in ms, when the exporter is driving frames
+   * deterministically. When provided, Lottie playhead and <video>
+   * currentTime are synced to this value so each captured frame is
+   * reproducible (real-time autoplay would otherwise produce stale or
+   * skipped frames at snapshot time).
+   */
+  currentMs?: number;
 }) {
   const isLottie =
     (content.provider === "lottie" || content.provider === "upload") && !!content.lottie_url;
@@ -339,20 +348,6 @@ export function AnimationBlockRenderer({
     );
   }
 
-  if (exportMode && (isLottie || (content.provider === "iconscout" && content.video_url))) {
-    return (
-      <div
-        style={wrapperStyle}
-        className="flex h-full w-full items-center justify-center rounded-md bg-primary/10 text-center"
-      >
-        <div>
-          <Sparkles className="mx-auto h-5 w-5 text-primary" />
-          <p className="mt-1 text-xs font-medium text-primary">{content.name}</p>
-        </div>
-      </div>
-    );
-  }
-
   if (content.provider === "image" && (content.video_url || content.lottie_url)) {
     const src = content.video_url || content.lottie_url!;
     return (
@@ -371,12 +366,12 @@ export function AnimationBlockRenderer({
     return (
       <div style={wrapperStyle} className="pointer-events-none">
         {content.remove_background && <WhiteKeyFilterDef />}
-        <DotLottieReact
+        <LottiePlayer
           src={content.lottie_url!}
           loop={content.loop ?? true}
-          autoplay={content.autoplay ?? true}
+          autoplay={!exportMode && (content.autoplay ?? true)}
           speed={content.speed ?? 1}
-          style={{ width: "100%", height: "100%" }}
+          deterministicMs={exportMode ? currentMs ?? 0 : undefined}
         />
       </div>
     );
@@ -389,25 +384,16 @@ export function AnimationBlockRenderer({
         className="pointer-events-none"
       >
         {content.remove_background && <WhiteKeyFilterDef />}
-        <video
+        <DeterministicVideo
           src={content.video_url}
-          crossOrigin="anonymous"
-          autoPlay={content.autoplay ?? true}
           loop={content.loop ?? true}
-          muted
-          playsInline
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "contain",
-            opacity: 0,
-            animation: "anim-block-fade-in 180ms ease-out 80ms forwards",
-          }}
+          autoplay={!exportMode && (content.autoplay ?? true)}
+          deterministicMs={exportMode ? currentMs ?? 0 : undefined}
         />
-        <style>{`@keyframes anim-block-fade-in { to { opacity: 1; } }`}</style>
       </div>
     );
   }
+
 
   // Static image: iconify SVG, unsplash photo, ai-image, iconscout thumbnail
   const imageSrc =
