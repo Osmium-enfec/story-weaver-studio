@@ -5,11 +5,11 @@ import {
   interpolate,
   Easing,
 } from "remotion";
-import { TextElement } from "./elements/TextElement.js";
-import { LottieElement } from "./elements/LottieElement.js";
-import { VideoElement } from "./elements/VideoElement.js";
-import { ImageElement } from "./elements/ImageElement.js";
-import { ShapeElement } from "./elements/ShapeElement.js";
+import { TextElement } from "./elements/TextElement";
+import { LottieElement } from "./elements/LottieElement";
+import { VideoElement } from "./elements/VideoElement";
+import { ImageElement } from "./elements/ImageElement";
+import { ShapeElement } from "./elements/ShapeElement";
 
 const TEXT_REVEAL_FRAMES = 5; // ~150ms @ 30fps
 const BLOCK_REVEAL_FRAMES = 11; // ~350ms @ 30fps
