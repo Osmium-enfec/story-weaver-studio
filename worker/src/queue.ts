@@ -55,10 +55,12 @@ async function tick() {
     if (!claimJob(j.id)) continue;
     runRender(j.id)
       .catch(async (err) => {
-        console.error("render failed", j.id, err);
+        const stack = err?.stack ? String(err.stack) : "";
+        console.error("render failed", j.id, err, stack);
         await updateJob(j.id, {
           status: "failed",
           error: String(err?.message ?? err),
+          log: stack.slice(0, 8000),
         });
       })
       .finally(() => releaseJob(j.id));
