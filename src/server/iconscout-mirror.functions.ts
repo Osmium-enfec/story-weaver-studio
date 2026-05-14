@@ -253,6 +253,7 @@ export const cacheIconscoutItem = createServerFn({ method: "POST" })
     const ct = ext === "json" ? "application/json" : "video/mp4";
     const path = `iconscout/${data.external_id}.${ext}`;
     const publicUrl = await downloadToBucket(admin, data.preview_url, path, ct);
+    if (ext === "mp4") await transcodeOnWorker(BUCKET, path);
 
     const { data: inserted, error } = await admin
       .from("animation_components")
