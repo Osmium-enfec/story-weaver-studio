@@ -1,21 +1,28 @@
 import express from "express";
 import { z } from "zod";
 import { runRender } from "./render.js";
+import { updateJob } from "./supabase.js";
+import { startQueueLoop, claimJob, releaseJob } from "./queue.js";
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 
 const SECRET = process.env.RENDER_WORKER_SECRET;
-const APP_URL = process.env.LOVABLE_APP_URL;
 
 if (!SECRET) console.warn("⚠️  RENDER_WORKER_SECRET not set");
-if (!APP_URL) console.warn("⚠️  LOVABLE_APP_URL not set");
 
-app.get("/", (_req, res) => res.json({ ok: true, service: "render-worker" }));
+app.get("/", (_req, res) =>
+  res.json({ ok: true, service: "render-worker", version: "1.1.0" }),
+);
+app.get("/healthz", (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
 const RenderBody = z.object({ jobId: z.string().uuid() });
 
-app.post("/render", async (req, res) => {
+/**
+ * On-demand render trigger. The Lovable app calls this immediately after
+ * inserting a render_jobs row so we don't have to wait for the polling tick.
+ */
+app.post("/render", (req, res) => {
   if (req.header("x-worker-secret") !== SECRET) {
     return res.status(401).json({ error: "unauthorized" });
   }
@@ -25,46 +32,31 @@ app.post("/render", async (req, res) => {
   }
   const { jobId } = parsed.data;
 
-  // ack immediately, render in background
+  if (!claimJob(jobId)) {
+    return res.json({
+      ok: true,
+      jobId,
+      note: "already inflight or worker at capacity; will be picked up by queue",
+    });
+  }
+
   res.json({ ok: true, jobId });
 
-  runRender(jobId).catch(async (err) => {
-    console.error("render failed", jobId, err);
-    await postUpdate(jobId, {
-      status: "failed",
-      error: String(err?.message ?? err),
-    });
-  });
+  runRender(jobId)
+    .catch(async (err) => {
+      console.error("render failed", jobId, err);
+      await updateJob(jobId, {
+        status: "failed",
+        error: String(err?.message ?? err),
+      });
+    })
+    .finally(() => releaseJob(jobId));
 });
 
-export async function postUpdate(
-  jobId: string,
-  patch: {
-    status?: "pending" | "rendering" | "done" | "failed";
-    progress?: number;
-    outputUrl?: string;
-    error?: string;
-    log?: string;
-  },
-) {
-  const url = `${APP_URL!.replace(/\/$/, "")}/api/public/render-jobs/update`;
-  const r = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-worker-secret": SECRET!,
-    },
-    body: JSON.stringify({ jobId, ...patch }),
-  });
-  if (!r.ok) console.error("postUpdate failed", r.status, await r.text());
-}
-
-export async function fetchJob(jobId: string) {
-  const url = `${APP_URL!.replace(/\/$/, "")}/api/public/render-jobs/${jobId}`;
-  const r = await fetch(url, { headers: { "x-worker-secret": SECRET! } });
-  if (!r.ok) throw new Error(`fetchJob ${r.status}: ${await r.text()}`);
-  return (await r.json()) as { job: any; scenes: any[] };
-}
-
 const PORT = Number(process.env.PORT ?? 8080);
-app.listen(PORT, () => console.log(`render-worker listening on :${PORT}`));
+app.listen(PORT, () => {
+  console.log(`render-worker listening on :${PORT}`);
+  startQueueLoop().catch((err) =>
+    console.error("queue loop crashed", err),
+  );
+});
