@@ -1258,10 +1258,11 @@ function ScriptCanvas() {
             </TabsList>
             <TabsContent value="animations" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
               <Tabs value={animationSubTab} onValueChange={setAnimationSubTab} className="flex h-full min-h-0 flex-col">
-                <TabsList className="m-3 grid shrink-0 grid-cols-3">
+                <TabsList className="m-3 grid shrink-0 grid-cols-4">
                   <TabsTrigger value="search" className="text-[11px]">Search</TabsTrigger>
                   <TabsTrigger value="shapes" className="text-[11px]">Shapes</TabsTrigger>
                   <TabsTrigger value="shape-edit" className="text-[11px]">Edit</TabsTrigger>
+                  <TabsTrigger value="animate" className="text-[11px]">Animate</TabsTrigger>
                 </TabsList>
                 <TabsContent value="search" className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border">
                   <div className="shrink-0 border-b border-border px-4 py-2">
