@@ -69,6 +69,15 @@ export interface AnimationBlockContent {
     delay?: number;    // ms
     easing?: string;
   };
+  // entrance animation for icons / images / lottie / shapes (non-text blocks)
+  icon_animation?: {
+    type:
+      | "none" | "fade" | "slide-up" | "slide-down" | "slide-left" | "slide-right"
+      | "scale" | "pop" | "bounce" | "spin" | "flip" | "blur";
+    duration?: number; // ms
+    delay?: number;    // ms
+    easing?: string;
+  };
   // simple vector shapes
   shape_type?: ShapeType;
   shape_stroke_width?: number;
