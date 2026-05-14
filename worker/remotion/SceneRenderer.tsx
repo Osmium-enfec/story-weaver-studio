@@ -117,6 +117,18 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
         />
       )}
 
+      {/* Design-space stage scaled to fill the output canvas. */}
+      <div
+        style={{
+          position: "absolute",
+          left: offsetX,
+          top: offsetY,
+          width: DESIGN_W,
+          height: DESIGN_H,
+          transform: `scale(${scaleFit})`,
+          transformOrigin: "top left",
+        }}
+      >
       {sortedEls.map((el: any) => {
         const isText =
           el.type === "text" ||
