@@ -27,6 +27,9 @@ async function getBundle(): Promise<string> {
   if (bundledOnce) return bundledOnce;
   bundledOnce = await bundle({
     entryPoint: path.resolve(__dirname, "../remotion/index.ts"),
+    // Serve the main app's /public so scene backgrounds like
+    // "/themes/firebase/bg-orange.svg" resolve inside the Remotion bundle.
+    publicDir: path.resolve(__dirname, "../../public"),
     webpackOverride: (c) => c,
   });
   return bundledOnce;
