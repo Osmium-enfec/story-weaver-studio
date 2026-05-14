@@ -64,7 +64,7 @@ export function LocalMediaPanel() {
 
   useEffect(() => {
     setPage(1);
-  }, [query, activeCategory]);
+  }, [query, activeFilter]);
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -143,16 +143,22 @@ export function LocalMediaPanel() {
     void loadItems();
   }, [loadItems]);
 
-  const categories = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const it of items) map.set(it.category, (map.get(it.category) ?? 0) + 1);
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  const counts = useMemo(() => {
+    const map = {} as Record<FilterId, number>;
+    for (const f of FILTERS) map[f.id] = 0;
+    map.all = items.length;
+    for (const it of items) {
+      for (const f of FILTERS) {
+        if (f.id !== "all" && matchesFilter(it, f.id)) map[f.id] += 1;
+      }
+    }
+    return map;
   }, [items]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return items.filter((it) => {
-      if (activeCategory !== "all" && it.category !== activeCategory) return false;
+      if (!matchesFilter(it, activeFilter)) return false;
       if (!q) return true;
       return (
         it.name.toLowerCase().includes(q) ||
@@ -160,7 +166,7 @@ export function LocalMediaPanel() {
         it.tags.some((t) => t.toLowerCase().includes(q))
       );
     });
-  }, [items, query, activeCategory]);
+  }, [items, query, activeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
