@@ -70,9 +70,21 @@ function elementRevealMs(scene: any, el: any): number {
   return 0;
 }
 
+// Design space the editor / element coordinates are authored in.
+const DESIGN_W = 1280;
+const DESIGN_H = 720;
+
 export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width: outW, height: outH } = useVideoConfig();
+  // Scale the 1280x720 design surface to the actual output (1920x1080, 4k, ...).
+  // Use the smaller axis to letterbox if aspect ratios differ; for matching
+  // 16:9 outputs both axes match so it just upscales cleanly.
+  const scaleFit = Math.min(outW / DESIGN_W, outH / DESIGN_H);
+  const stageW = DESIGN_W * scaleFit;
+  const stageH = DESIGN_H * scaleFit;
+  const offsetX = (outW - stageW) / 2;
+  const offsetY = (outH - stageH) / 2;
 
   // Background
   let background = "#ffffff";
@@ -105,6 +117,18 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
         />
       )}
 
+      {/* Design-space stage scaled to fill the output canvas. */}
+      <div
+        style={{
+          position: "absolute",
+          left: offsetX,
+          top: offsetY,
+          width: DESIGN_W,
+          height: DESIGN_H,
+          transform: `scale(${scaleFit})`,
+          transformOrigin: "top left",
+        }}
+      >
       {sortedEls.map((el: any) => {
         const isText =
           el.type === "text" ||
@@ -259,6 +283,7 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
 
         return null;
       })}
+      </div>
     </AbsoluteFill>
   );
 };
