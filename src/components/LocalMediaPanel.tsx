@@ -113,11 +113,14 @@ export function LocalMediaPanel() {
           };
         });
 
-        const comps: LocalItem[] = (compsRes.data ?? []).map((c) => {
+        const comps: LocalItem[] = (compsRes.data ?? []).map((c: any) => {
+          const assetType: string | null = c.default_props?.asset_type ?? null;
           const kind: LocalKind = c.lottie_url
             ? "lottie"
             : c.video_url
             ? "video"
+            : assetType === "3d"
+            ? "3d"
             : c.thumbnail_url
             ? "image"
             : "component";
@@ -127,6 +130,7 @@ export function LocalMediaPanel() {
             category: c.category || "Components",
             kind,
             provider: c.provider || "internal",
+            assetType,
             url: c.lottie_url || c.video_url || c.thumbnail_url,
             thumbnail: c.thumbnail_url,
             tags: c.tags ?? [],
