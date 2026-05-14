@@ -80,7 +80,7 @@ export function LocalMediaPanel() {
           for (let from = 0; ; from += pageSize) {
             const { data, error } = await supabase
               .from("animation_components")
-              .select("id,name,slug,category,tags,lottie_url,thumbnail_url,video_url,provider")
+              .select("id,name,slug,category,tags,lottie_url,thumbnail_url,video_url,provider,default_props")
               .order("created_at", { ascending: false })
               .range(from, from + pageSize - 1);
             if (error) throw error;
