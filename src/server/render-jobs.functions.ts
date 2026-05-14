@@ -64,3 +64,16 @@ export const listRenderJobs = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     return { jobs: jobs ?? [] };
   });
+
+export const getRenderJob = createServerFn({ method: "GET" })
+  .inputValidator((input: { jobId: string }) => input)
+  .handler(async ({ data }) => {
+    const sb = admin();
+    const { data: job, error } = await sb
+      .from("render_jobs")
+      .select("id, status, progress, output_url, error, created_at, completed_at")
+      .eq("id", data.jobId)
+      .single();
+    if (error) throw new Error(error.message);
+    return { job };
+  });
