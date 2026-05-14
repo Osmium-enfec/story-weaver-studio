@@ -372,6 +372,7 @@ export const bulkMirrorIconscout = createServerFn({ method: "POST" })
             }
             const path = `iconscout/${externalId}.mp4`;
             const publicUrl = await downloadToBucket(admin, previewUrl, path, "video/mp4");
+            await transcodeOnWorker(BUCKET, path);
             const { error } = await admin.from("animation_components").insert({
               slug: it.slug || `iconscout-${externalId}`,
               name: it.name || `Animation ${externalId}`,
