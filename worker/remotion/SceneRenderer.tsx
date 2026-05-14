@@ -244,7 +244,10 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
           c.url ||
           c.preview_url ||
           c.thumbnail_url ||
-          c.svg_url;
+          c.svg_url ||
+          (rawVideoSrc && /\.(svg|png|jpe?g|gif|webp|avif)(\?|$)/i.test(rawVideoSrc)
+            ? rawVideoSrc
+            : null);
         if (imageSrc) {
           return (
             <ImageElement key={el.id} el={el} style={style} src={imageSrc} />
