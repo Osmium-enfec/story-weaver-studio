@@ -109,3 +109,29 @@ export const getRenderJob = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     return { job };
   });
+
+export const cancelRenderJob = createServerFn({ method: "POST" })
+  .inputValidator((input: { jobId: string }) => input)
+  .handler(async ({ data }) => {
+    const sb = admin();
+    const { error } = await sb
+      .from("render_jobs")
+      .update({
+        status: "error",
+        error: "Cancelled by user",
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", data.jobId)
+      .in("status", ["pending", "rendering"]);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteRenderJob = createServerFn({ method: "POST" })
+  .inputValidator((input: { jobId: string }) => input)
+  .handler(async ({ data }) => {
+    const sb = admin();
+    const { error } = await sb.from("render_jobs").delete().eq("id", data.jobId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
