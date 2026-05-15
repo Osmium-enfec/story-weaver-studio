@@ -631,6 +631,7 @@ function ScriptCanvas() {
       rotation: 0,
       color_support: a.color_support,
       tint: null,
+      palette: a.palette ?? null,
       remove_background: a.provider === "iconscout",
       word: selectedWord,
       occurrence: selectedWord
