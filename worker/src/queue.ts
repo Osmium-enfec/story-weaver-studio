@@ -2,7 +2,10 @@ import { sb, updateJob } from "./supabase.js";
 import { runRender } from "./render.js";
 
 const POLL_INTERVAL_MS = Number(process.env.QUEUE_POLL_MS ?? 5_000);
-const MAX_PARALLEL = Number(process.env.RENDER_CONCURRENCY ?? 1);
+// Job-level parallelism must stay separate from Remotion frame concurrency.
+// A single 4K render can use several GB of RAM; running multiple jobs at once
+// is what makes Chromium die around mid-render with "Session closed".
+const MAX_PARALLEL = Number(process.env.RENDER_WORKER_PARALLELISM ?? 1);
 const inflight = new Set<string>();
 
 /**

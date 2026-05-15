@@ -34,7 +34,7 @@ function qualityTierFor(q: ExportQuality): QualityTier {
 
 interface JobState {
   id: string;
-  status: "pending" | "rendering" | "done" | "failed";
+  status: "pending" | "rendering" | "done" | "failed" | "error" | "cancelled";
   progress: number;
   output_url: string | null;
   error: string | null;
@@ -111,7 +111,7 @@ function ExportPage() {
           toast.success("Render complete");
           return;
         }
-        if (j.status === "failed") {
+        if (j.status === "failed" || j.status === "error" || j.status === "cancelled") {
           setRunning(false);
           toast.error(j.error || "Render failed");
           return;
@@ -202,11 +202,11 @@ function ExportPage() {
               <span className="font-mono text-muted-foreground">Job {job.id.slice(0, 8)}</span>
               <span className="capitalize font-medium flex items-center gap-1">
                 {job.status === "done" && <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />}
-                {job.status === "failed" && <XCircle className="h-3.5 w-3.5 text-destructive" />}
+                {(job.status === "failed" || job.status === "error" || job.status === "cancelled") && <XCircle className="h-3.5 w-3.5 text-destructive" />}
                 {job.status}
               </span>
             </div>
-            {job.status !== "done" && job.status !== "failed" && (
+            {job.status !== "done" && job.status !== "failed" && job.status !== "error" && job.status !== "cancelled" && (
               <>
                 <Progress value={job.progress} />
                 <div className="text-xs text-muted-foreground text-right">{job.progress}%</div>
@@ -229,7 +229,7 @@ function ExportPage() {
                 </a>
               </div>
             )}
-            {job.status === "failed" && job.error && (
+            {(job.status === "failed" || job.status === "error" || job.status === "cancelled") && job.error && (
               <p className="text-xs text-destructive whitespace-pre-wrap">{job.error}</p>
             )}
           </div>

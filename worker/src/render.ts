@@ -1,5 +1,6 @@
 import { bundle } from "@remotion/bundler";
 import {
+  makeCancelSignal,
   renderMedia,
   selectComposition,
   openBrowser,
@@ -8,7 +9,7 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { sb, fetchJobBundle, updateJob } from "./supabase.js";
+import { sb, fetchJobBundle, getJobStatus, updateJob } from "./supabase.js";
 import { normalizeSceneVoices } from "./normalize-voice.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -104,9 +105,10 @@ export async function runRender(jobId: string) {
   // routinely OOMs Chromium → "Session closed. Most likely the page has been closed".
   // Force concurrency=1 for 4K, allow override via env.
   const is4k = res.w >= 3840;
-  const concurrency = Number(
+  let renderConcurrency = Number(
     process.env.RENDER_CONCURRENCY ?? (is4k ? 1 : 2),
   );
+  if (is4k) renderConcurrency = Math.min(renderConcurrency, 1);
 
   const isSessionClosed = (err: unknown) => {
     const msg = err instanceof Error ? err.message : String(err);
@@ -116,6 +118,21 @@ export async function runRender(jobId: string) {
   };
 
   const renderOnce = async () => {
+    const { cancelSignal, cancel } = makeCancelSignal();
+    let lastCancelCheck = 0;
+    let cancelledByJobStatus = false;
+    const checkForStop = () => {
+      const now = Date.now();
+      if (now - lastCancelCheck < 3_000) return;
+      lastCancelCheck = now;
+      void getJobStatus(jobId).then((status) => {
+        if (status && status !== "pending" && status !== "rendering") {
+          cancelledByJobStatus = true;
+          cancel();
+        }
+      });
+    };
+
     const browser = await openBrowser("chrome", {
       browserExecutable: chromePath ?? null,
       chromiumOptions: {
@@ -123,6 +140,7 @@ export async function runRender(jobId: string) {
         ignoreCertificateErrors: false,
         headless: true,
         enableMultiProcessOnLinux: true,
+        args: ["--no-sandbox", "--disable-dev-shm-usage"],
       },
     });
 
@@ -152,17 +170,23 @@ export async function runRender(jobId: string) {
         outputLocation: outPath,
         inputProps,
         puppeteerInstance: browser,
-        concurrency,
+        concurrency: renderConcurrency,
+        cancelSignal,
         timeoutInMilliseconds: 180_000,
         chromiumOptions: {
           gl: "swangle",
           headless: true,
+          args: ["--no-sandbox", "--disable-dev-shm-usage"],
         },
         onProgress: ({ progress }) => {
+          checkForStop();
           const pct = Math.min(95, 12 + Math.round(progress * 80));
           void updateJob(jobId, { progress: pct });
         },
       });
+      if (cancelledByJobStatus) {
+        throw new Error("renderMedia() got cancelled");
+      }
     } finally {
       await browser.close({ silent: true }).catch(() => {});
     }
@@ -171,6 +195,11 @@ export async function runRender(jobId: string) {
   try {
     await renderOnce();
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/cancelled/i.test(msg)) {
+      await fs.rm(outDir, { recursive: true, force: true });
+      return;
+    }
     if (isSessionClosed(err)) {
       console.warn(
         `render ${jobId}: chromium session closed (likely OOM at ${resKey}); retrying once with concurrency=1`,
@@ -179,13 +208,11 @@ export async function runRender(jobId: string) {
       // Retry serially — gives the OS time to reclaim memory.
       await new Promise((r) => setTimeout(r, 2000));
       // Force concurrency=1 on retry by mutating env for the duration of this call.
-      const prev = process.env.RENDER_CONCURRENCY;
-      process.env.RENDER_CONCURRENCY = "1";
+      renderConcurrency = 1;
       try {
         await renderOnce();
       } finally {
-        if (prev === undefined) delete process.env.RENDER_CONCURRENCY;
-        else process.env.RENDER_CONCURRENCY = prev;
+        renderConcurrency = 1;
       }
     } else {
       throw err;
