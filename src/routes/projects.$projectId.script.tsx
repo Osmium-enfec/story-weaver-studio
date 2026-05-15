@@ -631,6 +631,7 @@ function ScriptCanvas() {
       rotation: 0,
       color_support: a.color_support,
       tint: null,
+      palette: a.palette ?? null,
       remove_background: a.provider === "iconscout",
       word: selectedWord,
       occurrence: selectedWord
@@ -1319,6 +1320,12 @@ function ScriptCanvas() {
                           sel
                             ? (next: AnimationBlockContent["icon_animation"]) =>
                                 void updateElementContent(activeScene!.id, sel.id, { icon_animation: next })
+                            : undefined
+                        }
+                        onChangeTint={
+                          sel
+                            ? (tint: string | null) =>
+                                void updateElementContent(activeScene!.id, sel.id, { tint })
                             : undefined
                         }
                       />

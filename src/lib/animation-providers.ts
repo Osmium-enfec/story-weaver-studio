@@ -33,6 +33,8 @@ export interface AnimationResult {
   /** For internal (non-Lottie) components */
   slug?: string;
   color_support: "fixed" | "theme" | "custom";
+  /** Source palette (e.g. for mirrored Freepik items). */
+  palette?: string[];
 }
 
 interface SearchOpts {
@@ -43,7 +45,7 @@ interface SearchOpts {
 async function searchInternal({ query, limit = 24 }: SearchOpts): Promise<AnimationResult[]> {
   let q = supabase
     .from("animation_components")
-    .select("id,slug,name,category,tags,concepts,provider,lottie_url,thumbnail_url,video_url,external_id,color_support")
+    .select("id,slug,name,category,tags,concepts,provider,lottie_url,thumbnail_url,video_url,external_id,color_support,default_props")
     .neq("provider", "lottie")
     .limit(limit);
   if (query.trim()) {
@@ -52,20 +54,28 @@ async function searchInternal({ query, limit = 24 }: SearchOpts): Promise<Animat
   }
   const { data, error } = await q;
   if (error) throw error;
-  return (data ?? []).map((r) => ({
-    id: r.id,
-    provider: (r.provider as AnimationProvider) ?? "internal",
-    name: r.name,
-    category: r.category,
-    tags: r.tags ?? [],
-    concepts: r.concepts ?? [],
-    slug: r.slug,
-    lottie_url: r.lottie_url,
-    thumbnail_url: r.thumbnail_url,
-    video_url: (r as { video_url?: string | null }).video_url ?? null,
-    external_id: (r as { external_id?: string | null }).external_id ?? null,
-    color_support: (r.color_support as AnimationResult["color_support"]) ?? "fixed",
-  }));
+  return (data ?? []).map((r) => {
+    const dp = (r as { default_props?: { palette?: unknown } }).default_props;
+    const rawPalette = Array.isArray(dp?.palette) ? (dp!.palette as unknown[]) : [];
+    const palette = rawPalette
+      .filter((c): c is string => typeof c === "string")
+      .map((c) => (c.startsWith("#") ? c : `#${c}`));
+    return {
+      id: r.id,
+      provider: (r.provider as AnimationProvider) ?? "internal",
+      name: r.name,
+      category: r.category,
+      tags: r.tags ?? [],
+      concepts: r.concepts ?? [],
+      slug: r.slug,
+      lottie_url: r.lottie_url,
+      thumbnail_url: r.thumbnail_url,
+      video_url: (r as { video_url?: string | null }).video_url ?? null,
+      external_id: (r as { external_id?: string | null }).external_id ?? null,
+      color_support: (r.color_support as AnimationResult["color_support"]) ?? "fixed",
+      palette,
+    };
+  });
 }
 
 async function searchLottie({ query, limit = 24 }: SearchOpts): Promise<AnimationResult[]> {

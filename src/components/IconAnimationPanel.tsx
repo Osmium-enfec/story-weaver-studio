@@ -24,9 +24,11 @@ const ICON_ANIM_OPTIONS: {
 export function IconAnimationPanel({
   selectedContent,
   onChange,
+  onChangeTint,
 }: {
   selectedContent?: AnimationBlockContent;
   onChange?: (next: AnimationBlockContent["icon_animation"]) => void;
+  onChangeTint?: (tint: string | null) => void;
 }) {
   if (!selectedContent || !onChange) {
     return (
@@ -41,8 +43,48 @@ export function IconAnimationPanel({
   const v = selectedContent.icon_animation ?? { type: "none" as const, duration: 600, delay: 0, easing: "ease-out" };
   const update = (patch: Partial<NonNullable<AnimationBlockContent["icon_animation"]>>) =>
     onChange({ type: v.type, duration: v.duration, delay: v.delay, easing: v.easing, ...patch });
+  const palette = (selectedContent.palette ?? []).filter((c) => /^#?[0-9a-fA-F]{3,8}$/.test(c));
+  const currentTint = selectedContent.tint ?? null;
   return (
     <div className="space-y-3 p-3">
+      {palette.length > 0 && onChangeTint && (
+        <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Source palette
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={() => onChangeTint(null)}
+              title="Original colors"
+              className={`flex h-6 w-6 items-center justify-center rounded-full border-2 text-[10px] transition ${
+                currentTint === null ? "border-primary scale-110" : "border-border hover:border-primary/60"
+              }`}
+              style={{
+                background:
+                  "conic-gradient(from 0deg, #ef4444, #f59e0b, #84cc16, #06b6d4, #6366f1, #ec4899, #ef4444)",
+              }}
+            />
+            {palette.map((hex, i) => {
+              const h = hex.startsWith("#") ? hex : `#${hex}`;
+              const sel = currentTint?.toLowerCase() === h.toLowerCase();
+              return (
+                <button
+                  key={`${h}-${i}`}
+                  onClick={() => onChangeTint(h)}
+                  title={h}
+                  className={`h-6 w-6 rounded-full border-2 transition ${
+                    sel ? "border-primary scale-110" : "border-border hover:border-primary/60"
+                  }`}
+                  style={{ backgroundColor: h }}
+                />
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Click a swatch to tint this asset. Click the wheel to restore original colors.
+          </p>
+        </div>
+      )}
       <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Selected element · entrance</p>
         <Select value={v.type} onValueChange={(t) => update({ type: t as typeof v.type })}>
