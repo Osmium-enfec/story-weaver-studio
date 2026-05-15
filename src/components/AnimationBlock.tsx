@@ -241,7 +241,7 @@ export function TextBlockRenderer({
             if (lastSentRef.current === next) return;
             lastSentRef.current = next;
             onChange?.(next);
-          }, 350);
+          }, 1000);
         }}
         onBlur={(e) => {
           if (inputDebounceRef.current) {
