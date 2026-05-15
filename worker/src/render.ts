@@ -104,9 +104,10 @@ export async function runRender(jobId: string) {
   // routinely OOMs Chromium → "Session closed. Most likely the page has been closed".
   // Force concurrency=1 for 4K, allow override via env.
   const is4k = res.w >= 3840;
-  const concurrency = Number(
+  let renderConcurrency = Number(
     process.env.RENDER_CONCURRENCY ?? (is4k ? 1 : 2),
   );
+  if (is4k) renderConcurrency = Math.min(renderConcurrency, 1);
 
   const isSessionClosed = (err: unknown) => {
     const msg = err instanceof Error ? err.message : String(err);
@@ -123,6 +124,7 @@ export async function runRender(jobId: string) {
         ignoreCertificateErrors: false,
         headless: true,
         enableMultiProcessOnLinux: true,
+        args: ["--no-sandbox", "--disable-dev-shm-usage"],
       },
     });
 
@@ -152,11 +154,12 @@ export async function runRender(jobId: string) {
         outputLocation: outPath,
         inputProps,
         puppeteerInstance: browser,
-        concurrency,
+        concurrency: renderConcurrency,
         timeoutInMilliseconds: 180_000,
         chromiumOptions: {
           gl: "swangle",
           headless: true,
+          args: ["--no-sandbox", "--disable-dev-shm-usage"],
         },
         onProgress: ({ progress }) => {
           const pct = Math.min(95, 12 + Math.round(progress * 80));
@@ -179,13 +182,11 @@ export async function runRender(jobId: string) {
       // Retry serially — gives the OS time to reclaim memory.
       await new Promise((r) => setTimeout(r, 2000));
       // Force concurrency=1 on retry by mutating env for the duration of this call.
-      const prev = process.env.RENDER_CONCURRENCY;
-      process.env.RENDER_CONCURRENCY = "1";
+      renderConcurrency = 1;
       try {
         await renderOnce();
       } finally {
-        if (prev === undefined) delete process.env.RENDER_CONCURRENCY;
-        else process.env.RENDER_CONCURRENCY = prev;
+        renderConcurrency = 1;
       }
     } else {
       throw err;
