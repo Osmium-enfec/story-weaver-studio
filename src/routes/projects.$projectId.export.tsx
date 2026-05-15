@@ -46,7 +46,7 @@ function ExportPage() {
   const enqueue = useServerFn(enqueueRenderJob);
   const fetchJob = useServerFn(getRenderJob);
 
-  const [quality, setQuality] = useState<ExportQuality>("1080p");
+  const [quality, setQuality] = useState<ExportQuality>("4k60");
   const [includeAudio, setIncludeAudio] = useState(true);
   const [running, setRunning] = useState(false);
   const [job, setJob] = useState<JobState | null>(null);
@@ -174,7 +174,7 @@ function ExportPage() {
             })}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            1080p is recommended for reliable server renders. Use 4K only on workers with enough memory.
+            4K60 is the default. Higher resolutions take longer to render.
           </p>
         </div>
 
