@@ -46,6 +46,8 @@ export interface AnimationBlockContent {
   // color
   color_support?: "fixed" | "theme" | "custom";
   tint?: string | null;
+  /** Source asset palette (e.g. mirrored Freepik colors). Hex strings. */
+  palette?: string[] | null;
   // word binding (for timed reveal during playback)
   word?: string | null;
   occurrence?: number | null;
