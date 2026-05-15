@@ -1322,6 +1322,12 @@ function ScriptCanvas() {
                                 void updateElementContent(activeScene!.id, sel.id, { icon_animation: next })
                             : undefined
                         }
+                        onChangeTint={
+                          sel
+                            ? (tint: string | null) =>
+                                void updateElementContent(activeScene!.id, sel.id, { tint })
+                            : undefined
+                        }
                       />
                     );
                   })()}
