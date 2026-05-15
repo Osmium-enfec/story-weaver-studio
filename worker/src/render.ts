@@ -52,9 +52,10 @@ export async function runRender(jobId: string) {
 
   const settings = job.settings ?? {};
 
-  // Default to MAX QUALITY: 4k @ 30fps, CRF 14 (visually lossless).
-  const resKey = (settings.resolution as string) ?? "4k";
-  const res = RES[resKey] ?? RES["4k"];
+  // Default to 1080p so a missing setting cannot OOM smaller worker hosts.
+  // 4K is still supported when explicitly requested and the host has enough RAM.
+  const resKey = (settings.resolution as string) ?? "1080p";
+  const res = RES[resKey] ?? RES["1080p"];
   const crf =
     settings.quality === "max"
       ? 12
@@ -103,10 +104,10 @@ export async function runRender(jobId: string) {
 
   // 4K frames are ~4x the pixels of 1080p; running multiple in parallel
   // routinely OOMs Chromium → "Session closed. Most likely the page has been closed".
-  // Force concurrency=1 for 4K, allow override via env.
+  // Default every render to serial frames on small hosts; allow override via env.
   const is4k = res.w >= 3840;
   let renderConcurrency = Number(
-    process.env.RENDER_CONCURRENCY ?? (is4k ? 1 : 2),
+    process.env.RENDER_CONCURRENCY ?? 1,
   );
   if (is4k) renderConcurrency = Math.min(renderConcurrency, 1);
 
