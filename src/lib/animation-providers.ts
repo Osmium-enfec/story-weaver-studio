@@ -33,7 +33,8 @@ export interface AnimationResult {
   /** For internal (non-Lottie) components */
   slug?: string;
   color_support: "fixed" | "theme" | "custom";
-}
+  /** Source palette (e.g. for mirrored Freepik items). */
+  palette?: string[];
 
 interface SearchOpts {
   query: string;
