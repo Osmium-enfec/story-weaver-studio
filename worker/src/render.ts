@@ -1,5 +1,6 @@
 import { bundle } from "@remotion/bundler";
 import {
+  makeCancelSignal,
   renderMedia,
   selectComposition,
   openBrowser,
@@ -8,7 +9,7 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { sb, fetchJobBundle, updateJob } from "./supabase.js";
+import { sb, fetchJobBundle, getJobStatus, updateJob } from "./supabase.js";
 import { normalizeSceneVoices } from "./normalize-voice.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -117,6 +118,21 @@ export async function runRender(jobId: string) {
   };
 
   const renderOnce = async () => {
+    const { cancelSignal, cancel } = makeCancelSignal();
+    let lastCancelCheck = 0;
+    let cancelledByJobStatus = false;
+    const checkForStop = () => {
+      const now = Date.now();
+      if (now - lastCancelCheck < 3_000) return;
+      lastCancelCheck = now;
+      void getJobStatus(jobId).then((status) => {
+        if (status && status !== "pending" && status !== "rendering") {
+          cancelledByJobStatus = true;
+          cancel();
+        }
+      });
+    };
+
     const browser = await openBrowser("chrome", {
       browserExecutable: chromePath ?? null,
       chromiumOptions: {
@@ -155,6 +171,7 @@ export async function runRender(jobId: string) {
         inputProps,
         puppeteerInstance: browser,
         concurrency: renderConcurrency,
+        cancelSignal,
         timeoutInMilliseconds: 180_000,
         chromiumOptions: {
           gl: "swangle",
@@ -162,10 +179,14 @@ export async function runRender(jobId: string) {
           args: ["--no-sandbox", "--disable-dev-shm-usage"],
         },
         onProgress: ({ progress }) => {
+          checkForStop();
           const pct = Math.min(95, 12 + Math.round(progress * 80));
           void updateJob(jobId, { progress: pct });
         },
       });
+      if (cancelledByJobStatus) {
+        throw new Error("renderMedia() got cancelled");
+      }
     } finally {
       await browser.close({ silent: true }).catch(() => {});
     }
@@ -174,6 +195,11 @@ export async function runRender(jobId: string) {
   try {
     await renderOnce();
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/cancelled/i.test(msg)) {
+      await fs.rm(outDir, { recursive: true, force: true });
+      return;
+    }
     if (isSessionClosed(err)) {
       console.warn(
         `render ${jobId}: chromium session closed (likely OOM at ${resKey}); retrying once with concurrency=1`,
