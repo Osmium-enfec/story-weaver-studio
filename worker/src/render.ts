@@ -52,10 +52,8 @@ export async function runRender(jobId: string) {
 
   const settings = job.settings ?? {};
 
-  // Default to 1080p so a missing setting cannot OOM smaller worker hosts.
-  // 4K is still supported when explicitly requested and the host has enough RAM.
-  const resKey = (settings.resolution as string) ?? "1080p";
-  const res = RES[resKey] ?? RES["1080p"];
+  const resKey = (settings.resolution as string) ?? "4k60";
+  const res = RES[resKey] ?? RES["4k60"];
   const crf =
     settings.quality === "max"
       ? 12

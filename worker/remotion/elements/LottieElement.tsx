@@ -1,21 +1,14 @@
 import { Lottie } from "@remotion/lottie";
 import { useEffect, useState } from "react";
 import { continueRender, delayRender } from "remotion";
+import { WhiteKeyFilterDef, whiteKeyFilterCss } from "./WhiteKeyFilter";
 
-/**
- * Frame-accurate Lottie. We fetch the JSON once (delaying render until ready)
- * so headless Chromium has the data before the encoder samples the frame.
- *
- * `@remotion/lottie` is `useCurrentFrame()`-aware internally, so just by
- * mounting it inside a Remotion composition the playhead is deterministic
- * per frame.
- */
 export const LottieElement: React.FC<{
   el: any;
   style: React.CSSProperties;
   lottieSrc: string;
   localFrame: number;
-}> = ({ style, lottieSrc }) => {
+}> = ({ el, style, lottieSrc }) => {
   const [json, setJson] = useState<any | null>(null);
   const [handle] = useState(() => delayRender(`lottie:${lottieSrc}`));
 
@@ -38,14 +31,18 @@ export const LottieElement: React.FC<{
   }, [lottieSrc, handle]);
 
   if (!json) return <div style={style} />;
+  const removeBg = !!el?.content?.remove_background;
   return (
     <div style={style}>
-      <Lottie
-        animationData={json}
-        loop
-        playbackRate={1}
-        style={{ width: "100%", height: "100%" }}
-      />
+      {removeBg && <WhiteKeyFilterDef />}
+      <div style={{ width: "100%", height: "100%", filter: whiteKeyFilterCss(removeBg) }}>
+        <Lottie
+          animationData={json}
+          loop
+          playbackRate={1}
+          style={{ width: "100%", height: "100%" }}
+        />
+      </div>
     </div>
   );
 };
