@@ -159,6 +159,8 @@ export function TextBlockRenderer({
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const innerRef = useRef<HTMLDivElement | null>(null);
+  const inputDebounceRef = useRef<number | null>(null);
+  const lastSentRef = useRef<string | null>(null);
   const [scale, setScale] = useState(1);
   const baseSize = content.font_size ?? 24;
   const text = content.text ?? "";
@@ -231,7 +233,27 @@ export function TextBlockRenderer({
         ref={innerRef}
         contentEditable={editable}
         suppressContentEditableWarning
-        onBlur={(e) => onChange?.(e.currentTarget.innerText)}
+        onInput={(e) => {
+          if (!editable) return;
+          const next = (e.currentTarget as HTMLDivElement).innerText;
+          if (inputDebounceRef.current) window.clearTimeout(inputDebounceRef.current);
+          inputDebounceRef.current = window.setTimeout(() => {
+            if (lastSentRef.current === next) return;
+            lastSentRef.current = next;
+            onChange?.(next);
+          }, 350);
+        }}
+        onBlur={(e) => {
+          if (inputDebounceRef.current) {
+            window.clearTimeout(inputDebounceRef.current);
+            inputDebounceRef.current = null;
+          }
+          const next = e.currentTarget.innerText;
+          if (lastSentRef.current !== next) {
+            lastSentRef.current = next;
+            onChange?.(next);
+          }
+        }}
         onMouseDown={(e) => { if (editable) e.stopPropagation(); }}
         className="outline-none"
         style={{

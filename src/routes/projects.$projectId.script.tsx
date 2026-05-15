@@ -304,6 +304,18 @@ function ScriptCanvas() {
   useEffect(() => {
     toolbarStore.set([
       {
+        label: "Save",
+        icon: "download",
+        variant: "outline",
+        disabled: isExporting,
+        onClick: () => {
+          // Flush any in-flight contentEditable edit by blurring it.
+          const active = document.activeElement as HTMLElement | null;
+          if (active && active.isContentEditable) active.blur();
+          toast.success("Saved");
+        },
+      },
+      {
         label: "Preview",
         icon: "play",
         variant: "default",
