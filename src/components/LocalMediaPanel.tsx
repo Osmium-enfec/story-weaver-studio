@@ -23,13 +23,14 @@ interface LocalItem {
   tags: string[];
 }
 
-type FilterId = "all" | "lottie" | "icon" | "iconscout" | "3d" | "image" | "video" | "audio" | "component" | "upload";
+type FilterId = "all" | "lottie" | "icon" | "iconscout" | "freepik" | "3d" | "image" | "video" | "audio" | "component" | "upload";
 
 const FILTERS: { id: FilterId; label: string }[] = [
   { id: "all", label: "All" },
   { id: "lottie", label: "Lottie" },
   { id: "icon", label: "Icon" },
   { id: "iconscout", label: "Iconscout" },
+  { id: "freepik", label: "Freepik" },
   { id: "3d", label: "3D" },
   { id: "image", label: "Image" },
   { id: "video", label: "Video" },
@@ -42,6 +43,7 @@ function matchesFilter(item: LocalItem, f: FilterId): boolean {
   if (f === "all") return true;
   if (f === "icon") return item.provider === "iconify";
   if (f === "iconscout") return item.provider === "iconscout" && item.assetType !== "3d";
+  if (f === "freepik") return item.provider === "freepik";
   if (f === "upload") return item.provider === "upload";
   if (f === "3d") return item.assetType === "3d";
   if (f === "image") return item.kind === "image" && item.assetType !== "3d";
