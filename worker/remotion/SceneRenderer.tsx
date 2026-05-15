@@ -1,9 +1,12 @@
 import {
   AbsoluteFill,
+  Html5Video,
+  Img,
   useCurrentFrame,
   useVideoConfig,
   interpolate,
   Easing,
+  staticFile,
 } from "remotion";
 import { TextElement } from "./elements/TextElement";
 import { LottieElement } from "./elements/LottieElement";
@@ -16,6 +19,18 @@ const BLOCK_REVEAL_FRAMES = 11; // ~350ms @ 30fps
 
 function normalizeWord(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+}
+
+function resolveAssetSrc(src?: string | null) {
+  if (!src) return "";
+  // The editor stores bundled/public assets as absolute paths such as
+  // "/themes/firebase/bg-orange.svg". In Remotion these must be resolved
+  // through staticFile() or Chromium requests the wrong origin and the
+  // background silently disappears in the final render.
+  if (src.startsWith("/") && !src.startsWith("//")) {
+    return staticFile(src.replace(/^\/+/, ""));
+  }
+  return src;
 }
 
 function audibleOffsetMs(scene: any, wordStartMs: number): number | null {
@@ -97,16 +112,18 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
     background = scene.background.value;
   }
 
+  const backgroundSrc = resolveAssetSrc(scene.background?.value);
+
   const sortedEls = [...(scene.scene_elements ?? scene.elements ?? [])].sort(
     (a: any, b: any) => (a.z_index ?? 0) - (b.z_index ?? 0),
   );
 
   return (
     <AbsoluteFill style={{ background }}>
-      {/* Background image, if any */}
+      {/* Background media, if any */}
       {scene.background?.type === "image" && scene.background.value && (
-        <img
-          src={scene.background.value}
+        <Img
+          src={backgroundSrc}
           style={{
             position: "absolute",
             inset: 0,
@@ -114,6 +131,33 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
             height: "100%",
             objectFit: "cover",
           }}
+        />
+      )}
+      {scene.background?.type === "video" && scene.background.value && (
+        <Html5Video
+          src={backgroundSrc}
+          muted
+          loop
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+          }}
+        />
+      )}
+      {scene.background?.type === "lottie" && scene.background.value && (
+        <LottieElement
+          el={{ id: `${scene.id}-background` }}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+          }}
+          lottieSrc={backgroundSrc}
+          localFrame={frame}
         />
       )}
 
