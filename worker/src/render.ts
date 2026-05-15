@@ -100,55 +100,96 @@ export async function runRender(jobId: string) {
     try { return fsSync.existsSync(p); } catch { return false; }
   });
 
-  const browser = await openBrowser("chrome", {
-    browserExecutable: chromePath ?? null,
-    chromiumOptions: {
-      gl: "swangle",
-      ignoreCertificateErrors: false,
-      headless: true,
-      enableMultiProcessOnLinux: true,
-    },
-  });
+  // 4K frames are ~4x the pixels of 1080p; running multiple in parallel
+  // routinely OOMs Chromium → "Session closed. Most likely the page has been closed".
+  // Force concurrency=1 for 4K, allow override via env.
+  const is4k = res.w >= 3840;
+  const concurrency = Number(
+    process.env.RENDER_CONCURRENCY ?? (is4k ? 1 : 2),
+  );
 
-  try {
-    const composition = await selectComposition({
-      serveUrl,
-      id: "main",
-      inputProps,
-      puppeteerInstance: browser,
-    });
+  const isSessionClosed = (err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    return /Session closed|Target closed|page has been closed|Protocol error/i.test(
+      msg,
+    );
+  };
 
-    await renderMedia({
-      composition: {
-        ...composition,
-        width: res.w,
-        height: res.h,
-        fps: res.fps,
-        durationInFrames,
-      },
-      serveUrl,
-      codec: "h264",
-      crf,
-      pixelFormat: "yuv420p",
-      audioCodec: "aac",
-      audioBitrate: "320k",
-      enforceAudioTrack: true,
-      outputLocation: outPath,
-      inputProps,
-      puppeteerInstance: browser,
-      concurrency: Number(process.env.RENDER_CONCURRENCY ?? 2),
-      timeoutInMilliseconds: 120_000,
+  const renderOnce = async () => {
+    const browser = await openBrowser("chrome", {
+      browserExecutable: chromePath ?? null,
       chromiumOptions: {
         gl: "swangle",
+        ignoreCertificateErrors: false,
         headless: true,
-      },
-      onProgress: ({ progress }) => {
-        const pct = Math.min(95, 12 + Math.round(progress * 80));
-        void updateJob(jobId, { progress: pct });
+        enableMultiProcessOnLinux: true,
       },
     });
-  } finally {
-    await browser.close({ silent: true }).catch(() => {});
+
+    try {
+      const composition = await selectComposition({
+        serveUrl,
+        id: "main",
+        inputProps,
+        puppeteerInstance: browser,
+      });
+
+      await renderMedia({
+        composition: {
+          ...composition,
+          width: res.w,
+          height: res.h,
+          fps: res.fps,
+          durationInFrames,
+        },
+        serveUrl,
+        codec: "h264",
+        crf,
+        pixelFormat: "yuv420p",
+        audioCodec: "aac",
+        audioBitrate: "320k",
+        enforceAudioTrack: true,
+        outputLocation: outPath,
+        inputProps,
+        puppeteerInstance: browser,
+        concurrency,
+        timeoutInMilliseconds: 180_000,
+        chromiumOptions: {
+          gl: "swangle",
+          headless: true,
+        },
+        onProgress: ({ progress }) => {
+          const pct = Math.min(95, 12 + Math.round(progress * 80));
+          void updateJob(jobId, { progress: pct });
+        },
+      });
+    } finally {
+      await browser.close({ silent: true }).catch(() => {});
+    }
+  };
+
+  try {
+    await renderOnce();
+  } catch (err) {
+    if (isSessionClosed(err)) {
+      console.warn(
+        `render ${jobId}: chromium session closed (likely OOM at ${resKey}); retrying once with concurrency=1`,
+      );
+      await updateJob(jobId, { progress: 12 });
+      // Retry serially — gives the OS time to reclaim memory.
+      await new Promise((r) => setTimeout(r, 2000));
+      // Force concurrency=1 on retry by mutating env for the duration of this call.
+      const prev = process.env.RENDER_CONCURRENCY;
+      process.env.RENDER_CONCURRENCY = "1";
+      try {
+        await renderOnce();
+      } finally {
+        if (prev === undefined) delete process.env.RENDER_CONCURRENCY;
+        else process.env.RENDER_CONCURRENCY = prev;
+      }
+    } else {
+      throw err;
+    }
   }
 
   await updateJob(jobId, { progress: 96 });
