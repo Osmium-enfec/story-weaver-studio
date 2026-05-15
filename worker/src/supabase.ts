@@ -69,3 +69,16 @@ export async function updateJob(
   const { error } = await sb.from("render_jobs").update(update).eq("id", jobId);
   if (error) console.error("updateJob error", jobId, error.message);
 }
+
+export async function getJobStatus(jobId: string): Promise<string | null> {
+  const { data, error } = await sb
+    .from("render_jobs")
+    .select("status")
+    .eq("id", jobId)
+    .single();
+  if (error) {
+    console.error("getJobStatus error", jobId, error.message);
+    return null;
+  }
+  return (data?.status as string | null) ?? null;
+}
