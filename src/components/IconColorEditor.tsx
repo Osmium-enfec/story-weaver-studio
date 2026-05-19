@@ -16,6 +16,8 @@ interface Props {
   componentId: string | null;
   onClose: () => void;
   onSaved?: () => void;
+  /** Live-preview callback fired whenever colors change. Receives a data: URL of the recolored SVG. */
+  onPreviewSvg?: (dataUrl: string) => void;
 }
 
 interface IconData {
