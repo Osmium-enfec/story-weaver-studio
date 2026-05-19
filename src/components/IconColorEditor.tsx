@@ -1,21 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Plus, X, Palette, Save, Copy } from "lucide-react";
+import { Loader2, Copy, Palette } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import { getIconSvg, saveRecoloredIcon } from "@/server/icon-recolor.functions";
 
 interface Props {
   componentId: string | null;
-  onClose: () => void;
-  onSaved?: () => void;
   /** Live-preview callback fired whenever colors change. Receives a data: URL of the recolored SVG. */
   onPreviewSvg?: (dataUrl: string) => void;
 }
@@ -37,7 +28,6 @@ function applyMapToSvg(
   let out = svg;
   for (const [from, to] of Object.entries(map)) {
     if (!from || !to) continue;
-    // simple but effective in-browser preview replace
     const safeFrom = from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     out = out.replace(new RegExp(safeFrom, "gi"), to);
   }
@@ -45,7 +35,12 @@ function applyMapToSvg(
   return out;
 }
 
-export function IconColorEditor({ componentId, onClose, onSaved, onPreviewSvg }: Props) {
+/**
+ * Inline sidebar panel for per-color SVG recoloring of an iconify asset.
+ * Calls onPreviewSvg with a data: URL each time the user adjusts a color —
+ * the parent persists that onto the canvas element in real time.
+ */
+export function IconColorEditor({ componentId, onPreviewSvg }: Props) {
   const loadFn = useServerFn(getIconSvg);
   const saveFn = useServerFn(saveRecoloredIcon);
   const [data, setData] = useState<IconData | null>(null);
@@ -54,13 +49,11 @@ export function IconColorEditor({ componentId, onClose, onSaved, onPreviewSvg }:
   const [error, setError] = useState<string | null>(null);
   const [colorMap, setColorMap] = useState<Record<string, string>>({});
   const [currentColor, setCurrentColor] = useState<string>("#111111");
-  const [customColors, setCustomColors] = useState<string[]>([]);
 
   useEffect(() => {
     if (!componentId) {
       setData(null);
       setColorMap({});
-      setCustomColors([]);
       setError(null);
       return;
     }
@@ -96,9 +89,8 @@ export function IconColorEditor({ componentId, onClose, onSaved, onPreviewSvg }:
     return `data:image/svg+xml;utf8,${encodeURIComponent(previewSvg)}`;
   }, [previewSvg]);
 
-  // Live-preview: push recolored SVG onto the canvas element as the user edits.
-  // Skip the initial render (when colorMap is just the identity from the source SVG)
-  // so we don't clobber the element's image_url with an unchanged copy.
+  // Live-preview push to canvas. Ref the callback so a new inline parent
+  // function doesn't retrigger this effect (which would infinite loop).
   const onPreviewSvgRef = useRef(onPreviewSvg);
   useEffect(() => { onPreviewSvgRef.current = onPreviewSvg; }, [onPreviewSvg]);
   useEffect(() => {
@@ -112,7 +104,7 @@ export function IconColorEditor({ componentId, onClose, onSaved, onPreviewSvg }:
     cb(previewDataUrl);
   }, [previewDataUrl, data, colorMap, currentColor]);
 
-  async function handleSave(saveAsCopy: boolean) {
+  async function handleSaveCopy() {
     if (!data) return;
     setSaving(true);
     try {
@@ -121,12 +113,10 @@ export function IconColorEditor({ componentId, onClose, onSaved, onPreviewSvg }:
           component_id: data.id,
           color_map: colorMap,
           current_color: data.has_current_color ? currentColor : null,
-          save_as_copy: saveAsCopy,
+          save_as_copy: true,
         },
       });
-      toast.success(saveAsCopy ? "Saved as a recolored copy" : "Icon updated");
-      onSaved?.();
-      onClose();
+      toast.success("Saved as a recolored copy in your library");
     } catch (e) {
       toast.error(`Save failed: ${(e as Error).message}`);
     } finally {
@@ -134,176 +124,106 @@ export function IconColorEditor({ componentId, onClose, onSaved, onPreviewSvg }:
     }
   }
 
-  return (
-    <Dialog open={componentId !== null} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-3xl" data-keep-selection>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Palette className="h-4 w-4" /> Recolor icon
-          </DialogTitle>
-          <DialogDescription>
-            Edit each color from the source SVG. Save replaces the original, or save a copy.
-          </DialogDescription>
-        </DialogHeader>
+  if (!componentId) return null;
 
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-5 w-5 animate-spin" />
-          </div>
-        ) : error ? (
-          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        ) : data ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-4">
-              {data.has_current_color && (
-                <div>
-                  <div className="mb-1.5 text-xs font-medium">Primary color (currentColor)</div>
-                  <div className="flex items-center gap-2">
+  return (
+    <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-3">
+      <div className="flex items-center gap-2">
+        <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          SVG colors
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        </div>
+      ) : error ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-[11px] text-destructive">
+          {error}
+        </div>
+      ) : data ? (
+        <>
+          {data.has_current_color && (
+            <div className="space-y-1">
+              <div className="text-[10px] text-muted-foreground">Primary color</div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={currentColor}
+                  onChange={(e) => setCurrentColor(e.target.value)}
+                  className="h-7 w-10 cursor-pointer rounded border border-border bg-transparent"
+                />
+                <input
+                  type="text"
+                  value={currentColor}
+                  onChange={(e) => setCurrentColor(e.target.value)}
+                  className="h-7 w-24 rounded-md border border-border bg-background px-2 font-mono text-[11px]"
+                />
+              </div>
+            </div>
+          )}
+
+          {data.colors.length > 0 && (
+            <div className="space-y-1.5">
+              {data.colors.map((orig) => {
+                const val = colorMap[orig] ?? orig;
+                return (
+                  <div key={orig} className="flex items-center gap-2">
+                    <span
+                      className="h-6 w-6 shrink-0 rounded border border-border"
+                      style={{ background: orig }}
+                      title={`Original ${orig}`}
+                    />
+                    <span className="text-muted-foreground">→</span>
                     <input
                       type="color"
-                      value={currentColor}
-                      onChange={(e) => setCurrentColor(e.target.value)}
-                      className="h-10 w-14 cursor-pointer rounded border border-border bg-transparent"
+                      value={val}
+                      onChange={(e) =>
+                        setColorMap((m) => ({ ...m, [orig]: e.target.value }))
+                      }
+                      className="h-7 w-9 cursor-pointer rounded border border-border bg-transparent"
                     />
                     <input
                       type="text"
-                      value={currentColor}
-                      onChange={(e) => setCurrentColor(e.target.value)}
-                      className="h-9 w-28 rounded-md border border-border bg-background px-2 text-xs font-mono"
+                      value={val}
+                      onChange={(e) =>
+                        setColorMap((m) => ({ ...m, [orig]: e.target.value }))
+                      }
+                      className="h-7 flex-1 rounded-md border border-border bg-background px-2 font-mono text-[11px]"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setColorMap((m) => ({ ...m, [orig]: orig }))}
+                      className="text-[10px] text-muted-foreground hover:text-foreground"
+                    >
+                      reset
+                    </button>
                   </div>
-                </div>
-              )}
-
-              {data.colors.length > 0 && (
-                <div>
-                  <div className="mb-1.5 text-xs font-medium">Icon colors</div>
-                  <div className="space-y-1.5">
-                    {data.colors.map((orig) => {
-                      const val = colorMap[orig] ?? orig;
-                      return (
-                        <div key={orig} className="flex items-center gap-2">
-                          <span
-                            className="h-7 w-7 rounded border border-border"
-                            style={{ background: orig }}
-                            title={`Original ${orig}`}
-                          />
-                          <span className="text-muted-foreground">→</span>
-                          <input
-                            type="color"
-                            value={val}
-                            onChange={(e) =>
-                              setColorMap((m) => ({ ...m, [orig]: e.target.value }))
-                            }
-                            className="h-7 w-10 cursor-pointer rounded border border-border bg-transparent"
-                          />
-                          <input
-                            type="text"
-                            value={val}
-                            onChange={(e) =>
-                              setColorMap((m) => ({ ...m, [orig]: e.target.value }))
-                            }
-                            className="h-7 w-24 rounded-md border border-border bg-background px-2 text-xs font-mono"
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setColorMap((m) => ({ ...m, [orig]: orig }))
-                            }
-                            className="text-[10px] text-muted-foreground hover:text-foreground"
-                          >
-                            reset
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {data.colors.length === 0 && !data.has_current_color && (
-                <div className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">
-                  No editable colors detected in this SVG.
-                </div>
-              )}
-
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <span className="text-xs font-medium">Custom palette</span>
-                  <button
-                    type="button"
-                    onClick={() => setCustomColors((c) => [...c, "#3b82f6"])}
-                    className="inline-flex h-6 items-center gap-1 rounded-md border border-border px-1.5 text-[10px] hover:bg-accent"
-                  >
-                    <Plus className="h-3 w-3" /> Add
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {customColors.map((c, i) => (
-                    <div key={i} className="relative">
-                      <input
-                        type="color"
-                        value={c}
-                        onChange={(e) =>
-                          setCustomColors((arr) =>
-                            arr.map((v, idx) => (idx === i ? e.target.value : v)),
-                          )
-                        }
-                        className="h-9 w-9 cursor-pointer rounded border border-border bg-transparent"
-                        title="Drag onto a color above to apply (click to pick)"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setCustomColors((arr) => arr.filter((_, idx) => idx !== i))
-                        }
-                        className="absolute -right-1 -top-1 rounded-full bg-background p-0.5 text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="h-2.5 w-2.5" />
-                      </button>
-                    </div>
-                  ))}
-                  {customColors.length === 0 && (
-                    <span className="text-[10px] text-muted-foreground">
-                      Add accent swatches for quick reference.
-                    </span>
-                  )}
-                </div>
-              </div>
+                );
+              })}
             </div>
+          )}
 
-            <div className="flex items-center justify-center rounded-lg border border-border bg-[conic-gradient(at_50%_50%,#0001_25%,transparent_0_50%,#0001_0_75%,transparent_0)] bg-[length:16px_16px] p-4">
-              {previewDataUrl && (
-                <img
-                  src={previewDataUrl}
-                  alt={data.name}
-                  className="max-h-72 w-auto object-contain"
-                />
-              )}
+          {data.colors.length === 0 && !data.has_current_color && (
+            <div className="rounded-md border border-dashed border-border p-2 text-[11px] text-muted-foreground">
+              No editable colors detected in this SVG.
             </div>
-          </div>
-        ) : null}
+          )}
 
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
-          <p className="mr-auto text-[11px] text-muted-foreground">
-            Colors apply live to the canvas. Use “Save as library copy” to also save a recolored version to your library.
-          </p>
-          <Button onClick={onClose} disabled={saving}>
-            Done
-          </Button>
           <Button
+            size="sm"
             variant="outline"
-            onClick={() => handleSave(true)}
-            disabled={!data || saving}
-            className="gap-1"
+            onClick={handleSaveCopy}
+            disabled={saving}
+            className="w-full gap-1"
           >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
             Save as library copy
           </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </>
+      ) : null}
+    </div>
   );
 }
