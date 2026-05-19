@@ -75,18 +75,23 @@ function snap(ms: number, bypass: boolean) {
 
 export function TimelineWorkspace({
   sceneId, durationMs, voiceUrl, elements, selectedId,
-  onSelect, onChangeTimes, onDelete,
+  onSelect, onChangeTimes, onDelete, onPlayheadChange,
 }: Props) {
   const [pxPerSec, setPxPerSec] = useState(80);
   const [playheadMs, setPlayheadMs] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [hiddenGroups, setHiddenGroups] = useState<Record<string, boolean>>({});
   const [lockedGroups, setLockedGroups] = useState<Record<string, boolean>>({});
+  // Local override during drag so we don't roundtrip to the DB on every mousemove
+  const [dragOverride, setDragOverride] = useState<{ id: string; start: number; end: number } | null>(null);
   const lanesRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const rafRef = useRef<number | null>(null);
   const startedAtRef = useRef<number>(0);
   const startMsRef = useRef<number>(0);
+
+  // Emit playhead changes upward so the canvas can sync
+  useEffect(() => { onPlayheadChange?.(playheadMs, playing); }, [playheadMs, playing, onPlayheadChange]);
 
   const pxPerMs = pxPerSec / 1000;
   const totalWidth = Math.max(600, durationMs * pxPerMs);
