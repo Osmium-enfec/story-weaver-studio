@@ -798,7 +798,9 @@ function ScriptCanvas() {
         rotation: 0,
         word: null,
         occurrence: null,
+        timing_mode: getMode(activeScene.id),
       };
+      const _t = timingForInsert(activeScene.id);
       const { data, error } = await supabase
         .from("scene_elements")
         .insert({
@@ -807,6 +809,8 @@ function ScriptCanvas() {
           content: content as unknown as never,
           position: { x: it.cell.x, y: it.cell.y, w, h },
           z_index: activeScene.elements.length,
+          start_ms: _t.start_ms,
+          end_ms: _t.end_ms,
         })
         .select("*")
         .single();
@@ -848,6 +852,7 @@ function ScriptCanvas() {
       rotation: 0,
       word: null,
       occurrence: null,
+      timing_mode: getMode(activeScene.id),
       text_bg_color: preset.bg_color,
       text_bg_padding_x: padX,
       text_bg_padding_y: padY,
@@ -855,6 +860,7 @@ function ScriptCanvas() {
       text_bg_border_color: preset.border_color ?? null,
       text_bg_border_width: preset.border_width,
     };
+    const _t = timingForInsert(activeScene.id);
     const { data, error } = await supabase
       .from("scene_elements")
       .insert({
@@ -863,6 +869,8 @@ function ScriptCanvas() {
         content: content as unknown as never,
         position: { x, y, w, h },
         z_index: activeScene.elements.length,
+        start_ms: _t.start_ms,
+        end_ms: _t.end_ms,
       })
       .select("*")
       .single();
