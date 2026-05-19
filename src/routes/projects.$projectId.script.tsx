@@ -1459,15 +1459,6 @@ function ScriptCanvas() {
         </div>
       </aside>
 
-      <IconColorEditor
-        componentId={recolorComponentId}
-        onClose={() => { setRecolorComponentId(null); setRecolorTarget(null); }}
-        onSaved={() => { setRecolorComponentId(null); setRecolorTarget(null); }}
-        onPreviewSvg={(dataUrl) => {
-          if (!recolorTarget) return;
-          void updateElementContent(recolorTarget.sceneId, recolorTarget.elementId, { image_url: dataUrl });
-        }}
-      />
       <PlaybackDialog
         open={playOpen}
         onOpenChange={(o) => { setPlayOpen(o); if (!o) setPreviewSceneId(null); }}
