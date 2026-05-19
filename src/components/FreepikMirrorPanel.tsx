@@ -27,17 +27,45 @@ const COLOR_HEX: Record<FreepikColor, string> = {
   brown: "#92400e",
 };
 
-type AssetType = "photo" | "vector" | "video" | "icon";
-const ASSET_TYPES: { id: AssetType; label: string }[] = [
-  { id: "photo", label: "Photos" },
-  { id: "vector", label: "Vectors" },
-  { id: "icon", label: "Icons" },
-  { id: "video", label: "Videos" },
+type AssetType =
+  | "all-images" | "photo" | "vector" | "illustration" | "psd" | "template" | "mockup"
+  | "all-videos" | "video" | "footage" | "motion-graphics" | "video-template"
+  | "icon" | "3d";
+
+const ASSET_GROUPS: { group: string; options: { id: AssetType; label: string }[] }[] = [
+  {
+    group: "Images",
+    options: [
+      { id: "all-images", label: "All Images" },
+      { id: "vector", label: "Vectors" },
+      { id: "illustration", label: "Illustrations" },
+      { id: "photo", label: "Photos" },
+      { id: "psd", label: "PSD" },
+      { id: "template", label: "Templates" },
+      { id: "mockup", label: "Mockups" },
+    ],
+  },
+  {
+    group: "Videos",
+    options: [
+      { id: "all-videos", label: "All Videos" },
+      { id: "footage", label: "Footage" },
+      { id: "motion-graphics", label: "Motion graphics" },
+      { id: "video-template", label: "Video templates" },
+    ],
+  },
+  {
+    group: "Other",
+    options: [
+      { id: "icon", label: "Icons" },
+      { id: "3d", label: "3D Models" },
+    ],
+  },
 ];
 
 export function FreepikMirrorPanel() {
   const [query, setQuery] = useState("");
-  const [assetType, setAssetType] = useState<AssetType>("photo");
+  const [assetType, setAssetType] = useState<AssetType>("all-images");
   const [color, setColor] = useState<FreepikColor | null>(null);
   const [limit, setLimit] = useState(20);
   const [items, setItems] = useState<FreepikItem[] | null>(null);
@@ -175,21 +203,21 @@ export function FreepikMirrorPanel() {
           </Button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">Type:</span>
-          {ASSET_TYPES.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setAssetType(t.id)}
-              className={`rounded-full border px-2.5 py-0.5 text-xs transition ${
-                assetType === t.id
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-background hover:border-primary/50"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+          <select
+            value={assetType}
+            onChange={(e) => setAssetType(e.target.value as AssetType)}
+            className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+          >
+            {ASSET_GROUPS.map((g) => (
+              <optgroup key={g.group} label={g.group}>
+                {g.options.map((o) => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
@@ -283,7 +311,7 @@ export function FreepikMirrorPanel() {
                     }`}
                     title={it.name}
                   >
-                    {it.asset_type === "video" ? (
+                    {(it.asset_type === "video" || it.asset_type === "footage" || it.asset_type === "motion-graphics" || it.asset_type === "video-template") ? (
                       <video
                         src={it.preview_url}
                         muted

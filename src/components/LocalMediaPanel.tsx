@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import { Search, Sparkles, HardDrive, Loader2, RefreshCw } from "lucide-react";
+import { Search, Sparkles, HardDrive, Loader2, RefreshCw, Palette } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { IconColorEditor } from "@/components/IconColorEditor";
 
 const IMAGE_EXT_RE = /\.(gif|png|jpe?g|webp|avif|svg)$/i;
 const LOTTIE_EXT_RE = /\.(json|lottie)$/i;
@@ -13,11 +14,13 @@ type LocalKind = "image" | "lottie" | "video" | "audio" | "component" | "3d";
 
 interface LocalItem {
   id: string;
+  componentId?: string;
   name: string;
   category: string;
   kind: LocalKind;
   provider: string;
   assetType?: string | null;
+  contentType?: string | null;
   url?: string | null;
   thumbnail?: string | null;
   tags: string[];
@@ -67,6 +70,17 @@ export function LocalMediaPanel() {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterId>("all");
   const [page, setPage] = useState(1);
+  const [recolorTargetId, setRecolorTargetId] = useState<string | null>(null);
+
+  function isRecolorable(it: LocalItem): boolean {
+    if (!it.componentId) return false;
+    if (it.provider === "iconify" || it.provider === "iconify-custom") return true;
+    if ((it.provider === "freepik" || it.provider === "freepik-custom") &&
+        (it.assetType === "icon" || it.assetType === "vector" || it.contentType === "image/svg+xml")) {
+      return true;
+    }
+    return /\.svg(\?|$)/i.test(it.url ?? "");
+  }
 
   useEffect(() => {
     setPage(1);
@@ -117,6 +131,7 @@ export function LocalMediaPanel() {
 
         const comps: LocalItem[] = (compsRes.data ?? []).map((c: any) => {
           const assetType: string | null = c.default_props?.asset_type ?? null;
+          const contentType: string | null = c.default_props?.content_type ?? null;
           const kind: LocalKind = c.lottie_url
             ? "lottie"
             : c.video_url
@@ -128,11 +143,13 @@ export function LocalMediaPanel() {
             : "component";
           return {
             id: `comp:${c.id}`,
+            componentId: c.id,
             name: c.name,
             category: c.category || "Components",
             kind,
             provider: c.provider || "internal",
             assetType,
+            contentType,
             url: c.lottie_url || c.video_url || c.thumbnail_url,
             thumbnail: c.thumbnail_url,
             tags: c.tags ?? [],
@@ -275,6 +292,16 @@ export function LocalMediaPanel() {
                 <span className="absolute left-1 top-1 rounded bg-background/80 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
                   {it.kind}
                 </span>
+                {isRecolorable(it) && (
+                  <button
+                    type="button"
+                    onClick={() => setRecolorTargetId(it.componentId!)}
+                    className="absolute right-1 top-1 inline-flex items-center gap-0.5 rounded bg-background/90 px-1.5 py-0.5 text-[10px] font-medium opacity-0 transition-opacity hover:bg-primary hover:text-primary-foreground group-hover:opacity-100"
+                    title="Recolor icon"
+                  >
+                    <Palette className="h-3 w-3" /> Recolor
+                  </button>
+                )}
               </div>
               <div className="px-2 py-1.5">
                 <div className="line-clamp-1 text-xs font-medium">{it.name}</div>
@@ -284,6 +311,12 @@ export function LocalMediaPanel() {
           ))}
         </div>
       )}
+
+      <IconColorEditor
+        componentId={recolorTargetId}
+        onClose={() => setRecolorTargetId(null)}
+        onSaved={() => void loadItems()}
+      />
 
       {!loading && filtered.length > 0 && (
         <div className="flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
