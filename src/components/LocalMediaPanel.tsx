@@ -292,6 +292,16 @@ export function LocalMediaPanel() {
                 <span className="absolute left-1 top-1 rounded bg-background/80 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
                   {it.kind}
                 </span>
+                {isRecolorable(it) && (
+                  <button
+                    type="button"
+                    onClick={() => setRecolorTargetId(it.componentId!)}
+                    className="absolute right-1 top-1 inline-flex items-center gap-0.5 rounded bg-background/90 px-1.5 py-0.5 text-[10px] font-medium opacity-0 transition-opacity hover:bg-primary hover:text-primary-foreground group-hover:opacity-100"
+                    title="Recolor icon"
+                  >
+                    <Palette className="h-3 w-3" /> Recolor
+                  </button>
+                )}
               </div>
               <div className="px-2 py-1.5">
                 <div className="line-clamp-1 text-xs font-medium">{it.name}</div>
@@ -301,6 +311,12 @@ export function LocalMediaPanel() {
           ))}
         </div>
       )}
+
+      <IconColorEditor
+        componentId={recolorTargetId}
+        onClose={() => setRecolorTargetId(null)}
+        onSaved={() => void loadItems()}
+      />
 
       {!loading && filtered.length > 0 && (
         <div className="flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
