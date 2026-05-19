@@ -1306,9 +1306,10 @@ function ScriptCanvas() {
               )}
             </div>
             {getMode(s.id) === "timeline" ? (
-              <TimelineEditor
+              <TimelineWorkspace
                 sceneId={s.id}
                 durationMs={s.duration_ms || 8000}
+                voiceUrl={s.voice_url}
                 elements={s.elements.map((e) => ({
                   id: e.id,
                   type: e.type,
@@ -1318,8 +1319,9 @@ function ScriptCanvas() {
                   z_index: e.z_index,
                 }))}
                 selectedId={idx === activeIdx ? selectedElementId : null}
-                onSelect={(id) => { setActiveIdx(idx); setSelectedElementId(id); }}
-                onChangeTimes={(id, start, end) => void updateElementTiming(s.id, id, start, end)}
+                onSelect={(id: string) => { setActiveIdx(idx); setSelectedElementId(id); }}
+                onChangeTimes={(id: string, start: number, end: number) => void updateElementTiming(s.id, id, start, end)}
+                onDelete={(id: string) => void deleteElement(s.id, id)}
               />
             ) : (
             <>
