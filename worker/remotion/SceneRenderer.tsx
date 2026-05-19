@@ -178,11 +178,22 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
           el.type === "text" ||
           typeof el.content?.text === "string" ||
           !!el.content?.role;
-        const revealMs = elementRevealMs(scene, el);
+        // Timeline-driven timing takes precedence over word-bound reveal.
+        const hasTimeline =
+          typeof el.start_ms === "number" || typeof el.end_ms === "number";
+        const revealMs = hasTimeline
+          ? Math.max(0, el.start_ms ?? 0)
+          : elementRevealMs(scene, el);
+        const endMs = hasTimeline
+          ? (el.end_ms ?? scene.duration_ms ?? Number.POSITIVE_INFINITY)
+          : Number.POSITIVE_INFINITY;
         const revealFrame = Math.round((revealMs / 1000) * fps);
+        const endFrame = Number.isFinite(endMs)
+          ? Math.round((endMs / 1000) * fps)
+          : Number.POSITIVE_INFINITY;
         const dur = isText ? TEXT_REVEAL_FRAMES : BLOCK_REVEAL_FRAMES;
 
-        if (frame < revealFrame) return null;
+        if (frame < revealFrame || frame >= endFrame) return null;
 
         const opacity = interpolate(
           frame,
