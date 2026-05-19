@@ -382,9 +382,9 @@ export function TimelineWorkspace({
                     return (
                       <div
                         key={el.id}
-                        className={`group absolute top-1 flex h-[34px] items-center overflow-hidden rounded-lg bg-gradient-to-br ${g.color} text-white shadow-md transition-all ${
+                        className={`group absolute top-1 flex h-[34px] cursor-grab items-center overflow-hidden rounded-lg bg-gradient-to-br ${g.color} text-white shadow-md transition-all active:cursor-grabbing ${
                           isSel ? `ring-2 ring-offset-2 ring-offset-[#0f1115] ${g.ring} shadow-lg scale-[1.01]` : "hover:brightness-110 hover:shadow-lg"
-                        } ${isLocked ? "opacity-60" : ""}`}
+                        } ${isLocked ? "cursor-not-allowed opacity-60" : ""}`}
                         style={{ left, width }}
                         onMouseDown={(e) => {
                           e.stopPropagation();
