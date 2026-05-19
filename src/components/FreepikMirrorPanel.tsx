@@ -311,7 +311,7 @@ export function FreepikMirrorPanel() {
                     }`}
                     title={it.name}
                   >
-                    {it.asset_type === "video" ? (
+                    {(it.asset_type === "video" || it.asset_type === "footage" || it.asset_type === "motion-graphics" || it.asset_type === "video-template") ? (
                       <video
                         src={it.preview_url}
                         muted
