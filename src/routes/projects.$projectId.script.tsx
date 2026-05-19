@@ -28,6 +28,7 @@ import { directProject } from "@/server/director.functions";
 import { AnimationAgentPanel } from "@/components/AnimationAgentPanel";
 import { proxyImageAsDataUrl } from "@/server/proxy-image.functions";
 import { CanvasAudioEditor } from "@/components/CanvasAudioEditor";
+import { TimelineEditor } from "@/components/TimelineEditor";
 import { applyPendingTheme, consumePendingTheme } from "@/lib/pending-theme";
 
 async function inlineAllImages(root: HTMLElement) {
@@ -123,6 +124,15 @@ function ScriptCanvas() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [animPreview, setAnimPreview] = useState<{ id: string; tick: number } | null>(null);
   const animPreviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Per-scene editing mode: "word" (default, stitch animations to spoken words)
+  // or "timeline" (Canva-style, place clips on a timeline).
+  const [canvasModes, setCanvasModes] = useState<Record<string, "word" | "timeline">>({});
+  function getMode(sceneId: string): "word" | "timeline" {
+    return canvasModes[sceneId] ?? "word";
+  }
+  function setMode(sceneId: string, mode: "word" | "timeline") {
+    setCanvasModes((prev) => ({ ...prev, [sceneId]: mode }));
+  }
 
   const activeScene = scenes[activeIdx];
 
