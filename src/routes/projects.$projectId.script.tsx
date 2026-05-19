@@ -899,7 +899,9 @@ function ScriptCanvas() {
       opacity: 1,
       rotation: 0,
       shape_stroke_width: 7,
+      timing_mode: getMode(activeScene.id),
     };
+    const _t = timingForInsert(activeScene.id);
     const { data, error } = await supabase
       .from("scene_elements")
       .insert({
@@ -908,6 +910,8 @@ function ScriptCanvas() {
         content: content as unknown as never,
         position: clampRectToDesign(position) as unknown as never,
         z_index: activeScene.elements.length,
+        start_ms: _t.start_ms,
+        end_ms: _t.end_ms,
       })
       .select("*")
       .single();
