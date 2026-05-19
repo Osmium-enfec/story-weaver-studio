@@ -1331,6 +1331,23 @@ function ScriptCanvas() {
                                 void updateElementContent(activeScene!.id, sel.id, { tint })
                             : undefined
                         }
+                        onOpenRecolor={
+                          sel && sel.content.external_id && sel.content.provider
+                            ? async () => {
+                                const { data, error } = await supabase
+                                  .from("animation_components")
+                                  .select("id")
+                                  .eq("provider", sel.content.provider)
+                                  .eq("external_id", sel.content.external_id!)
+                                  .maybeSingle();
+                                if (error || !data) {
+                                  toast.error("This asset isn't cached for recoloring yet.");
+                                  return;
+                                }
+                                setRecolorComponentId(data.id);
+                              }
+                            : undefined
+                        }
                       />
                     );
                   })()}
