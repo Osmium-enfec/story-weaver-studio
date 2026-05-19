@@ -479,7 +479,6 @@ function InspectorPanel({
   const start = element.start_ms ?? 0;
   const end = element.end_ms ?? durationMs;
   const dur = Math.max(MIN_CLIP_MS, end - start);
-  const isTimeline = element.content.timing_mode === "timeline";
 
   return (
     <div className="space-y-3 text-[11px]">
@@ -487,17 +486,11 @@ function InspectorPanel({
         {(element.content.text as string) || element.content.role || element.content.shape_type || element.content.name || element.type}
       </div>
 
-      {!isTimeline && (
-        <div className="rounded-md border border-amber-400/30 bg-amber-400/10 p-2 text-[10px] text-amber-200">
-          Bound to a word — switch the canvas to Timeline mode to edit its timing.
-        </div>
-      )}
-
-      <Field label="Start" value={start} max={durationMs - MIN_CLIP_MS} disabled={!isTimeline}
+      <Field label="Start" value={start} max={durationMs - MIN_CLIP_MS}
         onChange={(v) => onChangeTimes(element.id, v, Math.max(v + MIN_CLIP_MS, end))} />
-      <Field label="Duration" value={dur} max={durationMs} disabled={!isTimeline}
+      <Field label="Duration" value={dur} max={durationMs}
         onChange={(v) => onChangeTimes(element.id, start, Math.min(durationMs, start + Math.max(MIN_CLIP_MS, v)))} />
-      <Field label="End" value={end} max={durationMs} disabled={!isTimeline}
+      <Field label="End" value={end} max={durationMs}
         onChange={(v) => onChangeTimes(element.id, Math.min(v - MIN_CLIP_MS, start), v)} />
 
       {onDelete && (
