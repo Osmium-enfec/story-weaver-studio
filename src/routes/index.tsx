@@ -13,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ProjectThumbnail } from "@/components/ProjectThumbnail";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({ component: Dashboard });
