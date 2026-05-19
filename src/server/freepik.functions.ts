@@ -8,7 +8,8 @@ import { createClient } from "@supabase/supabase-js";
  */
 
 const BUCKET = "animation-cache";
-const BASE = "https://api.freepik.com/v1";
+// Magnific API (Freepik-compatible). Docs: https://docs.magnific.com
+const BASE = "https://api.magnific.com/v1";
 
 export const FREEPIK_COLORS = [
   "black", "white", "red", "orange", "yellow", "green",
