@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
   AnimationBlockRenderer,
   TextBlockRenderer,
@@ -358,6 +358,9 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl">
         <DialogTitle className="sr-only">Preview</DialogTitle>
+        <DialogDescription className="sr-only">
+          Plays the current canvas sequence with timed element animations.
+        </DialogDescription>
         <div className="flex flex-col gap-3">
           <div
             ref={stageRef}
@@ -408,7 +411,10 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
                           animating={playing && visible}
                         />
                       ) : (
-                        <AnimationBlockRenderer content={el.content} />
+                        <AnimationBlockRenderer
+                          key={`${el.id}-${playing ? "playing" : "idle"}-${visible ? "visible" : "hidden"}-${currentIdx}`}
+                          content={el.content}
+                        />
                       )}
                     </div>
                   );
