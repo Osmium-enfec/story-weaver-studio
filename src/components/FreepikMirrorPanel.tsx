@@ -65,7 +65,7 @@ const ASSET_GROUPS: { group: string; options: { id: AssetType; label: string }[]
 
 export function FreepikMirrorPanel() {
   const [query, setQuery] = useState("");
-  const [assetType, setAssetType] = useState<AssetType>("photo");
+  const [assetType, setAssetType] = useState<AssetType>("all-images");
   const [color, setColor] = useState<FreepikColor | null>(null);
   const [limit, setLimit] = useState(20);
   const [items, setItems] = useState<FreepikItem[] | null>(null);
