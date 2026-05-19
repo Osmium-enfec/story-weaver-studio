@@ -51,6 +51,11 @@ export function IconAnimationPanel({
   const currentTint = selectedContent.tint ?? null;
   return (
     <div className="space-y-3 p-3">
+      {onOpenRecolor && (
+        <Button size="sm" variant="outline" className="w-full gap-2" onClick={onOpenRecolor}>
+          <Palette className="h-3.5 w-3.5" /> Edit SVG colors
+        </Button>
+      )}
       {palette.length > 0 && onChangeTint && (
         <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
