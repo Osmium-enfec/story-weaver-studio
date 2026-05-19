@@ -204,6 +204,33 @@ function ScriptCanvas() {
     return () => document.removeEventListener("mousedown", onDocMouseDown);
   }, [selectedElementId]);
 
+  // Auto-resolve animation_components.id for the selected iconify element so
+  // the inline recolor panel in the sidebar can load its source SVG.
+  useEffect(() => {
+    const sel = scenes
+      .flatMap((s) => s.elements.map((e) => ({ sceneId: s.id, el: e })))
+      .find((x) => x.el.id === selectedElementId);
+    const c = sel?.el.content;
+    if (!sel || !c || c.provider !== "iconify" || !c.external_id) {
+      setRecolorComponentId(null);
+      setRecolorTarget(null);
+      return;
+    }
+    let cancelled = false;
+    setRecolorTarget({ sceneId: sel.sceneId, elementId: sel.el.id });
+    (async () => {
+      const { data } = await supabase
+        .from("animation_components")
+        .select("id")
+        .eq("provider", c.provider)
+        .eq("external_id", c.external_id!)
+        .maybeSingle();
+      if (cancelled) return;
+      setRecolorComponentId(data?.id ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedElementId, scenes]);
+
   async function exportVideo() {
     const node = canvasRefs.current[activeScene?.id ?? ""];
     if (!node) return;
