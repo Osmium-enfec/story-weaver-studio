@@ -27,12 +27,40 @@ const COLOR_HEX: Record<FreepikColor, string> = {
   brown: "#92400e",
 };
 
-type AssetType = "photo" | "vector" | "video" | "icon";
-const ASSET_TYPES: { id: AssetType; label: string }[] = [
-  { id: "photo", label: "Photos" },
-  { id: "vector", label: "Vectors" },
-  { id: "icon", label: "Icons" },
-  { id: "video", label: "Videos" },
+type AssetType =
+  | "all-images" | "photo" | "vector" | "illustration" | "psd" | "template" | "mockup"
+  | "all-videos" | "video" | "footage" | "motion-graphics" | "video-template"
+  | "icon" | "3d";
+
+const ASSET_GROUPS: { group: string; options: { id: AssetType; label: string }[] }[] = [
+  {
+    group: "Images",
+    options: [
+      { id: "all-images", label: "All Images" },
+      { id: "vector", label: "Vectors" },
+      { id: "illustration", label: "Illustrations" },
+      { id: "photo", label: "Photos" },
+      { id: "psd", label: "PSD" },
+      { id: "template", label: "Templates" },
+      { id: "mockup", label: "Mockups" },
+    ],
+  },
+  {
+    group: "Videos",
+    options: [
+      { id: "all-videos", label: "All Videos" },
+      { id: "footage", label: "Footage" },
+      { id: "motion-graphics", label: "Motion graphics" },
+      { id: "video-template", label: "Video templates" },
+    ],
+  },
+  {
+    group: "Other",
+    options: [
+      { id: "icon", label: "Icons" },
+      { id: "3d", label: "3D Models" },
+    ],
+  },
 ];
 
 export function FreepikMirrorPanel() {
