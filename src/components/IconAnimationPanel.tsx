@@ -27,10 +27,12 @@ export function IconAnimationPanel({
   selectedContent,
   onChange,
   onChangeTint,
+  onOpenRecolor,
 }: {
   selectedContent?: AnimationBlockContent;
   onChange?: (next: AnimationBlockContent["icon_animation"]) => void;
   onChangeTint?: (tint: string | null) => void;
+  onOpenRecolor?: () => void;
 }) {
   if (!selectedContent || !onChange) {
     return (
