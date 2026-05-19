@@ -1265,6 +1265,7 @@ function ScriptCanvas() {
         <div
           className="sticky flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
           style={{ top: "4.5rem", height: "calc(100vh - 5.5rem)" }}
+          data-keep-selection
         >
           <Tabs value={rightTab} onValueChange={setRightTab} className="flex h-full min-h-0 flex-col">
             <TabsList className="m-3 grid shrink-0 grid-cols-4">
