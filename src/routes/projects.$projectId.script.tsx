@@ -17,6 +17,7 @@ import { ThemeBuilder } from "@/components/ThemeBuilder";
 import { TextPanel, type TextRole, type TextRoleStyle } from "@/components/TextPanel";
 import { ShapePanel } from "@/components/ShapePanel";
 import { IconAnimationPanel } from "@/components/IconAnimationPanel";
+import { IconColorEditor } from "@/components/IconColorEditor";
 import type { FontPair } from "@/lib/font-pairs";
 import type { BannerPreset } from "@/lib/banner-presets";
 import { PlaybackDialog } from "@/components/PlaybackDialog";
@@ -114,6 +115,7 @@ function ScriptCanvas() {
   const [canvasScales, setCanvasScales] = useState<Record<string, number>>({});
   const [rightTab, setRightTab] = useState<string>("animations");
   const [animationSubTab, setAnimationSubTab] = useState<string>("search");
+  const [recolorComponentId, setRecolorComponentId] = useState<string | null>(null);
   const [isSeeding, setIsSeeding] = useState(false);
   const [animPreview, setAnimPreview] = useState<{ id: string; tick: number } | null>(null);
   const animPreviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1106,7 +1108,8 @@ function ScriptCanvas() {
                       setActiveIdx(idx);
                       setSelectedElementId(el.id);
                       if (el.type === "text") setRightTab("text");
-                      if (el.type === "shape") { setRightTab("animations"); setAnimationSubTab("shape-edit"); }
+                      else if (el.type === "shape") { setRightTab("animations"); setAnimationSubTab("shape-edit"); }
+                      else { setRightTab("animations"); setAnimationSubTab("animate"); }
                     }}
                     className={`group/el rounded-lg border-2 ${
                       selectedElementId === el.id ? "border-primary" : "border-transparent hover:border-primary/40"
@@ -1328,6 +1331,23 @@ function ScriptCanvas() {
                                 void updateElementContent(activeScene!.id, sel.id, { tint })
                             : undefined
                         }
+                        onOpenRecolor={
+                          sel && sel.content.external_id && sel.content.provider
+                            ? async () => {
+                                const { data, error } = await supabase
+                                  .from("animation_components")
+                                  .select("id")
+                                  .eq("provider", sel.content.provider)
+                                  .eq("external_id", sel.content.external_id!)
+                                  .maybeSingle();
+                                if (error || !data) {
+                                  toast.error("This asset isn't cached for recoloring yet.");
+                                  return;
+                                }
+                                setRecolorComponentId(data.id);
+                              }
+                            : undefined
+                        }
                       />
                     );
                   })()}
@@ -1410,6 +1430,11 @@ function ScriptCanvas() {
         </div>
       </aside>
 
+      <IconColorEditor
+        componentId={recolorComponentId}
+        onClose={() => setRecolorComponentId(null)}
+        onSaved={() => setRecolorComponentId(null)}
+      />
       <PlaybackDialog
         open={playOpen}
         onOpenChange={(o) => { setPlayOpen(o); if (!o) setPreviewSceneId(null); }}
