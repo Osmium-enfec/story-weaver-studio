@@ -14,6 +14,8 @@ export const Route = createFileRoute("/projects/$projectId/preview")({
   component: PreviewPage,
 });
 
+type SceneWithPlayback = Scene & Omit<PlaybackScene, "id" | "background" | "elements" | "narration">;
+
 function PreviewPage() {
   const { projectId } = useParams({ from: "/projects/$projectId/preview" });
   const { project } = useProject();
@@ -29,7 +31,7 @@ function PreviewPage() {
         .select("*")
         .eq("project_id", projectId)
         .order("order_index");
-      const sceneRows = (data ?? []) as unknown as Array<Omit<PlaybackScene, "elements"> & Scene>;
+      const sceneRows = (data ?? []) as unknown as SceneWithPlayback[];
       setScenes(sceneRows as unknown as Scene[]);
       const ids = sceneRows.map((scene) => scene.id);
       if (ids.length === 0) {
@@ -43,7 +45,7 @@ function PreviewPage() {
         .order("z_index");
       const elementRows = (elements ?? []) as unknown as Array<PlaybackScene["elements"][number] & { scene_id: string }>;
       setPlaybackScenes(
-        ((data ?? []) as unknown as Scene[]).map((scene) => ({
+        sceneRows.map((scene) => ({
           id: scene.id,
           background: scene.background as SceneBackground,
           narration: scene.narration,
