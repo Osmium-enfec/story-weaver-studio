@@ -155,9 +155,7 @@ function Dashboard() {
                 to={`/projects/${p.id}/script` as string}
                 className="block aspect-video bg-gradient-to-br from-primary/20 to-accent"
               >
-                <div className="flex h-full items-center justify-center text-primary">
-                  <Film className="h-10 w-10 opacity-40" />
-                </div>
+                <ProjectThumbnail projectId={p.id} />
               </Link>
               <div className="flex items-start justify-between gap-2 p-4">
                 <div className="min-w-0">
