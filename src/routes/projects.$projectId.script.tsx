@@ -1322,7 +1322,8 @@ function ScriptCanvas() {
                 onChangeTimes={(id, start, end) => void updateElementTiming(s.id, id, start, end)}
               />
             ) : (
-            /* Per-canvas script (word-stitched mode) */
+            <>
+            {/* Per-canvas script (word-stitched mode) */}
             <div className="border-t border-border p-3">
               <div className="mb-1 flex items-center justify-between">
                 <label className="block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1391,6 +1392,8 @@ function ScriptCanvas() {
                 setScenes((prev) => prev.map((x) => (x.id === s.id ? { ...x, ...patch } : x)))
               }
             />
+            </>
+            )}
           </div>
         ))}
         <Button variant="outline" className="w-full gap-1.5" onClick={addCanvas}>
