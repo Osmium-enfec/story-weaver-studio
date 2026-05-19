@@ -1346,39 +1346,38 @@ function ScriptCanvas() {
                       (e) => e.id === selectedElementId && e.type !== "text",
                     );
                     return (
-                      <IconAnimationPanel
-                        selectedContent={sel?.content}
-                        onChange={
-                          sel
-                            ? (next: AnimationBlockContent["icon_animation"]) =>
-                                void updateElementContent(activeScene!.id, sel.id, { icon_animation: next })
-                            : undefined
-                        }
-                        onChangeTint={
-                          sel
-                            ? (tint: string | null) =>
-                                void updateElementContent(activeScene!.id, sel.id, { tint })
-                            : undefined
-                        }
-                        onOpenRecolor={
-                          sel && sel.content.external_id && sel.content.provider
-                            ? async () => {
-                                const { data, error } = await supabase
-                                  .from("animation_components")
-                                  .select("id")
-                                  .eq("provider", sel.content.provider)
-                                  .eq("external_id", sel.content.external_id!)
-                                  .maybeSingle();
-                                if (error || !data) {
-                                  toast.error("This asset isn't cached for recoloring yet.");
-                                  return;
-                                }
-                                setRecolorTarget({ sceneId: activeScene!.id, elementId: sel.id });
-                                setRecolorComponentId(data.id);
-                              }
-                            : undefined
-                        }
-                      />
+                      <div className="space-y-3">
+                        <IconAnimationPanel
+                          selectedContent={sel?.content}
+                          onChange={
+                            sel
+                              ? (next: AnimationBlockContent["icon_animation"]) =>
+                                  void updateElementContent(activeScene!.id, sel.id, { icon_animation: next })
+                              : undefined
+                          }
+                          onChangeTint={
+                            sel
+                              ? (tint: string | null) =>
+                                  void updateElementContent(activeScene!.id, sel.id, { tint })
+                              : undefined
+                          }
+                        />
+                        {sel && recolorComponentId && (
+                          <div className="px-3 pb-3">
+                            <IconColorEditor
+                              componentId={recolorComponentId}
+                              onPreviewSvg={(dataUrl) => {
+                                if (!recolorTarget) return;
+                                void updateElementContent(
+                                  recolorTarget.sceneId,
+                                  recolorTarget.elementId,
+                                  { image_url: dataUrl },
+                                );
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
                     );
                   })()}
                 </TabsContent>
