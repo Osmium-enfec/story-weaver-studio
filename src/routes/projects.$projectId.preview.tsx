@@ -6,6 +6,7 @@ import { useProject } from "@/components/project-context";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, SkipForward, SkipBack } from "lucide-react";
 import { PlaybackDialog, type PlaybackScene } from "@/components/PlaybackDialog";
+import type { SceneBackground } from "@/components/BackgroundPicker";
 import { DESIGN } from "@/lib/grid";
 
 export const Route = createFileRoute("/projects/$projectId/preview")({
@@ -38,14 +39,13 @@ function PreviewPage() {
         .select("*")
         .in("scene_id", ids)
         .order("z_index");
+      const elementRows = (elements ?? []) as unknown as Array<PlaybackScene["elements"][number] & { scene_id: string }>;
       setPlaybackScenes(
         ((data ?? []) as unknown as Scene[]).map((scene) => ({
           id: scene.id,
-          background: scene.background,
+          background: scene.background as SceneBackground,
           narration: scene.narration,
-          elements: ((elements ?? []) as PlaybackScene["elements"]).filter((el) =>
-            (el as unknown as { scene_id: string }).scene_id === scene.id,
-          ),
+          elements: elementRows.filter((el) => el.scene_id === scene.id),
         })),
       );
     })();
