@@ -23,6 +23,7 @@ interface Props {
   onSelect: (id: string) => void;
   onChangeTimes: (id: string, start_ms: number, end_ms: number) => void;
   onDelete?: (id: string) => void;
+  onPlayheadChange?: (ms: number, playing: boolean) => void;
 }
 
 const MIN_CLIP_MS = 200;
