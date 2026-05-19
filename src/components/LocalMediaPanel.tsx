@@ -319,11 +319,17 @@ export function LocalMediaPanel() {
         </div>
       )}
 
-      <IconColorEditor
-        componentId={recolorTargetId}
-        onClose={() => setRecolorTargetId(null)}
-        onSaved={() => void loadItems()}
-      />
+      <Dialog open={recolorTargetId !== null} onOpenChange={(o) => { if (!o) setRecolorTargetId(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Recolor icon</DialogTitle>
+            <DialogDescription>
+              Edit colors and save the result as a library copy.
+            </DialogDescription>
+          </DialogHeader>
+          <IconColorEditor componentId={recolorTargetId} />
+        </DialogContent>
+      </Dialog>
 
       {!loading && filtered.length > 0 && (
         <div className="flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
