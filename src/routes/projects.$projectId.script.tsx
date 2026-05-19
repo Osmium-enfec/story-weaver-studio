@@ -399,7 +399,7 @@ function ScriptCanvas() {
     (async () => {
       const { data: rows } = await supabase
         .from("scenes")
-        .select("id, order_index, background, narration, voice_url, voice_start_ms, voice_end_ms, word_timings, voice_trim_start_ms, voice_trim_end_ms, voice_cuts, voice_volume, voice_fade_in_ms, voice_fade_out_ms")
+        .select("id, order_index, background, narration, duration_ms, voice_url, voice_start_ms, voice_end_ms, word_timings, voice_trim_start_ms, voice_trim_end_ms, voice_cuts, voice_volume, voice_fade_in_ms, voice_fade_out_ms")
         .eq("project_id", projectId)
         .order("order_index");
       let sceneRows = (rows ?? []) as {
@@ -407,6 +407,7 @@ function ScriptCanvas() {
         order_index: number;
         background: SceneBackground | null;
         narration: string | null;
+        duration_ms: number | null;
         voice_url: string | null;
         voice_start_ms: number | null;
         voice_end_ms: number | null;
@@ -430,7 +431,7 @@ function ScriptCanvas() {
             detected_concepts: [],
             duration_ms: 8000,
           })
-          .select("id, order_index, background, narration, voice_url, voice_start_ms, voice_end_ms, word_timings, voice_trim_start_ms, voice_trim_end_ms, voice_cuts, voice_volume, voice_fade_in_ms, voice_fade_out_ms")
+          .select("id, order_index, background, narration, duration_ms, voice_url, voice_start_ms, voice_end_ms, word_timings, voice_trim_start_ms, voice_trim_end_ms, voice_cuts, voice_volume, voice_fade_in_ms, voice_fade_out_ms")
           .single();
         if (error) return toast.error(error.message);
         sceneRows = [created as never];
@@ -453,6 +454,7 @@ function ScriptCanvas() {
           order_index: s.order_index,
           background: (s.background ?? DEFAULT_BG) as SceneBackground,
           narration: s.narration ?? "",
+          duration_ms: s.duration_ms ?? 8000,
           elements: snapElementsToGrid(byScene.get(s.id) ?? []),
           voice_url: s.voice_url,
           voice_start_ms: s.voice_start_ms,
@@ -544,6 +546,7 @@ function ScriptCanvas() {
         order_index: r.order_index,
         background: r.background ?? DEFAULT_BG,
         narration: r.narration ?? "",
+        duration_ms: 8000,
         elements: [],
         voice_url: null,
         voice_start_ms: null,
@@ -586,6 +589,7 @@ function ScriptCanvas() {
       order_index: r.order_index,
       background: r.background ?? DEFAULT_BG,
       narration: r.narration ?? "",
+      duration_ms: 8000,
       elements: [],
       voice_url: null,
       voice_start_ms: null,
