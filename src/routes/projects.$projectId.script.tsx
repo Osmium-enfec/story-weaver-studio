@@ -1334,6 +1334,9 @@ function ScriptCanvas() {
                 onSelect={(id: string) => { setActiveIdx(idx); setSelectedElementId(id); }}
                 onChangeTimes={(id: string, start: number, end: number) => void updateElementTiming(s.id, id, start, end)}
                 onDelete={(id: string) => void deleteElement(s.id, id)}
+                onPlayheadChange={(ms: number, playing: boolean) =>
+                  setTimelinePreview((prev) => ({ ...prev, [s.id]: { ms, playing } }))
+                }
               />
             ) : (
             <>
