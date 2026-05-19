@@ -23,6 +23,7 @@ interface Props {
   onSelect: (id: string) => void;
   onChangeTimes: (id: string, start_ms: number, end_ms: number) => void;
   onDelete?: (id: string) => void;
+  onPlayheadChange?: (ms: number, playing: boolean) => void;
 }
 
 const MIN_CLIP_MS = 200;
@@ -74,18 +75,23 @@ function snap(ms: number, bypass: boolean) {
 
 export function TimelineWorkspace({
   sceneId, durationMs, voiceUrl, elements, selectedId,
-  onSelect, onChangeTimes, onDelete,
+  onSelect, onChangeTimes, onDelete, onPlayheadChange,
 }: Props) {
   const [pxPerSec, setPxPerSec] = useState(80);
   const [playheadMs, setPlayheadMs] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [hiddenGroups, setHiddenGroups] = useState<Record<string, boolean>>({});
   const [lockedGroups, setLockedGroups] = useState<Record<string, boolean>>({});
+  // Local override during drag so we don't roundtrip to the DB on every mousemove
+  const [dragOverride, setDragOverride] = useState<{ id: string; start: number; end: number } | null>(null);
   const lanesRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const rafRef = useRef<number | null>(null);
   const startedAtRef = useRef<number>(0);
   const startMsRef = useRef<number>(0);
+
+  // Emit playhead changes upward so the canvas can sync
+  useEffect(() => { onPlayheadChange?.(playheadMs, playing); }, [playheadMs, playing, onPlayheadChange]);
 
   const pxPerMs = pxPerSec / 1000;
   const totalWidth = Math.max(600, durationMs * pxPerMs);
@@ -152,6 +158,7 @@ export function TimelineWorkspace({
 
   useEffect(() => {
     if (!drag) return;
+    let last = { s: drag.startS, e: drag.startE };
     function onMove(ev: MouseEvent) {
       if (!drag) return;
       const dx = ev.clientX - drag.originX;
@@ -170,9 +177,17 @@ export function TimelineWorkspace({
         en = Math.max(drag.startS + MIN_CLIP_MS, Math.min(durationMs, drag.startE + dms));
         en = snap(en, bypass);
       }
-      onChangeTimes(drag.id, Math.round(s), Math.round(en));
+      last = { s: Math.round(s), e: Math.round(en) };
+      setDragOverride({ id: drag.id, start: last.s, end: last.e });
     }
-    function onUp() { setDrag(null); }
+    function onUp() {
+      // Commit once at the end
+      if (drag && (last.s !== drag.startS || last.e !== drag.startE)) {
+        onChangeTimes(drag.id, last.s, last.e);
+      }
+      setDragOverride(null);
+      setDrag(null);
+    }
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     return () => {
@@ -373,8 +388,9 @@ export function TimelineWorkspace({
 
                   {/* Clips */}
                   {!hiddenGroups[g.key] && grouped[g.key].map((el) => {
-                    const start = Math.max(0, el.start_ms ?? 0);
-                    const end = Math.max(start + MIN_CLIP_MS, el.end_ms ?? durationMs);
+                    const override = dragOverride && dragOverride.id === el.id ? dragOverride : null;
+                    const start = override ? override.start : Math.max(0, el.start_ms ?? 0);
+                    const end = override ? override.end : Math.max(start + MIN_CLIP_MS, el.end_ms ?? durationMs);
                     const left = start * pxPerMs;
                     const width = Math.max(24, (end - start) * pxPerMs);
                     const isSel = selectedId === el.id;

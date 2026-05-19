@@ -111,6 +111,8 @@ function ScriptCanvas() {
   const canvasRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const narrationTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [isPlaying, setIsPlaying] = useState(false);
+  // Per-scene timeline playhead state: drives canvas reveal when in timeline mode
+  const [timelinePreview, setTimelinePreview] = useState<Record<string, { ms: number; playing: boolean }>>({});
   const [isExporting, setIsExporting] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
   const [previewSceneId, setPreviewSceneId] = useState<string | null>(null);
@@ -1194,7 +1196,15 @@ function ScriptCanvas() {
                       ))}
                     </div>
                   )}
-                {s.elements.map((el) => (
+                {s.elements.map((el) => {
+                  const tp = timelinePreview[s.id];
+                  const inTimelineMode = getMode(s.id) === "timeline";
+                  const isTimelineClip = el.content.timing_mode === "timeline";
+                  // While timeline is actively playing/scrubbed, hide clips outside their [start,end] window
+                  const hideForTimeline =
+                    inTimelineMode && isTimelineClip && tp && tp.playing &&
+                    (tp.ms < (el.start_ms ?? 0) || tp.ms > (el.end_ms ?? (s.duration_ms || 8000)));
+                  return (
                   <Rnd
                     key={el.id}
                     bounds="parent"
@@ -1219,9 +1229,9 @@ function ScriptCanvas() {
                       else if (el.type === "shape") { setRightTab("animations"); setAnimationSubTab("shape-edit"); }
                       else { setRightTab("animations"); setAnimationSubTab("animate"); }
                     }}
-                    className={`group/el rounded-lg border-2 ${
+                    className={`group/el rounded-lg border-2 transition-opacity ${
                       selectedElementId === el.id ? "border-primary" : "border-transparent hover:border-primary/40"
-                    }`}
+                    } ${hideForTimeline ? "pointer-events-none opacity-0" : "opacity-100"}`}
                     data-canvas-element="true"
                   >
                     <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
@@ -1283,7 +1293,8 @@ function ScriptCanvas() {
                       )}
                     </div>
                   </Rnd>
-                ))}
+                );
+                })}
                 </div>
                 {s.elements.length === 0 && (
                   <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
@@ -1332,6 +1343,9 @@ function ScriptCanvas() {
                 onSelect={(id: string) => { setActiveIdx(idx); setSelectedElementId(id); }}
                 onChangeTimes={(id: string, start: number, end: number) => void updateElementTiming(s.id, id, start, end)}
                 onDelete={(id: string) => void deleteElement(s.id, id)}
+                onPlayheadChange={(ms: number, playing: boolean) =>
+                  setTimelinePreview((prev) => ({ ...prev, [s.id]: { ms, playing } }))
+                }
               />
             ) : (
             <>
