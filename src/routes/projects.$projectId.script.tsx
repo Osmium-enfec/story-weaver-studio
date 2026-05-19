@@ -58,6 +58,8 @@ interface PlacedElement {
   content: AnimationBlockContent;
   position: { x: number; y: number; w: number; h: number };
   z_index: number;
+  start_ms: number;
+  end_ms: number;
 }
 
 interface SceneRow {
@@ -65,6 +67,7 @@ interface SceneRow {
   order_index: number;
   background: SceneBackground;
   narration: string;
+  duration_ms: number;
   elements: PlacedElement[];
   voice_url: string | null;
   voice_start_ms: number | null;
