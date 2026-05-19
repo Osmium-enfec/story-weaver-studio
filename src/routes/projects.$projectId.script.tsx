@@ -1106,7 +1106,8 @@ function ScriptCanvas() {
                       setActiveIdx(idx);
                       setSelectedElementId(el.id);
                       if (el.type === "text") setRightTab("text");
-                      if (el.type === "shape") { setRightTab("animations"); setAnimationSubTab("shape-edit"); }
+                      else if (el.type === "shape") { setRightTab("animations"); setAnimationSubTab("shape-edit"); }
+                      else { setRightTab("animations"); setAnimationSubTab("animate"); }
                     }}
                     className={`group/el rounded-lg border-2 ${
                       selectedElementId === el.id ? "border-primary" : "border-transparent hover:border-primary/40"
