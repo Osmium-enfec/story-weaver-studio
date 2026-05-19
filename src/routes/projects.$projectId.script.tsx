@@ -28,6 +28,7 @@ import { directProject } from "@/server/director.functions";
 import { AnimationAgentPanel } from "@/components/AnimationAgentPanel";
 import { proxyImageAsDataUrl } from "@/server/proxy-image.functions";
 import { CanvasAudioEditor } from "@/components/CanvasAudioEditor";
+import { TimelineEditor } from "@/components/TimelineEditor";
 import { applyPendingTheme, consumePendingTheme } from "@/lib/pending-theme";
 
 async function inlineAllImages(root: HTMLElement) {
@@ -58,6 +59,8 @@ interface PlacedElement {
   content: AnimationBlockContent;
   position: { x: number; y: number; w: number; h: number };
   z_index: number;
+  start_ms: number;
+  end_ms: number;
 }
 
 interface SceneRow {
@@ -65,6 +68,7 @@ interface SceneRow {
   order_index: number;
   background: SceneBackground;
   narration: string;
+  duration_ms: number;
   elements: PlacedElement[];
   voice_url: string | null;
   voice_start_ms: number | null;
@@ -120,6 +124,15 @@ function ScriptCanvas() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [animPreview, setAnimPreview] = useState<{ id: string; tick: number } | null>(null);
   const animPreviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Per-scene editing mode: "word" (default, stitch animations to spoken words)
+  // or "timeline" (Canva-style, place clips on a timeline).
+  const [canvasModes, setCanvasModes] = useState<Record<string, "word" | "timeline">>({});
+  function getMode(sceneId: string): "word" | "timeline" {
+    return canvasModes[sceneId] ?? "word";
+  }
+  function setMode(sceneId: string, mode: "word" | "timeline") {
+    setCanvasModes((prev) => ({ ...prev, [sceneId]: mode }));
+  }
 
   const activeScene = scenes[activeIdx];
 
@@ -396,7 +409,7 @@ function ScriptCanvas() {
     (async () => {
       const { data: rows } = await supabase
         .from("scenes")
-        .select("id, order_index, background, narration, voice_url, voice_start_ms, voice_end_ms, word_timings, voice_trim_start_ms, voice_trim_end_ms, voice_cuts, voice_volume, voice_fade_in_ms, voice_fade_out_ms")
+        .select("id, order_index, background, narration, duration_ms, voice_url, voice_start_ms, voice_end_ms, word_timings, voice_trim_start_ms, voice_trim_end_ms, voice_cuts, voice_volume, voice_fade_in_ms, voice_fade_out_ms")
         .eq("project_id", projectId)
         .order("order_index");
       let sceneRows = (rows ?? []) as {
@@ -404,6 +417,7 @@ function ScriptCanvas() {
         order_index: number;
         background: SceneBackground | null;
         narration: string | null;
+        duration_ms: number | null;
         voice_url: string | null;
         voice_start_ms: number | null;
         voice_end_ms: number | null;
@@ -427,7 +441,7 @@ function ScriptCanvas() {
             detected_concepts: [],
             duration_ms: 8000,
           })
-          .select("id, order_index, background, narration, voice_url, voice_start_ms, voice_end_ms, word_timings, voice_trim_start_ms, voice_trim_end_ms, voice_cuts, voice_volume, voice_fade_in_ms, voice_fade_out_ms")
+          .select("id, order_index, background, narration, duration_ms, voice_url, voice_start_ms, voice_end_ms, word_timings, voice_trim_start_ms, voice_trim_end_ms, voice_cuts, voice_volume, voice_fade_in_ms, voice_fade_out_ms")
           .single();
         if (error) return toast.error(error.message);
         sceneRows = [created as never];
@@ -450,6 +464,7 @@ function ScriptCanvas() {
           order_index: s.order_index,
           background: (s.background ?? DEFAULT_BG) as SceneBackground,
           narration: s.narration ?? "",
+          duration_ms: s.duration_ms ?? 8000,
           elements: snapElementsToGrid(byScene.get(s.id) ?? []),
           voice_url: s.voice_url,
           voice_start_ms: s.voice_start_ms,
@@ -541,6 +556,7 @@ function ScriptCanvas() {
         order_index: r.order_index,
         background: r.background ?? DEFAULT_BG,
         narration: r.narration ?? "",
+        duration_ms: 8000,
         elements: [],
         voice_url: null,
         voice_start_ms: null,
@@ -583,6 +599,7 @@ function ScriptCanvas() {
       order_index: r.order_index,
       background: r.background ?? DEFAULT_BG,
       narration: r.narration ?? "",
+      duration_ms: 8000,
       elements: [],
       voice_url: null,
       voice_start_ms: null,
@@ -618,7 +635,8 @@ function ScriptCanvas() {
 
   async function addAnimation(a: AnimationResult) {
     if (!activeScene) return;
-    if (!selectedWord) {
+    const mode = getMode(activeScene.id);
+    if (mode === "word" && !selectedWord) {
       toast.error("Click + next to a word in the script first");
       return;
     }
@@ -646,6 +664,7 @@ function ScriptCanvas() {
 
     const cellIdx = nextEmptyCellIndex(activeScene.elements.map((e) => e.position));
     const { x, y, w, h } = cellRect(cellIdx);
+    const timing = timingForInsert(activeScene.id);
 
     const content: AnimationBlockContent = {
       provider: a.provider,
@@ -663,10 +682,9 @@ function ScriptCanvas() {
       tint: null,
       palette: a.palette ?? null,
       remove_background: a.provider === "iconscout",
-      word: selectedWord,
-      occurrence: selectedWord
-        ? activeScene.elements.filter((e) => (e.content.word ?? "").toLowerCase() === selectedWord.toLowerCase()).length + 1
-        : null,
+      word: timing.word,
+      occurrence: timing.occurrence,
+      timing_mode: timing.timing_mode,
     };
     const { data, error } = await supabase
       .from("scene_elements")
@@ -676,6 +694,8 @@ function ScriptCanvas() {
         content: content as unknown as never,
         position: { x, y, w, h },
         z_index: activeScene.elements.length,
+        start_ms: timing.start_ms,
+        end_ms: timing.end_ms,
       })
       .select("*")
       .single();
@@ -685,6 +705,7 @@ function ScriptCanvas() {
     setSelectedElementId(newEl.id);
     setRightTab("text");
   }
+
 
   async function addTextBlock(role: TextRole, style: TextRoleStyle, overrideText?: string) {
     if (!activeScene) return;
@@ -716,11 +737,11 @@ function ScriptCanvas() {
       color: style.color,
       opacity: 1,
       rotation: 0,
-      word: selectedWord,
-      occurrence: selectedWord
-        ? activeScene.elements.filter((e) => (e.content.word ?? "").toLowerCase() === selectedWord.toLowerCase()).length + 1
-        : null,
+      word: (() => { const t = timingForInsert(activeScene.id); return t.word; })(),
+      occurrence: (() => { const t = timingForInsert(activeScene.id); return t.occurrence; })(),
+      timing_mode: getMode(activeScene.id),
     };
+    const _t = timingForInsert(activeScene.id);
     const { data, error } = await supabase
       .from("scene_elements")
       .insert({
@@ -729,6 +750,8 @@ function ScriptCanvas() {
         content: content as unknown as never,
         position: { x, y, w, h },
         z_index: activeScene.elements.length,
+        start_ms: _t.start_ms,
+        end_ms: _t.end_ms,
       })
       .select("*")
       .single();
@@ -775,7 +798,9 @@ function ScriptCanvas() {
         rotation: 0,
         word: null,
         occurrence: null,
+        timing_mode: getMode(activeScene.id),
       };
+      const _t = timingForInsert(activeScene.id);
       const { data, error } = await supabase
         .from("scene_elements")
         .insert({
@@ -784,6 +809,8 @@ function ScriptCanvas() {
           content: content as unknown as never,
           position: { x: it.cell.x, y: it.cell.y, w, h },
           z_index: activeScene.elements.length,
+          start_ms: _t.start_ms,
+          end_ms: _t.end_ms,
         })
         .select("*")
         .single();
@@ -825,6 +852,7 @@ function ScriptCanvas() {
       rotation: 0,
       word: null,
       occurrence: null,
+      timing_mode: getMode(activeScene.id),
       text_bg_color: preset.bg_color,
       text_bg_padding_x: padX,
       text_bg_padding_y: padY,
@@ -832,6 +860,7 @@ function ScriptCanvas() {
       text_bg_border_color: preset.border_color ?? null,
       text_bg_border_width: preset.border_width,
     };
+    const _t = timingForInsert(activeScene.id);
     const { data, error } = await supabase
       .from("scene_elements")
       .insert({
@@ -840,6 +869,8 @@ function ScriptCanvas() {
         content: content as unknown as never,
         position: { x, y, w, h },
         z_index: activeScene.elements.length,
+        start_ms: _t.start_ms,
+        end_ms: _t.end_ms,
       })
       .select("*")
       .single();
@@ -868,7 +899,9 @@ function ScriptCanvas() {
       opacity: 1,
       rotation: 0,
       shape_stroke_width: 7,
+      timing_mode: getMode(activeScene.id),
     };
+    const _t = timingForInsert(activeScene.id);
     const { data, error } = await supabase
       .from("scene_elements")
       .insert({
@@ -877,6 +910,8 @@ function ScriptCanvas() {
         content: content as unknown as never,
         position: clampRectToDesign(position) as unknown as never,
         z_index: activeScene.elements.length,
+        start_ms: _t.start_ms,
+        end_ms: _t.end_ms,
       })
       .select("*")
       .single();
@@ -946,6 +981,41 @@ function ScriptCanvas() {
       ),
     );
     await supabase.from("scene_elements").update({ position: safePosition as unknown as never }).eq("id", id);
+  }
+
+  // Update timeline clip start/end for an element (Timeline mode).
+  async function updateElementTiming(sceneId: string, id: string, start_ms: number, end_ms: number) {
+    const s = Math.max(0, Math.round(start_ms));
+    const e = Math.max(s + 200, Math.round(end_ms));
+    setScenes((prev) =>
+      prev.map((sc) =>
+        sc.id === sceneId
+          ? { ...sc, elements: sc.elements.map((el) => (el.id === id ? { ...el, start_ms: s, end_ms: e } : el)) }
+          : sc,
+      ),
+    );
+    await supabase.from("scene_elements").update({ start_ms: s, end_ms: e }).eq("id", id);
+  }
+
+  // Returns the timing fields to merge into a new element insert based on the
+  // active editing mode for the target scene.
+  function timingForInsert(sceneId: string): {
+    word: string | null;
+    occurrence: number | null;
+    timing_mode: "word" | "timeline";
+    start_ms: number;
+    end_ms: number;
+  } {
+    const mode = getMode(sceneId);
+    const scene = scenes.find((sc) => sc.id === sceneId);
+    const dur = scene?.duration_ms ?? 8000;
+    if (mode === "timeline") {
+      return { word: null, occurrence: null, timing_mode: "timeline", start_ms: 0, end_ms: dur };
+    }
+    const occ = selectedWord && scene
+      ? scene.elements.filter((e) => (e.content.word ?? "").toLowerCase() === selectedWord.toLowerCase()).length + 1
+      : null;
+    return { word: selectedWord, occurrence: occ, timing_mode: "word", start_ms: 0, end_ms: dur };
   }
 
   async function deleteElement(sceneId: string, id: string) {
@@ -1212,7 +1282,48 @@ function ScriptCanvas() {
                 )}
               </div>
             </div>
-            {/* Per-canvas script */}
+            {/* Mode switcher: stitch animations to spoken words, or place clips on a timeline */}
+            <div className="flex items-center gap-2 border-t border-border bg-muted/10 px-3 py-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Edit mode</span>
+              <div className="inline-flex overflow-hidden rounded-md border border-border">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setMode(s.id, "word"); }}
+                  className={`px-2 py-1 text-xs ${getMode(s.id) === "word" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent"}`}
+                >
+                  Stitch to words
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setMode(s.id, "timeline"); }}
+                  className={`px-2 py-1 text-xs border-l border-border ${getMode(s.id) === "timeline" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent"}`}
+                >
+                  Timeline
+                </button>
+              </div>
+              {getMode(s.id) === "timeline" && (
+                <span className="ml-2 text-[11px] text-muted-foreground">
+                  New elements will be placed on the timeline below.
+                </span>
+              )}
+            </div>
+            {getMode(s.id) === "timeline" ? (
+              <TimelineEditor
+                sceneId={s.id}
+                durationMs={s.duration_ms || 8000}
+                elements={s.elements.map((e) => ({
+                  id: e.id,
+                  type: e.type,
+                  content: e.content,
+                  start_ms: e.start_ms ?? 0,
+                  end_ms: e.end_ms ?? (s.duration_ms || 8000),
+                  z_index: e.z_index,
+                }))}
+                selectedId={idx === activeIdx ? selectedElementId : null}
+                onSelect={(id) => { setActiveIdx(idx); setSelectedElementId(id); }}
+                onChangeTimes={(id, start, end) => void updateElementTiming(s.id, id, start, end)}
+              />
+            ) : (
+            <>
+            {/* Per-canvas script (word-stitched mode) */}
             <div className="border-t border-border p-3">
               <div className="mb-1 flex items-center justify-between">
                 <label className="block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1281,6 +1392,8 @@ function ScriptCanvas() {
                 setScenes((prev) => prev.map((x) => (x.id === s.id ? { ...x, ...patch } : x)))
               }
             />
+            </>
+            )}
           </div>
         ))}
         <Button variant="outline" className="w-full gap-1.5" onClick={addCanvas}>
