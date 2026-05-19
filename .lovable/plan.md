@@ -1,53 +1,53 @@
-# Add Freepik provider (photos, vectors, icons, videos)
+## Goal
 
-Quick note on naming: **Magnific** is Freepik's AI image *upscaler* (a separate paid endpoint that takes an image and returns a higher-res one). The thing that lets us *search* Freepik's library is the **Freepik Stock Content API**. This plan wires up the Stock Content API. If you actually want the Magnific upscaler too, that's a separate small add-on we can layer on after.
+1. Expand the **Mirror Freepik** panel so you can search and mirror every Freepik content type shown in your screenshot (All Images, Vectors, Illustrations, Photos, PSD, Templates, Mockups, Videos, Footage, Motion graphics, Video templates, Icons, 3D Models).
+2. Add a **per-icon color editor** (like your second screenshot) so any already-mirrored Iconify or Freepik icon/vector SVG can be recolored and saved.
 
-## What you'll get
+## What changes
 
-1. **Freepik tab** in the inline `AnimationSearchPanel` (next to Iconify / Unsplash / Iconscout). Search across photos, vectors, icons, and videos. Clicking a result mirrors the asset into Lovable storage and inserts it into the scene.
-2. **Freepik mirror panel** in `/assets` → "Mirror" tab (mirrors the existing `IconscoutMirrorPanel` UX) for batch-importing into `animation_components`.
-3. **Color palette filter** — Freepik's API exposes a fixed palette (black, white, red, orange, yellow, green, turquoise, blue, lilac, pink, gray, brown). The UI shows color swatches; selecting one filters results server-side via the API's `filters[color]` param. Each mirrored asset stores its dominant palette colors so you can re-filter the local library too.
+### A. Freepik mirror panel — more asset types
 
-## How it'll work (technical)
+`src/server/freepik.functions.ts`
+- Replace the 4-type `asset_type` union with the full Freepik taxonomy:
+  - `photo`, `vector`, `illustration`, `psd`, `template`, `mockup`, `icon`, `video`, `footage`, `motion-graphics`, `video-template`, `3d`
+- Map each to the right Freepik query:
+  - Image family → `/v1/resources` with `filters[content_type][<type>]=1`
+  - Video family → `/v1/resources` with `filters[content_type][video]=1` + `filters[video_type]=<footage|motion_graphics|video_template>` where Freepik supports it
+  - `icon` → `/v1/icons`
+  - `3d` → `/v1/resources` with `filters[content_type][psd]=1` + `filters[3d]=1` (Freepik's 3D models live under PSD with a 3D flag)
+- Extend `cacheFreepikAsset` so PSD/template/mockup/3d store under the right `default_props.asset_type` and a sensible `category`.
 
-**Secret**
-- Add `FREEPIK_API_KEY` via `add_secret` (you said you have one).
+`src/components/FreepikMirrorPanel.tsx`
+- Replace the 4-pill type row with the grouped dropdown from your screenshot:
+  - **All Images** (photo+vector+illustration+psd+template+mockup) — runs parallel searches and merges results
+  - Vectors, Illustrations, Photos, PSD, Templates, Mockups
+  - **Videos** (footage+motion-graphics+video-template), Footage, Motion graphics, Video templates
+  - Icons, 3D Models
+- Keep the existing color filter, select-all, mirror-selected flow — works for every type.
 
-**Server functions** (`src/server/freepik.functions.ts`)
-- `searchFreepik({ query, asset_type, color?, page })` → calls `https://api.freepik.com/v1/resources` with header `x-freepik-api-key`. Returns normalized `{ id, name, preview_url, type, palette[] }[]`.
-- `cacheFreepikAsset({ resource_id })` → calls `/v1/resources/{id}/download` to get the actual file URL, fetches it server-side, uploads to the `lottie-uploads` bucket (or a new `freepik-cache` bucket — see DB section), and inserts/updates a row in `animation_components` with provider `freepik`.
+### B. Icon recolor editor (Freepik + Iconify SVGs)
 
-Both go through `createServerFn` (no edge functions). The API key is read from `process.env.FREEPIK_API_KEY` inside the handler.
+`src/server/icon-recolor.functions.ts` (new)
+- `getIconSvg({ componentId })` — server fn. Returns the raw SVG text + parsed unique fill/stroke colors for any Iconify or Freepik-vector/icon row.
+- `saveRecoloredIcon({ componentId, colorMap, saveAsNew, name? })` — applies the hex→hex map to the SVG, uploads to storage, and either overwrites the existing `animation_components` row or inserts a new "recolored copy" row (user choice).
 
-**Provider plumbing** (`src/lib/animation-providers.ts`)
-- Add `"freepik"` to the `AnimationProvider` union.
-- Add `searchFreepikResults()` and include it in `searchAllAnimations`'s `Promise.all`.
-- Extend `mirrorExternalResult()` to handle `provider === "freepik"`.
+`src/components/IconColorEditor.tsx` (new)
+- Dialog modeled after your screenshot: left = current swatches list; clicking a swatch opens a color picker; "Custom palette" lets you add extra accent colors; preview on the right; "Save" / "Save as copy" buttons.
+- Works for any Iconify icon and any Freepik asset whose stored file is an SVG (icons + vectors).
 
-**UI** (`src/components/AnimationSearchPanel.tsx`)
-- Add `freepik` to the `FILTERS` list with a count badge.
-- Add an asset-type selector (Photos / Vectors / Icons / Videos) and a color-swatch row that only appears when the Freepik filter is active. Both feed into the search call.
-- Render Freepik results using `<img>` for photos/vectors/icons and `<video>` for videos (same pattern as Unsplash / Iconscout).
+`src/components/LocalMediaPanel.tsx`
+- On hover of an Iconify or Freepik SVG card, show a small "🎨 Recolor" button that opens `IconColorEditor` for that item.
+- Raster-only items (Freepik photos/videos/PSDs/mockups, Unsplash) don't show the button.
 
-**Mirror panel** (`src/components/FreepikMirrorPanel.tsx`, new)
-- Mirrors `IconscoutMirrorPanel` structure: search bar, asset-type tabs, color swatches, grid of results, multi-select, "Mirror N selected" button that calls `cacheFreepikAsset` for each.
-- Wire into `/assets` Mirror tab alongside the existing Iconscout panel.
+### C. Notes / out of scope
 
-**Database** (one migration)
-- Extend the `animation_components.provider` check (or enum) to allow `'freepik'`.
-- Add a `palette text[]` column to `animation_components` so we can persist the dominant colors returned by Freepik (also lets you filter the local library by color later).
-- Storage: reuse the public `lottie-uploads` bucket for cached files (consistent with how Iconify/Unsplash mirror works today). No new bucket needed unless you'd prefer separation.
+- The inspector palette swatches we added last turn stay as-is — they apply a runtime tint at render. The new editor instead **persists** a recolored SVG so it appears recolored everywhere it's reused.
+- Lottie recoloring is not included here (different format, much heavier change).
 
-## Edge cases & limits
+## Technical details
 
-- Freepik's API is paid and rate-limited; the search server fn will surface their error envelope through toast messages (same as Iconscout today).
-- Some Freepik assets are "Premium" and require a Premium API tier to download. We'll detect 402/403 from `/download` and show a clear error in the UI rather than silently failing.
-- Videos can be large; mirroring will stream the response into Storage rather than buffering it in memory.
+- SVG recolor uses simple regex replace on `fill="#..."`, `stroke="#..."`, and inline `style="fill:#..."` / `style="stroke:#..."` — covers ~all Freepik vector/icon exports and every Iconify icon.
+- For Iconify SVGs that use `currentColor`, the editor exposes a single "Primary color" slot that rewrites `currentColor` → chosen hex before saving.
+- New rows for "save as copy" get `provider = 'iconify-custom'` or `'freepik-custom'` so they don't collide with the originals' `(provider, external_id)` unique pair.
 
-## Out of scope (ask if you want these)
-
-- Magnific upscaler integration (separate endpoint, separate pricing).
-- AI image generation via Freepik's Mystic / Flux endpoints.
-- Per-user Freepik attribution display (we'll store author + license URL on the row, but not render it yet).
-
-After you approve, the implementation order will be: migration → secret check → server fns → providers lib → search panel UI → mirror panel UI.
+Want me to proceed exactly as above, or scope down (e.g. just A, or just B)?
