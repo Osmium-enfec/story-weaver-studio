@@ -14,11 +14,13 @@ type LocalKind = "image" | "lottie" | "video" | "audio" | "component" | "3d";
 
 interface LocalItem {
   id: string;
+  componentId?: string;
   name: string;
   category: string;
   kind: LocalKind;
   provider: string;
   assetType?: string | null;
+  contentType?: string | null;
   url?: string | null;
   thumbnail?: string | null;
   tags: string[];
