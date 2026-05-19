@@ -120,6 +120,7 @@ export function LocalMediaPanel() {
 
         const comps: LocalItem[] = (compsRes.data ?? []).map((c: any) => {
           const assetType: string | null = c.default_props?.asset_type ?? null;
+          const contentType: string | null = c.default_props?.content_type ?? null;
           const kind: LocalKind = c.lottie_url
             ? "lottie"
             : c.video_url
@@ -131,11 +132,13 @@ export function LocalMediaPanel() {
             : "component";
           return {
             id: `comp:${c.id}`,
+            componentId: c.id,
             name: c.name,
             category: c.category || "Components",
             kind,
             provider: c.provider || "internal",
             assetType,
+            contentType,
             url: c.lottie_url || c.video_url || c.thumbnail_url,
             thumbnail: c.thumbnail_url,
             tags: c.tags ?? [],
