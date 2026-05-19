@@ -90,8 +90,10 @@ export function TimelineWorkspace({
   const startedAtRef = useRef<number>(0);
   const startMsRef = useRef<number>(0);
 
-  // Emit playhead changes upward so the canvas can sync
-  useEffect(() => { onPlayheadChange?.(playheadMs, playing); }, [playheadMs, playing, onPlayheadChange]);
+  // Emit playhead changes upward so the canvas can sync (ref avoids re-running on new callback identity)
+  const playheadCbRef = useRef(onPlayheadChange);
+  useEffect(() => { playheadCbRef.current = onPlayheadChange; }, [onPlayheadChange]);
+  useEffect(() => { playheadCbRef.current?.(playheadMs, playing); }, [playheadMs, playing]);
 
   const pxPerMs = pxPerSec / 1000;
   const totalWidth = Math.max(600, durationMs * pxPerMs);
