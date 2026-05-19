@@ -195,16 +195,22 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
 
         if (frame < revealFrame || frame >= endFrame) return null;
 
-        const opacity = interpolate(
-          frame,
-          [revealFrame, revealFrame + dur],
-          [0, 1],
-          {
-            extrapolateLeft: "clamp",
-            extrapolateRight: "clamp",
-            easing: Easing.out(Easing.cubic),
-          },
-        );
+        // Text elements own their entrance animation (fade/slide/typewriter/
+        // word-reveal/bounce/...) inside TextElement, so don't double-fade
+        // them at the wrapper level — that flattened every variant into a
+        // plain fade in the rendered video.
+        const opacity = isText
+          ? 1
+          : interpolate(
+              frame,
+              [revealFrame, revealFrame + dur],
+              [0, 1],
+              {
+                extrapolateLeft: "clamp",
+                extrapolateRight: "clamp",
+                easing: Easing.out(Easing.cubic),
+              },
+            );
 
         // Per-element entrance for non-text blocks (mirrors AnimationBlock CSS keyframes)
         const ia = el.content?.icon_animation as
@@ -274,7 +280,17 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
         const sinceMs = ((frame - revealFrame) / fps) * 1000;
         const localFrame = frame - revealFrame;
 
-        if (isText) return <TextElement key={el.id} el={el} style={style} />;
+        if (isText)
+          return (
+            <TextElement
+              key={el.id}
+              el={el}
+              style={style}
+              revealFrame={revealFrame}
+              currentFrame={frame}
+              fps={fps}
+            />
+          );
 
         const c = el.content ?? {};
         const lottieSrc =
