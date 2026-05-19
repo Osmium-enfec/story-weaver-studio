@@ -51,6 +51,9 @@ export interface AnimationBlockContent {
   // word binding (for timed reveal during playback)
   word?: string | null;
   occurrence?: number | null;
+  // timing source: "word" (default, legacy) reveals when the bound word is spoken;
+  // "timeline" reveals at element.start_ms and hides at element.end_ms.
+  timing_mode?: "word" | "timeline";
   // background removal (keeps original; just toggles rendering)
   remove_background?: boolean;
   // text block
