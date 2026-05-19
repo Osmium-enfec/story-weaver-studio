@@ -45,7 +45,7 @@ function applyMapToSvg(
   return out;
 }
 
-export function IconColorEditor({ componentId, onClose, onSaved }: Props) {
+export function IconColorEditor({ componentId, onClose, onSaved, onPreviewSvg }: Props) {
   const loadFn = useServerFn(getIconSvg);
   const saveFn = useServerFn(saveRecoloredIcon);
   const [data, setData] = useState<IconData | null>(null);
