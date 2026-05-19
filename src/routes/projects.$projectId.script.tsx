@@ -1346,6 +1346,7 @@ function ScriptCanvas() {
                                   toast.error("This asset isn't cached for recoloring yet.");
                                   return;
                                 }
+                                setRecolorTarget({ sceneId: activeScene!.id, elementId: sel.id });
                                 setRecolorComponentId(data.id);
                               }
                             : undefined
