@@ -509,25 +509,3 @@ function InspectorPanel({
   );
 }
 
-function Field({
-  label, value, max, disabled, onChange,
-}: {
-  label: string; value: number; max: number; disabled?: boolean;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div>
-      <div className="mb-1 flex items-center justify-between text-zinc-400">
-        <span>{label}</span>
-        <span className="font-mono tabular-nums text-zinc-300">{(value / 1000).toFixed(2)}s</span>
-      </div>
-      <input
-        type="range" min={0} max={Math.max(max, 100)} step={50}
-        value={Math.min(value, max)}
-        disabled={disabled}
-        onChange={(e) => onChange(parseInt(e.target.value))}
-        className="h-1 w-full cursor-pointer accent-sky-500 disabled:opacity-40"
-      />
-    </div>
-  );
-}
