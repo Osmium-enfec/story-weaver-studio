@@ -4,6 +4,13 @@ import { Search, Sparkles, HardDrive, Loader2, RefreshCw, Palette } from "lucide
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { IconColorEditor } from "@/components/IconColorEditor";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 const IMAGE_EXT_RE = /\.(gif|png|jpe?g|webp|avif|svg)$/i;
 const LOTTIE_EXT_RE = /\.(json|lottie)$/i;
