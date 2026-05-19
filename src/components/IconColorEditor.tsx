@@ -96,6 +96,19 @@ export function IconColorEditor({ componentId, onClose, onSaved, onPreviewSvg }:
     return `data:image/svg+xml;utf8,${encodeURIComponent(previewSvg)}`;
   }, [previewSvg]);
 
+  // Live-preview: push recolored SVG onto the canvas element as the user edits.
+  // Skip the initial render (when colorMap is just the identity from the source SVG)
+  // so we don't clobber the element's image_url with an unchanged copy.
+  useEffect(() => {
+    if (!onPreviewSvg || !data || !previewDataUrl) return;
+    const changedColors = Object.entries(colorMap).some(
+      ([from, to]) => from.toLowerCase() !== to.toLowerCase(),
+    );
+    const changedCurrent = data.has_current_color && currentColor.toLowerCase() !== "#111111";
+    if (!changedColors && !changedCurrent) return;
+    onPreviewSvg(previewDataUrl);
+  }, [previewDataUrl, onPreviewSvg, data, colorMap, currentColor]);
+
   async function handleSave(saveAsCopy: boolean) {
     if (!data) return;
     setSaving(true);
