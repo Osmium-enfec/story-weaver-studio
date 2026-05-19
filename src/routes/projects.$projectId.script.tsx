@@ -1293,7 +1293,8 @@ function ScriptCanvas() {
                       )}
                     </div>
                   </Rnd>
-                ))}
+                );
+                })}
                 </div>
                 {s.elements.length === 0 && (
                   <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
