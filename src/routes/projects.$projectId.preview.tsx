@@ -5,6 +5,8 @@ import type { Scene } from "@/lib/db-types";
 import { useProject } from "@/components/project-context";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, SkipForward, SkipBack } from "lucide-react";
+import { PlaybackDialog, type PlaybackScene } from "@/components/PlaybackDialog";
+import { DESIGN } from "@/lib/grid";
 
 export const Route = createFileRoute("/projects/$projectId/preview")({
   component: PreviewPage,
@@ -14,6 +16,7 @@ function PreviewPage() {
   const { projectId } = useParams({ from: "/projects/$projectId/preview" });
   const { project } = useProject();
   const [scenes, setScenes] = useState<Scene[]>([]);
+  const [playbackScenes, setPlaybackScenes] = useState<PlaybackScene[]>([]);
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
 
@@ -25,6 +28,26 @@ function PreviewPage() {
         .eq("project_id", projectId)
         .order("order_index");
       setScenes((data ?? []) as unknown as Scene[]);
+      const ids = (data ?? []).map((scene) => scene.id);
+      if (ids.length === 0) {
+        setPlaybackScenes([]);
+        return;
+      }
+      const { data: elements } = await supabase
+        .from("scene_elements")
+        .select("*")
+        .in("scene_id", ids)
+        .order("z_index");
+      setPlaybackScenes(
+        ((data ?? []) as unknown as Scene[]).map((scene) => ({
+          id: scene.id,
+          background: scene.background,
+          narration: scene.narration,
+          elements: ((elements ?? []) as PlaybackScene["elements"]).filter((el) =>
+            (el as unknown as { scene_id: string }).scene_id === scene.id,
+          ),
+        })),
+      );
     })();
   }, [projectId]);
 
@@ -78,6 +101,12 @@ function PreviewPage() {
           Screen {Math.min(idx + 1, scenes.length)} / {scenes.length}
         </span>
       </div>
+      <PlaybackDialog
+        open={playing}
+        onOpenChange={setPlaying}
+        scenes={playbackScenes}
+        canvasSize={{ w: DESIGN.w, h: DESIGN.h }}
+      />
     </div>
   );
 }
