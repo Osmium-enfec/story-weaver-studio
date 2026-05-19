@@ -152,7 +152,13 @@ async function fetchOneType(
     });
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
-      return { items: [], error: `Freepik ${res.status}: ${txt.slice(0, 200)}` };
+      if (res.status === 429) {
+        return { items: [], error: "Magnific/Freepik free trial quota exhausted. Upgrade your plan at magnific.com/developers/dashboard/billing." };
+      }
+      if (res.status === 401 || res.status === 403) {
+        return { items: [], error: `Auth failed (${res.status}). Check MAGNIFIC_API_KEY.` };
+      }
+      return { items: [], error: `Magnific ${res.status}: ${txt.slice(0, 200)}` };
     }
     const json = (await res.json()) as { data?: FreepikResourceRaw[] };
     const items: FreepikItem[] = (json.data ?? []).map((r) => ({
