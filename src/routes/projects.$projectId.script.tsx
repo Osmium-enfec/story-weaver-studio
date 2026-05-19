@@ -1200,10 +1200,18 @@ function ScriptCanvas() {
                   const tp = timelinePreview[s.id];
                   const inTimelineMode = getMode(s.id) === "timeline";
                   const isTimelineClip = el.content.timing_mode === "timeline";
-                  // While timeline is actively playing/scrubbed, hide clips outside their [start,end] window
-                  const hideForTimeline =
-                    inTimelineMode && isTimelineClip && tp && tp.playing &&
-                    (tp.ms < (el.start_ms ?? 0) || tp.ms > (el.end_ms ?? (s.duration_ms || 8000)));
+                  const elStart = el.start_ms ?? 0;
+                  const elEnd = el.end_ms ?? (s.duration_ms || 8000);
+                  const beforeWindow =
+                    inTimelineMode && isTimelineClip && tp && tp.playing && tp.ms < elStart;
+                  const afterWindow =
+                    inTimelineMode && isTimelineClip && tp && tp.playing && tp.ms > elEnd;
+                  const hideForTimeline = beforeWindow || afterWindow;
+                  // Key re-mounts inner renderer each time playback enters the clip window,
+                  // so the entrance animation actually replays.
+                  const playPass = tp?.playing && inTimelineMode && isTimelineClip
+                    ? `play-${elStart}-${elEnd}`
+                    : "idle";
                   return (
                   <Rnd
                     key={el.id}
@@ -1240,16 +1248,16 @@ function ScriptCanvas() {
                           🔗 {el.content.word}
                         </span>
                       )}
-                      {el.type === "text" ? (
+                      {hideForTimeline ? null : el.type === "text" ? (
                         <TextBlockRenderer
-                          key={animPreview?.id === el.id ? `anim-${animPreview.tick}` : "static"}
+                          key={animPreview?.id === el.id ? `anim-${animPreview.tick}` : `text-${playPass}`}
                           content={el.content}
                           editable={selectedElementId === el.id}
-                          animating={isPlaying || animPreview?.id === el.id}
+                          animating={isPlaying || animPreview?.id === el.id || (tp?.playing && inTimelineMode && isTimelineClip)}
                           onChange={(text) => void updateElementText(s.id, el.id, text)}
                         />
                       ) : (
-                        <AnimationBlockRenderer content={el.content} exportMode={isExporting} />
+                        <AnimationBlockRenderer key={`block-${playPass}`} content={el.content} exportMode={isExporting} />
                       )}
                       {selectedElementId === el.id && (
                         <>
@@ -1622,6 +1630,8 @@ function ScriptCanvas() {
             content: e.content,
             position: e.position,
             z_index: e.z_index,
+            start_ms: e.start_ms,
+            end_ms: e.end_ms,
           })),
         }))}
         canvasSize={canvasSize}

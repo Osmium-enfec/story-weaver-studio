@@ -16,6 +16,8 @@ export interface PlaybackElement {
   content: AnimationBlockContent;
   position: { x: number; y: number; w: number; h: number };
   z_index: number;
+  start_ms?: number;
+  end_ms?: number;
 }
 
 export interface WordTiming {
@@ -135,12 +137,37 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
         wordMap.set(key, arr);
       }
 
-      // Reveal all elements that aren't bound to a spoken word right away
-      // so their entrance animations play in sync with the scene start.
+      // Reveal all elements that aren't bound to a spoken word AND aren't on the timeline
+      // right away so their entrance animations play in sync with the scene start.
       const autoReveal = scene.elements
-        .filter((el) => !el.content.word)
+        .filter((el) => !el.content.word && el.content.timing_mode !== "timeline")
         .map((el) => el.id);
       setRevealedIds(new Set(autoReveal));
+
+      // Schedule timeline-mode clips to appear at their start_ms and disappear at end_ms.
+      const timelineClips = scene.elements.filter((el) => el.content.timing_mode === "timeline");
+      for (const el of timelineClips) {
+        const start = Math.max(0, el.start_ms ?? 0);
+        const end = Math.max(start + 1, el.end_ms ?? start + 1);
+        const tIn = setTimeout(() => {
+          if (cancelRef.current) return;
+          setRevealedIds((prev) => {
+            const next = new Set(prev);
+            next.add(el.id);
+            return next;
+          });
+        }, start);
+        const tOut = setTimeout(() => {
+          if (cancelRef.current) return;
+          setRevealedIds((prev) => {
+            if (!prev.has(el.id)) return prev;
+            const next = new Set(prev);
+            next.delete(el.id);
+            return next;
+          });
+        }, end);
+        timersRef.current.push(tIn, tOut);
+      }
 
       const reveal = (ids: string | string[]) => {
         const incoming = Array.isArray(ids) ? ids : [ids];
@@ -151,6 +178,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
           return next;
         });
       };
+
 
       const finish = () => {
         if (cancelRef.current) return resolve();
@@ -302,8 +330,15 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       const narration = (scene.narration ?? "").trim();
       const hasSpeech = narration.length > 0 && "speechSynthesis" in window;
 
+      // Ensure the scene lasts long enough for all timeline clips to play through.
+      const maxTimelineEnd = timelineClips.reduce(
+        (m, el) => Math.max(m, el.end_ms ?? 0),
+        0,
+      );
+
       if (!hasSpeech) {
-        const t = setTimeout(finish, FALLBACK_SCENE_MS);
+        const dur = Math.max(FALLBACK_SCENE_MS, maxTimelineEnd);
+        const t = setTimeout(finish, dur);
         timersRef.current.push(t);
         return;
       }
