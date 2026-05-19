@@ -284,21 +284,20 @@ export function IconColorEditor({ componentId, onClose, onSaved, onPreviewSvg }:
         ) : null}
 
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
-          <Button variant="ghost" onClick={onClose} disabled={saving}>
-            Cancel
+          <p className="mr-auto text-[11px] text-muted-foreground">
+            Colors apply live to the canvas. Use “Save as library copy” to also save a recolored version to your library.
+          </p>
+          <Button onClick={onClose} disabled={saving}>
+            Done
           </Button>
           <Button
             variant="outline"
-            onClick={() => handleSave(false)}
+            onClick={() => handleSave(true)}
             disabled={!data || saving}
             className="gap-1"
           >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-            Replace original
-          </Button>
-          <Button onClick={() => handleSave(true)} disabled={!data || saving} className="gap-1">
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
-            Save as copy
+            Save as library copy
           </Button>
         </div>
       </DialogContent>
