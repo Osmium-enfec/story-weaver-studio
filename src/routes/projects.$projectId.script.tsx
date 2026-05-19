@@ -737,11 +737,11 @@ function ScriptCanvas() {
       color: style.color,
       opacity: 1,
       rotation: 0,
-      word: selectedWord,
-      occurrence: selectedWord
-        ? activeScene.elements.filter((e) => (e.content.word ?? "").toLowerCase() === selectedWord.toLowerCase()).length + 1
-        : null,
+      word: (() => { const t = timingForInsert(activeScene.id); return t.word; })(),
+      occurrence: (() => { const t = timingForInsert(activeScene.id); return t.occurrence; })(),
+      timing_mode: getMode(activeScene.id),
     };
+    const _t = timingForInsert(activeScene.id);
     const { data, error } = await supabase
       .from("scene_elements")
       .insert({
@@ -750,6 +750,8 @@ function ScriptCanvas() {
         content: content as unknown as never,
         position: { x, y, w, h },
         z_index: activeScene.elements.length,
+        start_ms: _t.start_ms,
+        end_ms: _t.end_ms,
       })
       .select("*")
       .single();
