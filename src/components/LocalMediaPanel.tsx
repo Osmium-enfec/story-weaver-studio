@@ -70,6 +70,17 @@ export function LocalMediaPanel() {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterId>("all");
   const [page, setPage] = useState(1);
+  const [recolorTargetId, setRecolorTargetId] = useState<string | null>(null);
+
+  function isRecolorable(it: LocalItem): boolean {
+    if (!it.componentId) return false;
+    if (it.provider === "iconify" || it.provider === "iconify-custom") return true;
+    if ((it.provider === "freepik" || it.provider === "freepik-custom") &&
+        (it.assetType === "icon" || it.assetType === "vector" || it.contentType === "image/svg+xml")) {
+      return true;
+    }
+    return /\.svg(\?|$)/i.test(it.url ?? "");
+  }
 
   useEffect(() => {
     setPage(1);
