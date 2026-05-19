@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
-  Play, Pause, ZoomIn, ZoomOut, Trash2, Type, Shapes, Sparkles,
-  Image as ImageIcon, Video as VideoIcon, Music, Eye, EyeOff, Lock, Unlock,
+  Play, Pause, ZoomIn, ZoomOut, Trash2, Layers, Music, Eye, EyeOff, Lock, Unlock,
 } from "lucide-react";
 import type { AnimationBlockContent } from "@/components/AnimationBlock";
 
@@ -29,27 +28,19 @@ interface Props {
 const MIN_CLIP_MS = 200;
 const SNAP_MS = 250;
 const LABEL_WIDTH = 168;
-const TRACK_HEIGHT = 44;
+const ROW_HEIGHT = 38;
+const ROW_GAP = 4;
+const LANE_MIN_ROWS = 2; // always show at least 2 sub-rows so users can drop a 2nd clip alongside
 
-type GroupKey = "text" | "shape" | "anim" | "image" | "video" | "audio";
+type LaneKey = "elements" | "audio";
 
-const GROUPS: { key: GroupKey; label: string; icon: typeof Type; color: string; ring: string }[] = [
-  { key: "text",  label: "Text",       icon: Type,       color: "from-sky-500/70 to-sky-600/70",      ring: "ring-sky-300/60" },
-  { key: "shape", label: "Shapes",     icon: Shapes,     color: "from-violet-500/70 to-fuchsia-600/70", ring: "ring-violet-300/60" },
-  { key: "anim",  label: "Animations", icon: Sparkles,   color: "from-amber-500/80 to-orange-600/80",  ring: "ring-amber-300/60" },
-  { key: "image", label: "Images",     icon: ImageIcon,  color: "from-pink-500/70 to-rose-600/70",     ring: "ring-pink-300/60" },
-  { key: "video", label: "Video",      icon: VideoIcon,  color: "from-emerald-500/70 to-teal-600/70",  ring: "ring-emerald-300/60" },
-  { key: "audio", label: "Audio",      icon: Music,      color: "from-indigo-500/70 to-blue-600/70",   ring: "ring-indigo-300/60" },
+const LANES: { key: LaneKey; label: string; icon: typeof Layers; color: string; ring: string }[] = [
+  { key: "elements", label: "Elements", icon: Layers, color: "from-amber-500/80 to-orange-600/80", ring: "ring-amber-300/60" },
+  { key: "audio",    label: "Audio",    icon: Music,  color: "from-indigo-500/70 to-blue-600/70",  ring: "ring-indigo-300/60" },
 ];
 
-function groupOf(el: TimelineElement): GroupKey {
-  const t = el.type;
-  if (t === "text") return "text";
-  if (t === "shape") return "shape";
-  if (t === "image") return "image";
-  if (t === "video") return "video";
-  if (t === "audio") return "audio";
-  return "anim";
+function laneOf(el: TimelineElement): LaneKey {
+  return el.type === "audio" ? "audio" : "elements";
 }
 
 function clipLabel(el: TimelineElement) {
@@ -73,6 +64,26 @@ function snap(ms: number, bypass: boolean) {
   return Math.round(ms / SNAP_MS) * SNAP_MS;
 }
 
+// Pack overlapping clips into sub-rows (greedy first-fit). Returns map id -> row index.
+function packRows(clips: { id: string; start: number; end: number }[]): {
+  rowOf: Record<string, number>;
+  rowCount: number;
+} {
+  const sorted = [...clips].sort((a, b) => a.start - b.start);
+  const rowEnds: number[] = []; // last end for each row
+  const rowOf: Record<string, number> = {};
+  for (const c of sorted) {
+    let placed = -1;
+    for (let i = 0; i < rowEnds.length; i++) {
+      if (rowEnds[i] <= c.start) { placed = i; break; }
+    }
+    if (placed === -1) { rowEnds.push(c.end); placed = rowEnds.length - 1; }
+    else rowEnds[placed] = c.end;
+    rowOf[c.id] = placed;
+  }
+  return { rowOf, rowCount: rowEnds.length };
+}
+
 export function TimelineWorkspace({
   sceneId, durationMs, voiceUrl, elements, selectedId,
   onSelect, onChangeTimes, onDelete, onPlayheadChange,
@@ -80,9 +91,8 @@ export function TimelineWorkspace({
   const [pxPerSec, setPxPerSec] = useState(80);
   const [playheadMs, setPlayheadMs] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [hiddenGroups, setHiddenGroups] = useState<Record<string, boolean>>({});
-  const [lockedGroups, setLockedGroups] = useState<Record<string, boolean>>({});
-  // Local override during drag so we don't roundtrip to the DB on every mousemove
+  const [hiddenLanes, setHiddenLanes] = useState<Record<string, boolean>>({});
+  const [lockedLanes, setLockedLanes] = useState<Record<string, boolean>>({});
   const [dragOverride, setDragOverride] = useState<{ id: string; start: number; end: number } | null>(null);
   const lanesRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -90,7 +100,6 @@ export function TimelineWorkspace({
   const startedAtRef = useRef<number>(0);
   const startMsRef = useRef<number>(0);
 
-  // Emit playhead changes upward so the canvas can sync (ref avoids re-running on new callback identity)
   const playheadCbRef = useRef(onPlayheadChange);
   useEffect(() => { playheadCbRef.current = onPlayheadChange; }, [onPlayheadChange]);
   useEffect(() => { playheadCbRef.current?.(playheadMs, playing); }, [playheadMs, playing]);
@@ -98,19 +107,42 @@ export function TimelineWorkspace({
   const pxPerMs = pxPerSec / 1000;
   const totalWidth = Math.max(600, durationMs * pxPerMs);
 
-  const grouped = useMemo(() => {
-    const map: Record<GroupKey, TimelineElement[]> = {
-      text: [], shape: [], anim: [], image: [], video: [], audio: [],
-    };
-    elements.forEach((e) => map[groupOf(e)].push(e));
-    Object.values(map).forEach((arr) => arr.sort((a, b) => a.start_ms - b.start_ms));
-    return map;
-  }, [elements]);
+  // Group elements into lanes + compute packed sub-rows
+  const lanesData = useMemo(() => {
+    const byLane: Record<LaneKey, TimelineElement[]> = { elements: [], audio: [] };
+    elements.forEach((e) => byLane[laneOf(e)].push(e));
 
-  // Reset playhead when scene changes
+    const packed: Record<LaneKey, { rowOf: Record<string, number>; rowCount: number }> = {
+      elements: { rowOf: {}, rowCount: 0 },
+      audio:    { rowOf: {}, rowCount: 0 },
+    };
+    (Object.keys(byLane) as LaneKey[]).forEach((k) => {
+      const inputs = byLane[k].map((el) => ({
+        id: el.id,
+        start: Math.max(0, el.start_ms ?? 0),
+        end:   Math.max((el.start_ms ?? 0) + MIN_CLIP_MS, el.end_ms ?? durationMs),
+      }));
+      // include synthetic voice clip in audio lane so it lays out next to user audio
+      if (k === "audio" && voiceUrl) {
+        inputs.push({ id: "__voice__", start: 0, end: durationMs });
+      }
+      packed[k] = packRows(inputs);
+    });
+
+    return { byLane, packed };
+  }, [elements, voiceUrl, durationMs]);
+
+  const laneHeights = useMemo(() => {
+    const h: Record<LaneKey, number> = { elements: 0, audio: 0 };
+    (Object.keys(h) as LaneKey[]).forEach((k) => {
+      const rows = Math.max(LANE_MIN_ROWS, lanesData.packed[k].rowCount || LANE_MIN_ROWS);
+      h[k] = rows * ROW_HEIGHT + (rows + 1) * ROW_GAP;
+    });
+    return h;
+  }, [lanesData]);
+
   useEffect(() => { setPlayheadMs(0); setPlaying(false); }, [sceneId]);
 
-  // Playback loop
   useEffect(() => {
     if (!playing) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -146,14 +178,12 @@ export function TimelineWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, durationMs, voiceUrl]);
 
-  // Ctrl/Cmd+wheel zoom
   const onWheel = useCallback((e: React.WheelEvent) => {
     if (!(e.ctrlKey || e.metaKey)) return;
     e.preventDefault();
     setPxPerSec((z) => Math.max(20, Math.min(400, +(z * (e.deltaY < 0 ? 1.15 : 1 / 1.15)).toFixed(1))));
   }, []);
 
-  // Drag clip (move / resize)
   const [drag, setDrag] = useState<null | {
     id: string; mode: "move" | "l" | "r"; originX: number; startS: number; startE: number;
   }>(null);
@@ -183,7 +213,6 @@ export function TimelineWorkspace({
       setDragOverride({ id: drag.id, start: last.s, end: last.e });
     }
     function onUp() {
-      // Commit once at the end
       if (drag && (last.s !== drag.startS || last.e !== drag.startE)) {
         onChangeTimes(drag.id, last.s, last.e);
       }
@@ -198,7 +227,6 @@ export function TimelineWorkspace({
     };
   }, [drag, pxPerMs, durationMs, onChangeTimes]);
 
-  // Scrub playhead via ruler / lanes background
   const [scrubbing, setScrubbing] = useState(false);
   const scrubFromEvent = useCallback((clientX: number) => {
     const el = lanesRef.current;
@@ -222,7 +250,6 @@ export function TimelineWorkspace({
     };
   }, [scrubbing, scrubFromEvent]);
 
-  // Keyboard: space play/pause, delete remove
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
@@ -236,12 +263,12 @@ export function TimelineWorkspace({
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedId, onDelete]);
 
-  // Ruler ticks
   const ticks: number[] = [];
   const step = pxPerSec >= 120 ? 500 : pxPerSec >= 60 ? 1000 : pxPerSec >= 30 ? 2000 : 5000;
   for (let t = 0; t <= durationMs; t += step) ticks.push(t);
 
   const selected = elements.find((e) => e.id === selectedId) || null;
+  const totalLanesHeight = LANES.reduce((sum, l) => sum + laneHeights[l.key], 0);
 
   return (
     <div
@@ -249,7 +276,6 @@ export function TimelineWorkspace({
       data-keep-selection
       style={{ colorScheme: "dark" }}
     >
-      {/* Hidden audio for real-time playback */}
       {voiceUrl && <audio ref={audioRef} src={voiceUrl} preload="auto" />}
 
       {/* Toolbar */}
@@ -297,26 +323,25 @@ export function TimelineWorkspace({
         </div>
       </div>
 
-      {/* Body */}
       <div className="flex">
-        {/* Left: layers panel */}
+        {/* Layers panel */}
         <div className="shrink-0 border-r border-white/5 bg-white/[0.02]" style={{ width: LABEL_WIDTH }}>
           <div className="h-8 border-b border-white/5 px-3 text-[10px] font-semibold uppercase tracking-wider leading-8 text-zinc-500">
             Layers
           </div>
-          {GROUPS.map((g) => {
+          {LANES.map((g) => {
             const Icon = g.icon;
-            const count = grouped[g.key].length;
-            const hidden = !!hiddenGroups[g.key];
-            const locked = !!lockedGroups[g.key];
+            const count = lanesData.byLane[g.key].length + (g.key === "audio" && voiceUrl ? 1 : 0);
+            const hidden = !!hiddenLanes[g.key];
+            const locked = !!lockedLanes[g.key];
             return (
               <div
                 key={g.key}
                 className="flex items-center gap-2 border-b border-white/5 px-3"
-                style={{ height: TRACK_HEIGHT }}
+                style={{ height: laneHeights[g.key] }}
               >
-                <div className={`flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br ${g.color} text-white shadow-inner`}>
-                  <Icon className="h-3.5 w-3.5" />
+                <div className={`flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br ${g.color} text-white shadow-inner`}>
+                  <Icon className="h-4 w-4" />
                 </div>
                 <div className="flex-1 truncate text-xs font-medium text-zinc-200">
                   {g.label}
@@ -324,7 +349,7 @@ export function TimelineWorkspace({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setHiddenGroups((s) => ({ ...s, [g.key]: !hidden }))}
+                  onClick={() => setHiddenLanes((s) => ({ ...s, [g.key]: !hidden }))}
                   className="text-zinc-500 hover:text-zinc-200"
                   title={hidden ? "Show" : "Hide"}
                 >
@@ -332,7 +357,7 @@ export function TimelineWorkspace({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setLockedGroups((s) => ({ ...s, [g.key]: !locked }))}
+                  onClick={() => setLockedLanes((s) => ({ ...s, [g.key]: !locked }))}
                   className="text-zinc-500 hover:text-zinc-200"
                   title={locked ? "Unlock" : "Lock"}
                 >
@@ -343,7 +368,7 @@ export function TimelineWorkspace({
           })}
         </div>
 
-        {/* Right: ruler + lanes */}
+        {/* Ruler + lanes */}
         <div className="relative flex-1 overflow-x-auto" onWheel={onWheel}>
           <div ref={lanesRef} className="relative" style={{ width: totalWidth }}>
             {/* Ruler */}
@@ -360,7 +385,6 @@ export function TimelineWorkspace({
                   </div>
                 </div>
               ))}
-              {/* sub ticks */}
               {ticks.map((t) =>
                 [0.25, 0.5, 0.75].map((f) => (
                   <div
@@ -372,80 +396,126 @@ export function TimelineWorkspace({
               )}
             </div>
 
-            {/* Lanes background grid */}
+            {/* Lanes */}
             <div className="relative">
-              {GROUPS.map((g, gi) => (
-                <div
-                  key={g.key}
-                  className="relative border-b border-white/5"
-                  style={{ height: TRACK_HEIGHT, background: gi % 2 === 0 ? "rgba(255,255,255,0.012)" : "transparent" }}
-                  onMouseDown={(e) => {
-                    if (e.target === e.currentTarget) { setScrubbing(true); scrubFromEvent(e.clientX); }
-                  }}
-                >
-                  {/* Vertical grid lines */}
-                  {ticks.map((t) => (
-                    <div key={t} className="pointer-events-none absolute top-0 h-full w-px bg-white/[0.04]" style={{ left: t * pxPerMs }} />
-                  ))}
-
-                  {/* Clips */}
-                  {!hiddenGroups[g.key] && grouped[g.key].map((el) => {
-                    const override = dragOverride && dragOverride.id === el.id ? dragOverride : null;
-                    const start = override ? override.start : Math.max(0, el.start_ms ?? 0);
-                    const end = override ? override.end : Math.max(start + MIN_CLIP_MS, el.end_ms ?? durationMs);
-                    const left = start * pxPerMs;
-                    const width = Math.max(24, (end - start) * pxPerMs);
-                    const isSel = selectedId === el.id;
-                    const isLocked = !!lockedGroups[g.key];
-                    return (
+              {LANES.map((g, gi) => {
+                const lh = laneHeights[g.key];
+                const isLocked = !!lockedLanes[g.key];
+                const rows = Math.max(LANE_MIN_ROWS, lanesData.packed[g.key].rowCount || LANE_MIN_ROWS);
+                return (
+                  <div
+                    key={g.key}
+                    className="relative border-b border-white/5"
+                    style={{ height: lh, background: gi % 2 === 0 ? "rgba(255,255,255,0.012)" : "transparent" }}
+                    onMouseDown={(e) => {
+                      if (e.target === e.currentTarget) { setScrubbing(true); scrubFromEvent(e.clientX); }
+                    }}
+                  >
+                    {/* sub-row separators */}
+                    {Array.from({ length: rows - 1 }).map((_, i) => (
                       <div
-                        key={el.id}
-                        className={`group absolute top-1 flex h-[34px] cursor-grab items-center overflow-hidden rounded-lg bg-gradient-to-br ${g.color} text-white shadow-md transition-all active:cursor-grabbing ${
-                          isSel ? `ring-2 ring-offset-2 ring-offset-[#0f1115] ${g.ring} shadow-lg scale-[1.01]` : "hover:brightness-110 hover:shadow-lg"
-                        } ${isLocked ? "cursor-not-allowed opacity-60" : ""}`}
-                        style={{ left, width }}
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          onSelect(el.id);
-                          if (isLocked) return;
-                          setDrag({ id: el.id, mode: "move", originX: e.clientX, startS: start, startE: end });
-                        }}
-                        title={`${clipLabel(el)} · ${fmtTime(start)} → ${fmtTime(end)}`}
-                      >
-                        {/* left handle */}
-                        {!isLocked && (
-                          <div
-                            className="absolute left-0 top-0 h-full w-1.5 cursor-ew-resize bg-white/50 hover:bg-white/80"
-                            onMouseDown={(e) => {
-                              e.stopPropagation(); onSelect(el.id);
-                              setDrag({ id: el.id, mode: "l", originX: e.clientX, startS: start, startE: end });
-                            }}
-                          />
-                        )}
-                        <div className="px-2 text-[11px] font-medium truncate drop-shadow-sm">
-                          {clipLabel(el)}
+                        key={`sep-${i}`}
+                        className="pointer-events-none absolute left-0 right-0 h-px bg-white/[0.04]"
+                        style={{ top: (i + 1) * (ROW_HEIGHT + ROW_GAP) }}
+                      />
+                    ))}
+
+                    {/* vertical grid */}
+                    {ticks.map((t) => (
+                      <div key={t} className="pointer-events-none absolute top-0 h-full w-px bg-white/[0.04]" style={{ left: t * pxPerMs }} />
+                    ))}
+
+                    {/* synthetic voice clip in audio lane (read-only) */}
+                    {!hiddenLanes[g.key] && g.key === "audio" && voiceUrl && (() => {
+                      const row = lanesData.packed.audio.rowOf["__voice__"] ?? 0;
+                      const left = 0;
+                      const width = Math.max(24, durationMs * pxPerMs);
+                      return (
+                        <div
+                          key="__voice__"
+                          className="absolute flex items-center overflow-hidden rounded-lg bg-gradient-to-br from-indigo-500/60 to-blue-600/60 text-white shadow-md opacity-90"
+                          style={{
+                            left, width,
+                            top: ROW_GAP + row * (ROW_HEIGHT + ROW_GAP),
+                            height: ROW_HEIGHT,
+                          }}
+                          title={`Voiceover · 0 → ${fmtTime(durationMs)}`}
+                        >
+                          {/* waveform-ish bars */}
+                          <div className="absolute inset-0 flex items-center gap-[2px] px-2 opacity-50">
+                            {Array.from({ length: Math.max(8, Math.floor(width / 6)) }).map((_, i) => {
+                              const h = 30 + Math.abs(Math.sin(i * 0.6)) * 60;
+                              return <div key={i} className="w-[2px] rounded-full bg-white" style={{ height: `${h}%` }} />;
+                            })}
+                          </div>
+                          <div className="relative z-10 px-2 text-[11px] font-medium drop-shadow">
+                            Voiceover
+                          </div>
                         </div>
-                        {/* right handle */}
-                        {!isLocked && (
-                          <div
-                            className="absolute right-0 top-0 h-full w-1.5 cursor-ew-resize bg-white/50 hover:bg-white/80"
-                            onMouseDown={(e) => {
-                              e.stopPropagation(); onSelect(el.id);
-                              setDrag({ id: el.id, mode: "r", originX: e.clientX, startS: start, startE: end });
-                            }}
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
+                      );
+                    })()}
+
+                    {/* user clips */}
+                    {!hiddenLanes[g.key] && lanesData.byLane[g.key].map((el) => {
+                      const override = dragOverride && dragOverride.id === el.id ? dragOverride : null;
+                      const start = override ? override.start : Math.max(0, el.start_ms ?? 0);
+                      const end = override ? override.end : Math.max(start + MIN_CLIP_MS, el.end_ms ?? durationMs);
+                      const left = start * pxPerMs;
+                      const width = Math.max(24, (end - start) * pxPerMs);
+                      const isSel = selectedId === el.id;
+                      const row = lanesData.packed[g.key].rowOf[el.id] ?? 0;
+                      return (
+                        <div
+                          key={el.id}
+                          className={`group absolute flex cursor-grab items-center overflow-hidden rounded-lg bg-gradient-to-br ${g.color} text-white shadow-md transition-all active:cursor-grabbing ${
+                            isSel ? `ring-2 ring-offset-2 ring-offset-[#0f1115] ${g.ring} shadow-lg scale-[1.01]` : "hover:brightness-110 hover:shadow-lg"
+                          } ${isLocked ? "cursor-not-allowed opacity-60" : ""}`}
+                          style={{
+                            left, width,
+                            top: ROW_GAP + row * (ROW_HEIGHT + ROW_GAP),
+                            height: ROW_HEIGHT,
+                          }}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            onSelect(el.id);
+                            if (isLocked) return;
+                            setDrag({ id: el.id, mode: "move", originX: e.clientX, startS: start, startE: end });
+                          }}
+                          title={`${clipLabel(el)} · ${fmtTime(start)} → ${fmtTime(end)}`}
+                        >
+                          {!isLocked && (
+                            <div
+                              className="absolute left-0 top-0 h-full w-1.5 cursor-ew-resize bg-white/50 hover:bg-white/80"
+                              onMouseDown={(e) => {
+                                e.stopPropagation(); onSelect(el.id);
+                                setDrag({ id: el.id, mode: "l", originX: e.clientX, startS: start, startE: end });
+                              }}
+                            />
+                          )}
+                          <div className="px-2 text-[11px] font-medium truncate drop-shadow-sm">
+                            {clipLabel(el)}
+                          </div>
+                          {!isLocked && (
+                            <div
+                              className="absolute right-0 top-0 h-full w-1.5 cursor-ew-resize bg-white/50 hover:bg-white/80"
+                              onMouseDown={(e) => {
+                                e.stopPropagation(); onSelect(el.id);
+                                setDrag({ id: el.id, mode: "r", originX: e.clientX, startS: start, startE: end });
+                              }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Playhead (spans ruler + lanes) */}
+            {/* Playhead */}
             <div
               className="pointer-events-none absolute top-0 z-10 flex flex-col items-center"
-              style={{ left: playheadMs * pxPerMs, height: 8 * 1 + GROUPS.length * TRACK_HEIGHT + 32 }}
+              style={{ left: playheadMs * pxPerMs, height: 32 + totalLanesHeight }}
             >
               <div className="-mt-1 h-3 w-3 rotate-45 rounded-sm bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.7)]" />
               <div className="w-px flex-1 bg-red-500/90 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
@@ -453,7 +523,7 @@ export function TimelineWorkspace({
           </div>
         </div>
 
-        {/* Right: inspector */}
+        {/* Inspector */}
         <div className="shrink-0 border-l border-white/5 bg-white/[0.02] p-3" style={{ width: 220 }}>
           <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Properties
@@ -467,14 +537,12 @@ export function TimelineWorkspace({
               key={selected.id}
               element={selected}
               durationMs={durationMs}
-              onChangeTimes={onChangeTimes}
               onDelete={onDelete}
             />
           )}
         </div>
       </div>
 
-      {/* hint footer */}
       <div className="flex items-center gap-3 border-t border-white/5 bg-white/[0.02] px-3 py-1.5 text-[10px] text-zinc-500">
         <span>⌥ Alt-drag: bypass snap</span>
         <span>⌘/Ctrl + wheel: zoom</span>
@@ -487,11 +555,10 @@ export function TimelineWorkspace({
 }
 
 function InspectorPanel({
-  element, durationMs, onChangeTimes, onDelete,
+  element, durationMs, onDelete,
 }: {
   element: TimelineElement;
   durationMs: number;
-  onChangeTimes: (id: string, s: number, e: number) => void;
   onDelete?: (id: string) => void;
 }) {
   const start = element.start_ms ?? 0;
@@ -511,7 +578,7 @@ function InspectorPanel({
       </div>
 
       <p className="text-[10px] leading-relaxed text-zinc-500">
-        Drag the clip on the timeline to move it. Drag its edges to resize. Hold ⌥ Alt to bypass snapping.
+        Drag the clip on the timeline to move it. Drag its edges to resize. Hold ⌥ Alt to bypass snapping. Overlapping clips stack into sub-rows automatically.
       </p>
 
       {onDelete && (
@@ -526,4 +593,3 @@ function InspectorPanel({
     </div>
   );
 }
-
