@@ -965,6 +965,41 @@ function ScriptCanvas() {
     await supabase.from("scene_elements").update({ position: safePosition as unknown as never }).eq("id", id);
   }
 
+  // Update timeline clip start/end for an element (Timeline mode).
+  async function updateElementTiming(sceneId: string, id: string, start_ms: number, end_ms: number) {
+    const s = Math.max(0, Math.round(start_ms));
+    const e = Math.max(s + 200, Math.round(end_ms));
+    setScenes((prev) =>
+      prev.map((sc) =>
+        sc.id === sceneId
+          ? { ...sc, elements: sc.elements.map((el) => (el.id === id ? { ...el, start_ms: s, end_ms: e } : el)) }
+          : sc,
+      ),
+    );
+    await supabase.from("scene_elements").update({ start_ms: s, end_ms: e }).eq("id", id);
+  }
+
+  // Returns the timing fields to merge into a new element insert based on the
+  // active editing mode for the target scene.
+  function timingForInsert(sceneId: string): {
+    word: string | null;
+    occurrence: number | null;
+    timing_mode: "word" | "timeline";
+    start_ms: number;
+    end_ms: number;
+  } {
+    const mode = getMode(sceneId);
+    const scene = scenes.find((sc) => sc.id === sceneId);
+    const dur = scene?.duration_ms ?? 8000;
+    if (mode === "timeline") {
+      return { word: null, occurrence: null, timing_mode: "timeline", start_ms: 0, end_ms: dur };
+    }
+    const occ = selectedWord && scene
+      ? scene.elements.filter((e) => (e.content.word ?? "").toLowerCase() === selectedWord.toLowerCase()).length + 1
+      : null;
+    return { word: selectedWord, occurrence: occ, timing_mode: "word", start_ms: 0, end_ms: dur };
+  }
+
   async function deleteElement(sceneId: string, id: string) {
     const scene = scenes.find((s) => s.id === sceneId);
     const remaining = scene ? scene.elements.filter((e) => e.id !== id).map((e, i) => ({ ...e, z_index: i })) : [];
