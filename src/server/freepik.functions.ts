@@ -185,8 +185,8 @@ export const searchFreepik = createServerFn({ method: "GET" })
   .inputValidator((d) => SearchSchema.parse(d))
   .handler(async ({ data }): Promise<{ items: FreepikItem[]; error: string | null }> => {
     let key: string | undefined;
-    try { key = process.env.FREEPIK_API_KEY; } catch { /* noop */ }
-    if (!key) return { items: [], error: "FREEPIK_API_KEY not configured" };
+    try { key = process.env.MAGNIFIC_API_KEY || process.env.FREEPIK_API_KEY; } catch { /* noop */ }
+    if (!key) return { items: [], error: "MAGNIFIC_API_KEY not configured" };
 
     // Expand meta groups
     const types: FreepikAssetType[] =
