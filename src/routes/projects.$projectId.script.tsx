@@ -28,7 +28,7 @@ import { directProject } from "@/server/director.functions";
 import { AnimationAgentPanel } from "@/components/AnimationAgentPanel";
 import { proxyImageAsDataUrl } from "@/server/proxy-image.functions";
 import { CanvasAudioEditor } from "@/components/CanvasAudioEditor";
-import { TimelineEditor } from "@/components/TimelineEditor";
+import { TimelineWorkspace } from "@/components/TimelineWorkspace";
 import { applyPendingTheme, consumePendingTheme } from "@/lib/pending-theme";
 
 async function inlineAllImages(root: HTMLElement) {
