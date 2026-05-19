@@ -486,12 +486,15 @@ function InspectorPanel({
         {(element.content.text as string) || element.content.role || element.content.shape_type || element.content.name || element.type}
       </div>
 
-      <Field label="Start" value={start} max={durationMs - MIN_CLIP_MS}
-        onChange={(v) => onChangeTimes(element.id, v, Math.max(v + MIN_CLIP_MS, end))} />
-      <Field label="Duration" value={dur} max={durationMs}
-        onChange={(v) => onChangeTimes(element.id, start, Math.min(durationMs, start + Math.max(MIN_CLIP_MS, v)))} />
-      <Field label="End" value={end} max={durationMs}
-        onChange={(v) => onChangeTimes(element.id, Math.min(v - MIN_CLIP_MS, start), v)} />
+      <div className="rounded-md border border-white/10 bg-white/[0.03] p-2 font-mono text-[11px] text-zinc-300">
+        <div className="flex justify-between"><span className="text-zinc-500">Start</span><span>{(start / 1000).toFixed(2)}s</span></div>
+        <div className="flex justify-between"><span className="text-zinc-500">Duration</span><span>{(dur / 1000).toFixed(2)}s</span></div>
+        <div className="flex justify-between"><span className="text-zinc-500">End</span><span>{(end / 1000).toFixed(2)}s</span></div>
+      </div>
+
+      <p className="text-[10px] leading-relaxed text-zinc-500">
+        Drag the clip on the timeline to move it. Drag its edges to resize. Hold ⌥ Alt to bypass snapping.
+      </p>
 
       {onDelete && (
         <button
