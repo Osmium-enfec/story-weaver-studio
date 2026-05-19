@@ -111,6 +111,8 @@ function ScriptCanvas() {
   const canvasRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const narrationTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [isPlaying, setIsPlaying] = useState(false);
+  // Per-scene timeline playhead state: drives canvas reveal when in timeline mode
+  const [timelinePreview, setTimelinePreview] = useState<Record<string, { ms: number; playing: boolean }>>({});
   const [isExporting, setIsExporting] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
   const [previewSceneId, setPreviewSceneId] = useState<string | null>(null);
