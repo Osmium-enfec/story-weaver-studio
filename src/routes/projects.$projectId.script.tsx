@@ -127,8 +127,26 @@ function ScriptCanvas() {
   const [animPreview, setAnimPreview] = useState<{ id: string; tick: number } | null>(null);
   const animPreviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Per-scene editing mode: "word" (default, stitch animations to spoken words)
-  // or "timeline" (Canva-style, place clips on a timeline).
-  const [canvasModes, setCanvasModes] = useState<Record<string, "word" | "timeline">>({});
+  // or "timeline" (Canva-style, place clips on a timeline). Persisted per-project
+  // to localStorage so the user's choice survives refresh and navigation.
+  const canvasModesStorageKey = `codemotion:canvas-modes:${projectId}`;
+  const [canvasModes, setCanvasModes] = useState<Record<string, "word" | "timeline">>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = window.localStorage.getItem(`codemotion:canvas-modes:${projectId}`);
+      return raw ? (JSON.parse(raw) as Record<string, "word" | "timeline">) : {};
+    } catch {
+      return {};
+    }
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(canvasModesStorageKey, JSON.stringify(canvasModes));
+    } catch {
+      /* ignore quota errors */
+    }
+  }, [canvasModes, canvasModesStorageKey]);
   function getMode(sceneId: string): "word" | "timeline" {
     return canvasModes[sceneId] ?? "word";
   }
