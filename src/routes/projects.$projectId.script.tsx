@@ -1630,6 +1630,8 @@ function ScriptCanvas() {
             content: e.content,
             position: e.position,
             z_index: e.z_index,
+            start_ms: e.start_ms,
+            end_ms: e.end_ms,
           })),
         }))}
         canvasSize={canvasSize}
