@@ -382,9 +382,9 @@ export function TimelineWorkspace({
                     return (
                       <div
                         key={el.id}
-                        className={`group absolute top-1 flex h-[34px] items-center overflow-hidden rounded-lg bg-gradient-to-br ${g.color} text-white shadow-md transition-all ${
+                        className={`group absolute top-1 flex h-[34px] cursor-grab items-center overflow-hidden rounded-lg bg-gradient-to-br ${g.color} text-white shadow-md transition-all active:cursor-grabbing ${
                           isSel ? `ring-2 ring-offset-2 ring-offset-[#0f1115] ${g.ring} shadow-lg scale-[1.01]` : "hover:brightness-110 hover:shadow-lg"
-                        } ${isLocked ? "opacity-60" : ""}`}
+                        } ${isLocked ? "cursor-not-allowed opacity-60" : ""}`}
                         style={{ left, width }}
                         onMouseDown={(e) => {
                           e.stopPropagation();
@@ -397,7 +397,7 @@ export function TimelineWorkspace({
                         {/* left handle */}
                         {!isLocked && (
                           <div
-                            className="absolute left-0 top-0 h-full w-1.5 cursor-ew-resize bg-white/30 opacity-0 transition group-hover:opacity-100"
+                            className="absolute left-0 top-0 h-full w-1.5 cursor-ew-resize bg-white/50 hover:bg-white/80"
                             onMouseDown={(e) => {
                               e.stopPropagation(); onSelect(el.id);
                               setDrag({ id: el.id, mode: "l", originX: e.clientX, startS: start, startE: end });
@@ -410,7 +410,7 @@ export function TimelineWorkspace({
                         {/* right handle */}
                         {!isLocked && (
                           <div
-                            className="absolute right-0 top-0 h-full w-1.5 cursor-ew-resize bg-white/30 opacity-0 transition group-hover:opacity-100"
+                            className="absolute right-0 top-0 h-full w-1.5 cursor-ew-resize bg-white/50 hover:bg-white/80"
                             onMouseDown={(e) => {
                               e.stopPropagation(); onSelect(el.id);
                               setDrag({ id: el.id, mode: "r", originX: e.clientX, startS: start, startE: end });
@@ -486,12 +486,15 @@ function InspectorPanel({
         {(element.content.text as string) || element.content.role || element.content.shape_type || element.content.name || element.type}
       </div>
 
-      <Field label="Start" value={start} max={durationMs - MIN_CLIP_MS}
-        onChange={(v) => onChangeTimes(element.id, v, Math.max(v + MIN_CLIP_MS, end))} />
-      <Field label="Duration" value={dur} max={durationMs}
-        onChange={(v) => onChangeTimes(element.id, start, Math.min(durationMs, start + Math.max(MIN_CLIP_MS, v)))} />
-      <Field label="End" value={end} max={durationMs}
-        onChange={(v) => onChangeTimes(element.id, Math.min(v - MIN_CLIP_MS, start), v)} />
+      <div className="rounded-md border border-white/10 bg-white/[0.03] p-2 font-mono text-[11px] text-zinc-300">
+        <div className="flex justify-between"><span className="text-zinc-500">Start</span><span>{(start / 1000).toFixed(2)}s</span></div>
+        <div className="flex justify-between"><span className="text-zinc-500">Duration</span><span>{(dur / 1000).toFixed(2)}s</span></div>
+        <div className="flex justify-between"><span className="text-zinc-500">End</span><span>{(end / 1000).toFixed(2)}s</span></div>
+      </div>
+
+      <p className="text-[10px] leading-relaxed text-zinc-500">
+        Drag the clip on the timeline to move it. Drag its edges to resize. Hold ⌥ Alt to bypass snapping.
+      </p>
 
       {onDelete && (
         <button
@@ -506,25 +509,3 @@ function InspectorPanel({
   );
 }
 
-function Field({
-  label, value, max, disabled, onChange,
-}: {
-  label: string; value: number; max: number; disabled?: boolean;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div>
-      <div className="mb-1 flex items-center justify-between text-zinc-400">
-        <span>{label}</span>
-        <span className="font-mono tabular-nums text-zinc-300">{(value / 1000).toFixed(2)}s</span>
-      </div>
-      <input
-        type="range" min={0} max={Math.max(max, 100)} step={50}
-        value={Math.min(value, max)}
-        disabled={disabled}
-        onChange={(e) => onChange(parseInt(e.target.value))}
-        className="h-1 w-full cursor-pointer accent-sky-500 disabled:opacity-40"
-      />
-    </div>
-  );
-}
