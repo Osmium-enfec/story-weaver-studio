@@ -1430,6 +1430,11 @@ function ScriptCanvas() {
         </div>
       </aside>
 
+      <IconColorEditor
+        componentId={recolorComponentId}
+        onClose={() => setRecolorComponentId(null)}
+        onSaved={() => setRecolorComponentId(null)}
+      />
       <PlaybackDialog
         open={playOpen}
         onOpenChange={(o) => { setPlayOpen(o); if (!o) setPreviewSceneId(null); }}
