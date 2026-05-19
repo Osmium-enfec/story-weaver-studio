@@ -63,9 +63,9 @@ function getAdmin() {
 }
 
 function authHeaders() {
-  const key = process.env.FREEPIK_API_KEY;
-  if (!key) throw new Error("FREEPIK_API_KEY not configured");
-  return { "x-freepik-api-key": key, "Accept-Language": "en-US" };
+  const key = process.env.MAGNIFIC_API_KEY || process.env.FREEPIK_API_KEY;
+  if (!key) throw new Error("MAGNIFIC_API_KEY (or FREEPIK_API_KEY) not configured");
+  return { "x-magnific-api-key": key, "Accept-Language": "en-US" };
 }
 
 interface FreepikResourceRaw {
