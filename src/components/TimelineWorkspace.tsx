@@ -388,8 +388,9 @@ export function TimelineWorkspace({
 
                   {/* Clips */}
                   {!hiddenGroups[g.key] && grouped[g.key].map((el) => {
-                    const start = Math.max(0, el.start_ms ?? 0);
-                    const end = Math.max(start + MIN_CLIP_MS, el.end_ms ?? durationMs);
+                    const override = dragOverride && dragOverride.id === el.id ? dragOverride : null;
+                    const start = override ? override.start : Math.max(0, el.start_ms ?? 0);
+                    const end = override ? override.end : Math.max(start + MIN_CLIP_MS, el.end_ms ?? durationMs);
                     const left = start * pxPerMs;
                     const width = Math.max(24, (end - start) * pxPerMs);
                     const isSel = selectedId === el.id;
