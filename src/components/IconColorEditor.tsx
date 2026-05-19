@@ -118,7 +118,7 @@ export function IconColorEditor({ componentId, onClose, onSaved }: Props) {
 
   return (
     <Dialog open={componentId !== null} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-3xl" data-keep-selection>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Palette className="h-4 w-4" /> Recolor icon
