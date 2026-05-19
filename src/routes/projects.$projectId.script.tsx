@@ -635,7 +635,8 @@ function ScriptCanvas() {
 
   async function addAnimation(a: AnimationResult) {
     if (!activeScene) return;
-    if (!selectedWord) {
+    const mode = getMode(activeScene.id);
+    if (mode === "word" && !selectedWord) {
       toast.error("Click + next to a word in the script first");
       return;
     }
@@ -663,6 +664,7 @@ function ScriptCanvas() {
 
     const cellIdx = nextEmptyCellIndex(activeScene.elements.map((e) => e.position));
     const { x, y, w, h } = cellRect(cellIdx);
+    const timing = timingForInsert(activeScene.id);
 
     const content: AnimationBlockContent = {
       provider: a.provider,
@@ -680,10 +682,9 @@ function ScriptCanvas() {
       tint: null,
       palette: a.palette ?? null,
       remove_background: a.provider === "iconscout",
-      word: selectedWord,
-      occurrence: selectedWord
-        ? activeScene.elements.filter((e) => (e.content.word ?? "").toLowerCase() === selectedWord.toLowerCase()).length + 1
-        : null,
+      word: timing.word,
+      occurrence: timing.occurrence,
+      timing_mode: timing.timing_mode,
     };
     const { data, error } = await supabase
       .from("scene_elements")
@@ -693,6 +694,8 @@ function ScriptCanvas() {
         content: content as unknown as never,
         position: { x, y, w, h },
         z_index: activeScene.elements.length,
+        start_ms: timing.start_ms,
+        end_ms: timing.end_ms,
       })
       .select("*")
       .single();
@@ -702,6 +705,7 @@ function ScriptCanvas() {
     setSelectedElementId(newEl.id);
     setRightTab("text");
   }
+
 
   async function addTextBlock(role: TextRole, style: TextRoleStyle, overrideText?: string) {
     if (!activeScene) return;
