@@ -107,7 +107,7 @@ export function TimelineWorkspace({
   const pxPerMs = pxPerSec / 1000;
   const totalWidth = Math.max(600, durationMs * pxPerMs);
 
-  // Group elements into lanes + compute packed sub-rows
+  // Group elements into lanes + compute packed sub-rows (live during drag)
   const lanesData = useMemo(() => {
     const byLane: Record<LaneKey, TimelineElement[]> = { elements: [], audio: [] };
     elements.forEach((e) => byLane[laneOf(e)].push(e));
@@ -117,12 +117,12 @@ export function TimelineWorkspace({
       audio:    { rowOf: {}, rowCount: 0 },
     };
     (Object.keys(byLane) as LaneKey[]).forEach((k) => {
-      const inputs = byLane[k].map((el) => ({
-        id: el.id,
-        start: Math.max(0, el.start_ms ?? 0),
-        end:   Math.max((el.start_ms ?? 0) + MIN_CLIP_MS, el.end_ms ?? durationMs),
-      }));
-      // include synthetic voice clip in audio lane so it lays out next to user audio
+      const inputs = byLane[k].map((el) => {
+        const ov = dragOverride && dragOverride.id === el.id ? dragOverride : null;
+        const s = ov ? ov.start : Math.max(0, el.start_ms ?? 0);
+        const e = ov ? ov.end   : Math.max(s + MIN_CLIP_MS, el.end_ms ?? durationMs);
+        return { id: el.id, start: s, end: e };
+      });
       if (k === "audio" && voiceUrl) {
         inputs.push({ id: "__voice__", start: 0, end: durationMs });
       }
@@ -130,7 +130,7 @@ export function TimelineWorkspace({
     });
 
     return { byLane, packed };
-  }, [elements, voiceUrl, durationMs]);
+  }, [elements, voiceUrl, durationMs, dragOverride]);
 
   const laneHeights = useMemo(() => {
     const h: Record<LaneKey, number> = { elements: 0, audio: 0 };
