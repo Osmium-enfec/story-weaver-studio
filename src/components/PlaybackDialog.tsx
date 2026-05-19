@@ -330,8 +330,15 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       const narration = (scene.narration ?? "").trim();
       const hasSpeech = narration.length > 0 && "speechSynthesis" in window;
 
+      // Ensure the scene lasts long enough for all timeline clips to play through.
+      const maxTimelineEnd = timelineClips.reduce(
+        (m, el) => Math.max(m, el.end_ms ?? 0),
+        0,
+      );
+
       if (!hasSpeech) {
-        const t = setTimeout(finish, FALLBACK_SCENE_MS);
+        const dur = Math.max(FALLBACK_SCENE_MS, maxTimelineEnd);
+        const t = setTimeout(finish, dur);
         timersRef.current.push(t);
         return;
       }
