@@ -204,6 +204,33 @@ function ScriptCanvas() {
     return () => document.removeEventListener("mousedown", onDocMouseDown);
   }, [selectedElementId]);
 
+  // Auto-resolve animation_components.id for the selected iconify element so
+  // the inline recolor panel in the sidebar can load its source SVG.
+  useEffect(() => {
+    const sel = scenes
+      .flatMap((s) => s.elements.map((e) => ({ sceneId: s.id, el: e })))
+      .find((x) => x.el.id === selectedElementId);
+    const c = sel?.el.content;
+    if (!sel || !c || c.provider !== "iconify" || !c.external_id) {
+      setRecolorComponentId(null);
+      setRecolorTarget(null);
+      return;
+    }
+    let cancelled = false;
+    setRecolorTarget({ sceneId: sel.sceneId, elementId: sel.el.id });
+    (async () => {
+      const { data } = await supabase
+        .from("animation_components")
+        .select("id")
+        .eq("provider", c.provider)
+        .eq("external_id", c.external_id!)
+        .maybeSingle();
+      if (cancelled) return;
+      setRecolorComponentId(data?.id ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedElementId, scenes]);
+
   async function exportVideo() {
     const node = canvasRefs.current[activeScene?.id ?? ""];
     if (!node) return;
@@ -1319,39 +1346,38 @@ function ScriptCanvas() {
                       (e) => e.id === selectedElementId && e.type !== "text",
                     );
                     return (
-                      <IconAnimationPanel
-                        selectedContent={sel?.content}
-                        onChange={
-                          sel
-                            ? (next: AnimationBlockContent["icon_animation"]) =>
-                                void updateElementContent(activeScene!.id, sel.id, { icon_animation: next })
-                            : undefined
-                        }
-                        onChangeTint={
-                          sel
-                            ? (tint: string | null) =>
-                                void updateElementContent(activeScene!.id, sel.id, { tint })
-                            : undefined
-                        }
-                        onOpenRecolor={
-                          sel && sel.content.external_id && sel.content.provider
-                            ? async () => {
-                                const { data, error } = await supabase
-                                  .from("animation_components")
-                                  .select("id")
-                                  .eq("provider", sel.content.provider)
-                                  .eq("external_id", sel.content.external_id!)
-                                  .maybeSingle();
-                                if (error || !data) {
-                                  toast.error("This asset isn't cached for recoloring yet.");
-                                  return;
-                                }
-                                setRecolorTarget({ sceneId: activeScene!.id, elementId: sel.id });
-                                setRecolorComponentId(data.id);
-                              }
-                            : undefined
-                        }
-                      />
+                      <div className="space-y-3">
+                        <IconAnimationPanel
+                          selectedContent={sel?.content}
+                          onChange={
+                            sel
+                              ? (next: AnimationBlockContent["icon_animation"]) =>
+                                  void updateElementContent(activeScene!.id, sel.id, { icon_animation: next })
+                              : undefined
+                          }
+                          onChangeTint={
+                            sel
+                              ? (tint: string | null) =>
+                                  void updateElementContent(activeScene!.id, sel.id, { tint })
+                              : undefined
+                          }
+                        />
+                        {sel && recolorComponentId && (
+                          <div className="px-3 pb-3">
+                            <IconColorEditor
+                              componentId={recolorComponentId}
+                              onPreviewSvg={(dataUrl) => {
+                                if (!recolorTarget) return;
+                                void updateElementContent(
+                                  recolorTarget.sceneId,
+                                  recolorTarget.elementId,
+                                  { image_url: dataUrl },
+                                );
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
                     );
                   })()}
                 </TabsContent>
@@ -1433,15 +1459,6 @@ function ScriptCanvas() {
         </div>
       </aside>
 
-      <IconColorEditor
-        componentId={recolorComponentId}
-        onClose={() => { setRecolorComponentId(null); setRecolorTarget(null); }}
-        onSaved={() => { setRecolorComponentId(null); setRecolorTarget(null); }}
-        onPreviewSvg={(dataUrl) => {
-          if (!recolorTarget) return;
-          void updateElementContent(recolorTarget.sceneId, recolorTarget.elementId, { image_url: dataUrl });
-        }}
-      />
       <PlaybackDialog
         open={playOpen}
         onOpenChange={(o) => { setPlayOpen(o); if (!o) setPreviewSceneId(null); }}

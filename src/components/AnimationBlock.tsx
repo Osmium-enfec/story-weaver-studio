@@ -579,29 +579,35 @@ export function AnimationBlockRenderer({
     // currentColor stays invisible. Use CSS mask-image so the SVG acts as a
     // monochrome alpha mask that takes the theme color we paint underneath.
     if (content.provider === "iconify") {
-      const tint = content.tint || content.color || "#0f172a";
-      return animWrap(
-        <div style={wrapperStyle} className="pointer-events-none">
-          <div
-            style={{
-              width: "100%",
-              height: "100%",
-              backgroundColor: tint,
-              WebkitMaskImage: `url("${imageSrc}")`,
-              maskImage: `url("${imageSrc}")`,
-              WebkitMaskRepeat: "no-repeat",
-              maskRepeat: "no-repeat",
-              WebkitMaskPosition: "center",
-              maskPosition: "center",
-              WebkitMaskSize: "contain",
-              maskSize: "contain",
-              opacity: iaName ? 1 : 0,
-              animation: iaName ? undefined : "anim-block-fade-in 220ms ease-out 60ms forwards",
-            }}
-          />
-          <style>{`@keyframes anim-block-fade-in { to { opacity: 1; } }`}</style>
-        </div>
-      );
+      // If the asset has been per-color recolored, it lives as a data: URL with
+      // explicit fills. Render that as a real <img> so all colors are preserved.
+      const isRecolored = typeof imageSrc === "string" && imageSrc.startsWith("data:image/svg+xml");
+      if (!isRecolored) {
+        const tint = content.tint || content.color || "#0f172a";
+        return animWrap(
+          <div style={wrapperStyle} className="pointer-events-none">
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                backgroundColor: tint,
+                WebkitMaskImage: `url("${imageSrc}")`,
+                maskImage: `url("${imageSrc}")`,
+                WebkitMaskRepeat: "no-repeat",
+                maskRepeat: "no-repeat",
+                WebkitMaskPosition: "center",
+                maskPosition: "center",
+                WebkitMaskSize: "contain",
+                maskSize: "contain",
+                opacity: iaName ? 1 : 0,
+                animation: iaName ? undefined : "anim-block-fade-in 220ms ease-out 60ms forwards",
+              }}
+            />
+            <style>{`@keyframes anim-block-fade-in { to { opacity: 1; } }`}</style>
+          </div>
+        );
+      }
+      // Fall through to the <img> renderer below for recolored SVGs.
     }
     return animWrap(
       <div style={wrapperStyle} className="pointer-events-none">

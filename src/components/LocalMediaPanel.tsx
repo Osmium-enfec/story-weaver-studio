@@ -4,6 +4,13 @@ import { Search, Sparkles, HardDrive, Loader2, RefreshCw, Palette } from "lucide
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { IconColorEditor } from "@/components/IconColorEditor";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 const IMAGE_EXT_RE = /\.(gif|png|jpe?g|webp|avif|svg)$/i;
 const LOTTIE_EXT_RE = /\.(json|lottie)$/i;
@@ -312,11 +319,17 @@ export function LocalMediaPanel() {
         </div>
       )}
 
-      <IconColorEditor
-        componentId={recolorTargetId}
-        onClose={() => setRecolorTargetId(null)}
-        onSaved={() => void loadItems()}
-      />
+      <Dialog open={recolorTargetId !== null} onOpenChange={(o) => { if (!o) setRecolorTargetId(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Recolor icon</DialogTitle>
+            <DialogDescription>
+              Edit colors and save the result as a library copy.
+            </DialogDescription>
+          </DialogHeader>
+          <IconColorEditor componentId={recolorTargetId} />
+        </DialogContent>
+      </Dialog>
 
       {!loading && filtered.length > 0 && (
         <div className="flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
