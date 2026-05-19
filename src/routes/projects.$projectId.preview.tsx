@@ -5,7 +5,7 @@ import type { Scene } from "@/lib/db-types";
 import { useProject } from "@/components/project-context";
 import { Button } from "@/components/ui/button";
 import { Play, Pause, SkipForward, SkipBack } from "lucide-react";
-import { PlaybackDialog, type PlaybackScene } from "@/components/PlaybackDialog";
+import type { PlaybackScene } from "@/components/PlaybackDialog";
 import { BackgroundLayer, type SceneBackground } from "@/components/BackgroundPicker";
 import { AnimationBlockRenderer, TextBlockRenderer } from "@/components/AnimationBlock";
 import { DESIGN, cellRect } from "@/lib/grid";
@@ -25,6 +25,89 @@ function PreviewPage() {
   const [playing, setPlaying] = useState(false);
 
   useEffect(() => {
+    if (!playing || playbackScenes.length === 0) return;
+    const dur = scenes[idx]?.duration_ms ?? 3500;
+    const t = setTimeout(() => {
+      if (idx + 1 >= playbackScenes.length) setPlaying(false);
+      else setIdx(idx + 1);
+    }, dur);
+    return () => clearTimeout(t);
+  }, [playing, idx, scenes, playbackScenes.length]);
+
+  useEffect(() => {
+    if (idx >= playbackScenes.length) setIdx(Math.max(0, playbackScenes.length - 1));
+  }, [idx, playbackScenes.length]);
+
+  const ratio = project.aspect_ratio;
+  const aspect = ratio === "9:16" ? "9/16" : ratio === "1:1" ? "1/1" : "16/9";
+  const current = scenes[idx];
+  const currentPlayback = playbackScenes[idx];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-center">
+        <div
+          className="overflow-hidden rounded-xl bg-card shadow-2xl"
+          style={{ aspectRatio: aspect, width: ratio === "9:16" ? "360px" : "min(900px, 100%)" }}
+        >
+          <div className="relative h-full w-full overflow-hidden">
+            {currentPlayback ? <BackgroundLayer background={currentPlayback.background} /> : null}
+            {currentPlayback ? [...currentPlayback.elements].sort((a, b) => a.z_index - b.z_index).map((el, elementIdx) => {
+              const isText = el.type === "text" || typeof el.content.text === "string" || !!el.content.role;
+              const p = el.position;
+              const rect = p && typeof p.w === "number" && p.w > 0 ? p : cellRect(elementIdx);
+              return (
+                <div
+                  key={el.id}
+                  className="absolute overflow-hidden"
+                  style={{
+                    left: `${(rect.x / DESIGN.w) * 100}%`,
+                    top: `${(rect.y / DESIGN.h) * 100}%`,
+                    width: `${(rect.w / DESIGN.w) * 100}%`,
+                    height: `${(rect.h / DESIGN.h) * 100}%`,
+                    zIndex: el.z_index,
+                  }}
+                >
+                  {isText ? (
+                    <TextBlockRenderer
+                      key={`${el.id}-${playing ? "playing" : "idle"}-${idx}`}
+                      content={el.content}
+                      animating={playing}
+                    />
+                  ) : (
+                    <AnimationBlockRenderer
+                      key={`${el.id}-${playing ? "playing" : "idle"}-${idx}`}
+                      content={el.content}
+                    />
+                  )}
+                </div>
+              );
+            }) : (
+              <div className="flex h-full items-center justify-center p-8 text-center">
+                <p className="text-xl font-medium">No screens to preview</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center justify-center gap-3">
+        <Button variant="outline" size="icon" onClick={() => setIdx(Math.max(0, idx - 1))}>
+          <SkipBack className="h-4 w-4" />
+        </Button>
+        <Button size="lg" onClick={() => setPlaying((p) => !p)} disabled={playbackScenes.length === 0}>
+          {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+          <span className="ml-2">{playing ? "Pause" : "Play"}</span>
+        </Button>
+        <Button variant="outline" size="icon" onClick={() => setIdx(Math.min(playbackScenes.length - 1, idx + 1))}>
+          <SkipForward className="h-4 w-4" />
+        </Button>
+        <span className="ml-3 text-sm text-muted-foreground">
+          Screen {Math.min(idx + 1, playbackScenes.length || scenes.length)} / {playbackScenes.length || scenes.length}
+        </span>
+      </div>
+    </div>
+  );
+}
     (async () => {
       const { data } = await supabase
         .from("scenes")
