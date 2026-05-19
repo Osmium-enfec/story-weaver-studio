@@ -116,6 +116,7 @@ function ScriptCanvas() {
   const [rightTab, setRightTab] = useState<string>("animations");
   const [animationSubTab, setAnimationSubTab] = useState<string>("search");
   const [recolorComponentId, setRecolorComponentId] = useState<string | null>(null);
+  const [recolorTarget, setRecolorTarget] = useState<{ sceneId: string; elementId: string } | null>(null);
   const [isSeeding, setIsSeeding] = useState(false);
   const [animPreview, setAnimPreview] = useState<{ id: string; tick: number } | null>(null);
   const animPreviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1345,6 +1346,7 @@ function ScriptCanvas() {
                                   toast.error("This asset isn't cached for recoloring yet.");
                                   return;
                                 }
+                                setRecolorTarget({ sceneId: activeScene!.id, elementId: sel.id });
                                 setRecolorComponentId(data.id);
                               }
                             : undefined
@@ -1433,8 +1435,12 @@ function ScriptCanvas() {
 
       <IconColorEditor
         componentId={recolorComponentId}
-        onClose={() => setRecolorComponentId(null)}
-        onSaved={() => setRecolorComponentId(null)}
+        onClose={() => { setRecolorComponentId(null); setRecolorTarget(null); }}
+        onSaved={() => { setRecolorComponentId(null); setRecolorTarget(null); }}
+        onPreviewSvg={(dataUrl) => {
+          if (!recolorTarget) return;
+          void updateElementContent(recolorTarget.sceneId, recolorTarget.elementId, { image_url: dataUrl });
+        }}
       />
       <PlaybackDialog
         open={playOpen}
