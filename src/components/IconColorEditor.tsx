@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Loader2, Plus, X, Palette, Save, Copy } from "lucide-react";
 import { toast } from "sonner";
@@ -99,15 +99,18 @@ export function IconColorEditor({ componentId, onClose, onSaved, onPreviewSvg }:
   // Live-preview: push recolored SVG onto the canvas element as the user edits.
   // Skip the initial render (when colorMap is just the identity from the source SVG)
   // so we don't clobber the element's image_url with an unchanged copy.
+  const onPreviewSvgRef = useRef(onPreviewSvg);
+  useEffect(() => { onPreviewSvgRef.current = onPreviewSvg; }, [onPreviewSvg]);
   useEffect(() => {
-    if (!onPreviewSvg || !data || !previewDataUrl) return;
+    const cb = onPreviewSvgRef.current;
+    if (!cb || !data || !previewDataUrl) return;
     const changedColors = Object.entries(colorMap).some(
       ([from, to]) => from.toLowerCase() !== to.toLowerCase(),
     );
     const changedCurrent = data.has_current_color && currentColor.toLowerCase() !== "#111111";
     if (!changedColors && !changedCurrent) return;
-    onPreviewSvg(previewDataUrl);
-  }, [previewDataUrl, onPreviewSvg, data, colorMap, currentColor]);
+    cb(previewDataUrl);
+  }, [previewDataUrl, data, colorMap, currentColor]);
 
   async function handleSave(saveAsCopy: boolean) {
     if (!data) return;
