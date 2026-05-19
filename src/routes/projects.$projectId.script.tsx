@@ -990,11 +990,21 @@ function ScriptCanvas() {
     setScenes((prev) =>
       prev.map((sc) =>
         sc.id === sceneId
-          ? { ...sc, elements: sc.elements.map((el) => (el.id === id ? { ...el, start_ms: s, end_ms: e } : el)) }
+          ? {
+              ...sc,
+              elements: sc.elements.map((el) =>
+                el.id === id
+                  ? { ...el, start_ms: s, end_ms: e, content: { ...el.content, timing_mode: "timeline", word: null, occurrence: null } }
+                  : el,
+              ),
+            }
           : sc,
       ),
     );
-    await supabase.from("scene_elements").update({ start_ms: s, end_ms: e }).eq("id", id);
+    const scene = scenes.find((sc) => sc.id === sceneId);
+    const el = scene?.elements.find((x) => x.id === id);
+    const nextContent = { ...(el?.content ?? {}), timing_mode: "timeline", word: null, occurrence: null };
+    await supabase.from("scene_elements").update({ start_ms: s, end_ms: e, content: nextContent }).eq("id", id);
   }
 
   // Returns the timing fields to merge into a new element insert based on the
