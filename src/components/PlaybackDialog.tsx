@@ -16,6 +16,8 @@ export interface PlaybackElement {
   content: AnimationBlockContent;
   position: { x: number; y: number; w: number; h: number };
   z_index: number;
+  start_ms?: number;
+  end_ms?: number;
 }
 
 export interface WordTiming {
