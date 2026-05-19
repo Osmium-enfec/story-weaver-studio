@@ -280,7 +280,17 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
         const sinceMs = ((frame - revealFrame) / fps) * 1000;
         const localFrame = frame - revealFrame;
 
-        if (isText) return <TextElement key={el.id} el={el} style={style} />;
+        if (isText)
+          return (
+            <TextElement
+              key={el.id}
+              el={el}
+              style={style}
+              revealFrame={revealFrame}
+              currentFrame={frame}
+              fps={fps}
+            />
+          );
 
         const c = el.content ?? {};
         const lottieSrc =
