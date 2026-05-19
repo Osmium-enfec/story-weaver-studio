@@ -203,21 +203,21 @@ export function FreepikMirrorPanel() {
           </Button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">Type:</span>
-          {ASSET_TYPES.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setAssetType(t.id)}
-              className={`rounded-full border px-2.5 py-0.5 text-xs transition ${
-                assetType === t.id
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-background hover:border-primary/50"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+          <select
+            value={assetType}
+            onChange={(e) => setAssetType(e.target.value as AssetType)}
+            className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+          >
+            {ASSET_GROUPS.map((g) => (
+              <optgroup key={g.group} label={g.group}>
+                {g.options.map((o) => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
