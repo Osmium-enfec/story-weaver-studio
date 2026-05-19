@@ -158,6 +158,7 @@ export function TimelineWorkspace({
 
   useEffect(() => {
     if (!drag) return;
+    let last = { s: drag.startS, e: drag.startE };
     function onMove(ev: MouseEvent) {
       if (!drag) return;
       const dx = ev.clientX - drag.originX;
@@ -176,9 +177,17 @@ export function TimelineWorkspace({
         en = Math.max(drag.startS + MIN_CLIP_MS, Math.min(durationMs, drag.startE + dms));
         en = snap(en, bypass);
       }
-      onChangeTimes(drag.id, Math.round(s), Math.round(en));
+      last = { s: Math.round(s), e: Math.round(en) };
+      setDragOverride({ id: drag.id, start: last.s, end: last.e });
     }
-    function onUp() { setDrag(null); }
+    function onUp() {
+      // Commit once at the end
+      if (drag && (last.s !== drag.startS || last.e !== drag.startE)) {
+        onChangeTimes(drag.id, last.s, last.e);
+      }
+      setDragOverride(null);
+      setDrag(null);
+    }
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     return () => {
