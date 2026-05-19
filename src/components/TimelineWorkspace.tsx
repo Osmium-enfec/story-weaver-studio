@@ -397,7 +397,7 @@ export function TimelineWorkspace({
                         {/* left handle */}
                         {!isLocked && (
                           <div
-                            className="absolute left-0 top-0 h-full w-1.5 cursor-ew-resize bg-white/30 opacity-0 transition group-hover:opacity-100"
+                            className="absolute left-0 top-0 h-full w-1.5 cursor-ew-resize bg-white/50 hover:bg-white/80"
                             onMouseDown={(e) => {
                               e.stopPropagation(); onSelect(el.id);
                               setDrag({ id: el.id, mode: "l", originX: e.clientX, startS: start, startE: end });
@@ -410,7 +410,7 @@ export function TimelineWorkspace({
                         {/* right handle */}
                         {!isLocked && (
                           <div
-                            className="absolute right-0 top-0 h-full w-1.5 cursor-ew-resize bg-white/30 opacity-0 transition group-hover:opacity-100"
+                            className="absolute right-0 top-0 h-full w-1.5 cursor-ew-resize bg-white/50 hover:bg-white/80"
                             onMouseDown={(e) => {
                               e.stopPropagation(); onSelect(el.id);
                               setDrag({ id: el.id, mode: "r", originX: e.clientX, startS: start, startE: end });
