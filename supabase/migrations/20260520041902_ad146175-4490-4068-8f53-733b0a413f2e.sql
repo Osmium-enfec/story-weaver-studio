@@ -1,0 +1,1 @@
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS canvas_mode text NOT NULL DEFAULT 'word';

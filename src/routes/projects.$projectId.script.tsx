@@ -126,32 +126,12 @@ function ScriptCanvas() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [animPreview, setAnimPreview] = useState<{ id: string; tick: number } | null>(null);
   const animPreviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Per-scene editing mode: "word" (default, stitch animations to spoken words)
-  // or "timeline" (Canva-style, place clips on a timeline). Persisted per-project
-  // to localStorage so the user's choice survives refresh and navigation.
-  const canvasModesStorageKey = `codemotion:canvas-modes:${projectId}`;
-  const [canvasModes, setCanvasModes] = useState<Record<string, "word" | "timeline">>(() => {
-    if (typeof window === "undefined") return {};
-    try {
-      const raw = window.localStorage.getItem(`codemotion:canvas-modes:${projectId}`);
-      return raw ? (JSON.parse(raw) as Record<string, "word" | "timeline">) : {};
-    } catch {
-      return {};
-    }
-  });
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(canvasModesStorageKey, JSON.stringify(canvasModes));
-    } catch {
-      /* ignore quota errors */
-    }
-  }, [canvasModes, canvasModesStorageKey]);
-  function getMode(sceneId: string): "word" | "timeline" {
-    return canvasModes[sceneId] ?? "word";
-  }
-  function setMode(sceneId: string, mode: "word" | "timeline") {
-    setCanvasModes((prev) => ({ ...prev, [sceneId]: mode }));
+  // Editing mode is locked at the project level (chosen at project creation):
+  // "word" stitches animations to spoken words, "timeline" places clips on a
+  // draggable timeline. Every canvas in the project follows this setting.
+  const projectCanvasMode: "word" | "timeline" = project.canvas_mode === "timeline" ? "timeline" : "word";
+  function getMode(_sceneId: string): "word" | "timeline" {
+    return projectCanvasMode;
   }
 
   const activeScene = scenes[activeIdx];
@@ -1329,23 +1309,12 @@ function ScriptCanvas() {
                 )}
               </div>
             </div>
-            {/* Mode switcher: stitch animations to spoken words, or place clips on a timeline */}
+            {/* Edit mode is fixed at project creation and applies to every canvas */}
             <div className="flex items-center gap-2 border-t border-border bg-muted/10 px-3 py-2">
               <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Edit mode</span>
-              <div className="inline-flex overflow-hidden rounded-md border border-border">
-                <button
-                  onClick={(e) => { e.stopPropagation(); setMode(s.id, "word"); }}
-                  className={`px-2 py-1 text-xs ${getMode(s.id) === "word" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent"}`}
-                >
-                  Stitch to words
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setMode(s.id, "timeline"); }}
-                  className={`px-2 py-1 text-xs border-l border-border ${getMode(s.id) === "timeline" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent"}`}
-                >
-                  Timeline
-                </button>
-              </div>
+              <span className="rounded-md border border-border bg-background px-2 py-1 text-xs">
+                {getMode(s.id) === "word" ? "Stitch to words" : "Timeline"}
+              </span>
               {getMode(s.id) === "timeline" && (
                 <span className="ml-2 text-[11px] text-muted-foreground">
                   New elements will be placed on the timeline below.

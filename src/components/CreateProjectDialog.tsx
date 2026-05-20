@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { WORKSPACE_ID, type AspectRatio, type VoiceMode } from "@/lib/db-types";
+import { WORKSPACE_ID, type AspectRatio, type CanvasMode, type VoiceMode } from "@/lib/db-types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +39,7 @@ export function CreateProjectDialog({
   const [themeKey, setThemeKey] = useState<string>("firebase");
   const [savedThemes, setSavedThemes] = useState<SavedThemeOption[]>([]);
   const [voice, setVoice] = useState<VoiceMode>("no_voice");
+  const [canvasMode, setCanvasMode] = useState<CanvasMode>("word");
   const [voiceFile, setVoiceFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string>("");
@@ -82,6 +83,7 @@ export function CreateProjectDialog({
         title: title.trim(),
         aspect_ratio: ratio,
         voice_mode: voice,
+        canvas_mode: canvasMode,
         // legacy required-ish columns kept at sensible defaults
         course_type: "Other",
         audience_level: "Beginner",
@@ -209,6 +211,19 @@ export function CreateProjectDialog({
             </Select>
             <p className="mt-1 text-[11px] text-muted-foreground">
               The theme's background, fonts, and colors will be applied to every new scene.
+            </p>
+          </Field>
+
+          <Field label="Edit mode">
+            <Select value={canvasMode} onValueChange={(v) => setCanvasMode(v as CanvasMode)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="word">Stitch to words — animations sync to spoken words</SelectItem>
+                <SelectItem value="timeline">Timeline — drag &amp; slide clips on a timeline</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              This applies to every canvas in this project and can't be changed later.
             </p>
           </Field>
 
