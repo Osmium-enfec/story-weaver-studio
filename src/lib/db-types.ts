@@ -4,6 +4,7 @@ export type AudienceLevel = "Beginner" | "Intermediate" | "Advanced";
 export type AspectRatio = "16:9" | "9:16" | "1:1";
 export type ThemeName = "Whiteboard" | "Dark Code" | "Flat Modern" | "Android UI" | "Classroom";
 export type VoiceMode = "upload_voice" | "ai_voice" | "no_voice";
+export type CanvasMode = "word" | "timeline";
 
 export interface Project {
   id: string;
