@@ -1,10 +1,41 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Play, Pause, ZoomIn, ZoomOut, Trash2, Layers, Music, Eye, EyeOff, Lock, Unlock,
+  Sparkles, ArrowLeftRight, Wand2,
 } from "lucide-react";
 import type { AnimationBlockContent } from "@/components/AnimationBlock";
 import { TimelineAudioPanel } from "@/components/TimelineAudioPanel";
 import type { CanvasAudioState } from "@/components/CanvasAudioEditor";
+
+export type TransitionType =
+  | "fade"
+  | "dissolve"
+  | "slide-left"
+  | "slide-right"
+  | "slide-up"
+  | "wipe"
+  | "zoom"
+  | "blur";
+
+export interface ClipTransition {
+  type: TransitionType;
+  duration_ms: number;
+}
+
+const TRANSITION_PRESETS: { type: TransitionType; label: string; desc: string }[] = [
+  { type: "fade",        label: "Fade",         desc: "Soft cross-fade between clips" },
+  { type: "dissolve",    label: "Dissolve",     desc: "Pixel dissolve blend" },
+  { type: "slide-left",  label: "Slide Left",   desc: "Next clip slides in from right" },
+  { type: "slide-right", label: "Slide Right",  desc: "Next clip slides in from left" },
+  { type: "slide-up",    label: "Slide Up",     desc: "Next clip pushes up" },
+  { type: "wipe",        label: "Wipe",         desc: "Linear wipe reveal" },
+  { type: "zoom",        label: "Zoom",         desc: "Zoom in to next clip" },
+  { type: "blur",        label: "Blur",         desc: "Defocus to next clip" },
+];
+
+function transitionKey(fromId: string, toId: string) {
+  return `${fromId}__${toId}`;
+}
 
 export interface TimelineElement {
   id: string;
