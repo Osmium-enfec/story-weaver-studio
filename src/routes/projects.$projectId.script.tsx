@@ -1252,6 +1252,7 @@ function ScriptCanvas() {
                       selectedElementId === el.id ? "border-primary" : "border-transparent hover:border-primary/40"
                     } ${hideForTimeline ? "pointer-events-none opacity-0" : "opacity-100"}`}
                     data-canvas-element="true"
+                    style={txStyle}
                   >
                     <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
                       {el.content.word && (
