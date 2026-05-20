@@ -792,3 +792,86 @@ function InspectorPanel({
     </div>
   );
 }
+
+function TransitionInspector({
+  fromLabel, toLabel, current, onSet, onRemove,
+}: {
+  fromLabel: string;
+  toLabel: string;
+  current: ClipTransition | null;
+  onSet: (t: ClipTransition) => void;
+  onRemove: () => void;
+}) {
+  const [duration, setDuration] = useState<number>(current?.duration_ms ?? 500);
+
+  useEffect(() => {
+    if (current) setDuration(current.duration_ms);
+  }, [current?.type]);
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col p-3">
+      <div className="mb-3 flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1.5 text-[11px] text-zinc-300">
+        <span className="truncate">{fromLabel || "Clip A"}</span>
+        <ArrowLeftRight className="h-3 w-3 shrink-0 text-fuchsia-400" />
+        <span className="truncate">{toLabel || "Clip B"}</span>
+      </div>
+
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-wider text-zinc-500">Style</span>
+        {current && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="flex items-center gap-1 rounded-md border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-300 hover:bg-red-500/20"
+          >
+            <Trash2 className="h-3 w-3" /> Remove
+          </button>
+        )}
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto pr-1">
+        {TRANSITION_PRESETS.map((p) => {
+          const active = current?.type === p.type;
+          return (
+            <button
+              key={p.type}
+              type="button"
+              onClick={() => onSet({ type: p.type, duration_ms: duration })}
+              className={`group flex flex-col items-start gap-1 rounded-lg border px-2.5 py-2 text-left transition-all ${
+                active
+                  ? "border-fuchsia-300/70 bg-gradient-to-br from-fuchsia-500/20 to-purple-600/20 ring-1 ring-fuchsia-300/50"
+                  : "border-white/10 bg-white/[0.03] hover:border-fuchsia-300/40 hover:bg-white/[0.06]"
+              }`}
+            >
+              <div className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-100">
+                <Wand2 className={`h-3 w-3 ${active ? "text-fuchsia-300" : "text-zinc-400 group-hover:text-fuchsia-300"}`} />
+                {p.label}
+              </div>
+              <div className="text-[9px] leading-snug text-zinc-500">{p.desc}</div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 border-t border-white/5 pt-2">
+        <label className="flex items-center justify-between text-[10px] text-zinc-400">
+          <span>Duration</span>
+          <span className="font-mono text-zinc-200">{(duration / 1000).toFixed(2)}s</span>
+        </label>
+        <input
+          type="range"
+          min={100}
+          max={2000}
+          step={50}
+          value={duration}
+          onChange={(e) => {
+            const d = parseInt(e.target.value);
+            setDuration(d);
+            if (current) onSet({ type: current.type, duration_ms: d });
+          }}
+          className="mt-1 h-1 w-full cursor-pointer accent-fuchsia-500"
+        />
+      </div>
+    </div>
+  );
+}
