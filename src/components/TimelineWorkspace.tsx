@@ -165,9 +165,8 @@ export function TimelineWorkspace({
       const dbTx = (dbTxRaw && typeof dbTxRaw === "object" && !Array.isArray(dbTxRaw)
         ? (dbTxRaw as Record<string, ClipTransition>)
         : {}) as Record<string, ClipTransition>;
-        setTransitions(dbTx);
-        try { localStorage.setItem(`cm.timeline.transitions.${sceneId}`, JSON.stringify(dbTx)); } catch {}
-      }
+      setTransitions(dbTx);
+      try { localStorage.setItem(`cm.timeline.transitions.${sceneId}`, JSON.stringify(dbTx)); } catch {}
       loadedSceneRef.current = sceneId;
     })();
     return () => { cancelled = true; };
