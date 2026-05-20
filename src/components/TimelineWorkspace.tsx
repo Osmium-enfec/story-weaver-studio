@@ -691,12 +691,13 @@ export function TimelineWorkspace({
               fromLabel={clipLabel(elements.find((e) => e.id === selectedTransition.fromId) || ({} as TimelineElement))}
               toLabel={clipLabel(elements.find((e) => e.id === selectedTransition.toId) || ({} as TimelineElement))}
               current={transitions[transitionKey(selectedTransition.fromId, selectedTransition.toId)] || null}
-              onSet={(t) =>
+              onSet={(t) => {
                 setTransitions((prev) => ({
                   ...prev,
                   [transitionKey(selectedTransition.fromId, selectedTransition.toId)]: t,
-                }))
-              }
+                }));
+                onPreviewTransition?.(selectedTransition.fromId, selectedTransition.toId, t.type, t.duration_ms);
+              }}
               onRemove={() =>
                 setTransitions((prev) => {
                   const next = { ...prev };
