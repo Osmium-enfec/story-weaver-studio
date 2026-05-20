@@ -17,14 +17,25 @@ export interface TimelineElement {
 
 interface Props {
   sceneId: string;
+  projectId: string;
   durationMs: number;
   voiceUrl?: string | null;
   elements: TimelineElement[];
   selectedId: string | null;
+  narration: string;
+  wordTimings: { text: string; start_ms: number; end_ms: number }[];
+  audioState: CanvasAudioState;
   onSelect: (id: string) => void;
   onChangeTimes: (id: string, start_ms: number, end_ms: number) => void;
   onDelete?: (id: string) => void;
   onPlayheadChange?: (ms: number, playing: boolean) => void;
+  onAudioChange: (
+    patch: Partial<CanvasAudioState> & {
+      narration?: string;
+      word_timings?: { text: string; start_ms: number; end_ms: number }[];
+    },
+  ) => void;
+  onWordSearch?: (word: string) => void;
 }
 
 const MIN_CLIP_MS = 200;
