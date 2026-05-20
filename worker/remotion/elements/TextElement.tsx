@@ -66,7 +66,8 @@ export const TextElement: React.FC<{
   revealFrame?: number;
   currentFrame?: number;
   fps?: number;
-}> = ({ el, style, revealFrame = 0, currentFrame = 0, fps = 30 }) => {
+  disableEntranceAnimation?: boolean;
+}> = ({ el, style, revealFrame = 0, currentFrame = 0, fps = 30, disableEntranceAnimation = false }) => {
   const c = el.content ?? {};
   const align: React.CSSProperties["textAlign"] =
     (c.align as any) || (c.text_align as any) || "center";
@@ -111,7 +112,9 @@ export const TextElement: React.FC<{
   const anim = c.text_animation as
     | { type?: AnimType; duration?: number; delay?: number }
     | undefined;
-  const animType: AnimType = (anim?.type as AnimType) || "fade";
+  const animType: AnimType = disableEntranceAnimation
+    ? "none"
+    : (anim?.type as AnimType) || "fade";
   const animDuration = anim?.duration ?? 600;
   const animDelay = anim?.delay ?? 0;
 
