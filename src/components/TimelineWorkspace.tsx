@@ -669,40 +669,75 @@ export function TimelineWorkspace({
           className="flex shrink-0 flex-col border-l border-white/5 bg-white/[0.02]"
           style={{ width: 320, height: 32 + totalLanesHeight, minHeight: 360 }}
         >
-          <div className="border-b border-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-            Properties
-          </div>
-          {/* 20% — delete only */}
-          <div
-            className="flex shrink-0 items-center border-b border-white/5 px-3"
-            style={{ flexBasis: "20%" }}
-          >
-            {selected ? (
+          <div className="flex items-center justify-between border-b border-white/5 px-3 py-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              {selectedTransition ? "Transition" : "Properties"}
+            </span>
+            {selectedTransition && (
               <button
                 type="button"
-                onClick={() => onDelete?.(selected.id)}
-                className="flex w-full items-center justify-center gap-1.5 rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-300 hover:bg-red-500/20"
+                onClick={() => setSelectedTransition(null)}
+                className="text-[10px] text-zinc-400 hover:text-white"
               >
-                <Trash2 className="h-3.5 w-3.5" /> Delete clip
+                Close
               </button>
-            ) : (
-              <p className="w-full text-center text-[11px] text-zinc-500">
-                Select a clip to delete
-              </p>
             )}
           </div>
-          {/* 80% — audio + transcript */}
-          <div className="min-h-0 flex-1 p-3" style={{ flexBasis: "80%" }}>
-            <TimelineAudioPanel
-              sceneId={sceneId}
-              projectId={projectId}
-              state={audioState}
-              narration={narration}
-              wordTimings={wordTimings}
-              onChange={onAudioChange}
-              onWordSearch={onWordSearch}
+
+          {selectedTransition ? (
+            <TransitionInspector
+              fromLabel={clipLabel(elements.find((e) => e.id === selectedTransition.fromId) || ({} as TimelineElement))}
+              toLabel={clipLabel(elements.find((e) => e.id === selectedTransition.toId) || ({} as TimelineElement))}
+              current={transitions[transitionKey(selectedTransition.fromId, selectedTransition.toId)] || null}
+              onSet={(t) =>
+                setTransitions((prev) => ({
+                  ...prev,
+                  [transitionKey(selectedTransition.fromId, selectedTransition.toId)]: t,
+                }))
+              }
+              onRemove={() =>
+                setTransitions((prev) => {
+                  const next = { ...prev };
+                  delete next[transitionKey(selectedTransition.fromId, selectedTransition.toId)];
+                  return next;
+                })
+              }
             />
-          </div>
+          ) : (
+            <>
+              {/* 20% — delete only */}
+              <div
+                className="flex shrink-0 items-center border-b border-white/5 px-3"
+                style={{ flexBasis: "20%" }}
+              >
+                {selected ? (
+                  <button
+                    type="button"
+                    onClick={() => onDelete?.(selected.id)}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-300 hover:bg-red-500/20"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete clip
+                  </button>
+                ) : (
+                  <p className="w-full text-center text-[11px] text-zinc-500">
+                    Select a clip to delete
+                  </p>
+                )}
+              </div>
+              {/* 80% — audio + transcript */}
+              <div className="min-h-0 flex-1 p-3" style={{ flexBasis: "80%" }}>
+                <TimelineAudioPanel
+                  sceneId={sceneId}
+                  projectId={projectId}
+                  state={audioState}
+                  narration={narration}
+                  wordTimings={wordTimings}
+                  onChange={onAudioChange}
+                  onWordSearch={onWordSearch}
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
 
