@@ -390,6 +390,7 @@ export type Database = {
           suggested_animation: string | null
           title: string | null
           transition: string
+          transitions: Json
           updated_at: string
           visual_brief: string
           voice_cuts: Json
@@ -419,6 +420,7 @@ export type Database = {
           suggested_animation?: string | null
           title?: string | null
           transition?: string
+          transitions?: Json
           updated_at?: string
           visual_brief?: string
           voice_cuts?: Json
@@ -448,6 +450,7 @@ export type Database = {
           suggested_animation?: string | null
           title?: string | null
           transition?: string
+          transitions?: Json
           updated_at?: string
           visual_brief?: string
           voice_cuts?: Json
