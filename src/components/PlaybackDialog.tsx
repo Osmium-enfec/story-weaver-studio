@@ -65,6 +65,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
   const [currentIdx, setCurrentIdx] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
   const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
+  const [txPhases, setTxPhases] = useState<Record<string, { phase: "enter" | "exit"; tx: ClipTransition; tick: number }>>({});
   const stageRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
