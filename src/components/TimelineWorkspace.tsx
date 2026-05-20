@@ -6,6 +6,7 @@ import {
 import type { AnimationBlockContent } from "@/components/AnimationBlock";
 import { TimelineAudioPanel } from "@/components/TimelineAudioPanel";
 import type { CanvasAudioState } from "@/components/CanvasAudioEditor";
+import { supabase } from "@/integrations/supabase/client";
 
 export type TransitionType =
   | "fade"
