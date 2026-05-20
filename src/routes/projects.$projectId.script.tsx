@@ -30,6 +30,7 @@ import { proxyImageAsDataUrl } from "@/server/proxy-image.functions";
 import { CanvasAudioEditor } from "@/components/CanvasAudioEditor";
 import { TimelineWorkspace } from "@/components/TimelineWorkspace";
 import { applyPendingTheme, consumePendingTheme } from "@/lib/pending-theme";
+import { loadTransitions, findEnterTransition, findExitTransition } from "@/lib/timeline-transitions";
 
 async function inlineAllImages(root: HTMLElement) {
   const imgs = Array.from(root.querySelectorAll("img"));
