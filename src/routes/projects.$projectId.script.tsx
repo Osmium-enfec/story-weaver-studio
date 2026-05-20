@@ -113,6 +113,7 @@ function ScriptCanvas() {
   const [isPlaying, setIsPlaying] = useState(false);
   // Per-scene timeline playhead state: drives canvas reveal when in timeline mode
   const [timelinePreview, setTimelinePreview] = useState<Record<string, { ms: number; playing: boolean }>>({});
+  const [txPreview, setTxPreview] = useState<Record<string, { fromId: string; toId: string; type: string; duration_ms: number; tick: number } | null>>({});
   const [isExporting, setIsExporting] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
   const [previewSceneId, setPreviewSceneId] = useState<string | null>(null);
@@ -1210,6 +1211,18 @@ function ScriptCanvas() {
                   const playPass = tp?.playing && inTimelineMode && isTimelineClip
                     ? `play-${elStart}-${elEnd}`
                     : "idle";
+                  // Transition preview animation styling
+                  const tx = txPreview[s.id];
+                  let txStyle: React.CSSProperties | undefined;
+                  let txKey = "";
+                  if (tx && (tx.fromId === el.id || tx.toId === el.id)) {
+                    const phase = tx.fromId === el.id ? "exit" : "enter";
+                    txStyle = {
+                      animation: `tx-${phase}-${tx.type} ${tx.duration_ms}ms ease forwards`,
+                      zIndex: 50,
+                    };
+                    txKey = `tx-${tx.tick}-${phase}`;
+                  }
                   return (
                   <Rnd
                     key={el.id}
@@ -1240,7 +1253,11 @@ function ScriptCanvas() {
                     } ${hideForTimeline ? "pointer-events-none opacity-0" : "opacity-100"}`}
                     data-canvas-element="true"
                   >
-                    <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
+                    <div
+                      key={txKey || undefined}
+                      className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}
+                      style={txStyle}
+                    >
                       {el.content.word && (
                         <span className="pointer-events-none absolute left-1 top-1 z-20 flex h-5 max-w-[calc(100%-0.5rem)] items-center gap-0.5 truncate rounded-full bg-accent px-1.5 text-[10px] font-semibold text-accent-foreground shadow">
                           🔗 {el.content.word}
@@ -1363,6 +1380,16 @@ function ScriptCanvas() {
                   setSelectedWord(w);
                   setRightTab("animations");
                   setAnimationSubTab("search");
+                }}
+                onPreviewTransition={(fromId, toId, type, duration_ms) => {
+                  setActiveIdx(idx);
+                  setTxPreview((prev) => ({
+                    ...prev,
+                    [s.id]: { fromId, toId, type, duration_ms, tick: (prev[s.id]?.tick ?? 0) + 1 },
+                  }));
+                  window.setTimeout(() => {
+                    setTxPreview((prev) => ({ ...prev, [s.id]: null }));
+                  }, duration_ms + 100);
                 }}
               />
 

@@ -67,6 +67,7 @@ interface Props {
     },
   ) => void;
   onWordSearch?: (word: string) => void;
+  onPreviewTransition?: (fromId: string, toId: string, type: TransitionType, duration_ms: number) => void;
 }
 
 const MIN_CLIP_MS = 200;
@@ -132,6 +133,7 @@ export function TimelineWorkspace({
   sceneId, projectId, durationMs, voiceUrl, elements, selectedId,
   narration, wordTimings, audioState,
   onSelect, onChangeTimes, onDelete, onPlayheadChange, onAudioChange, onWordSearch,
+  onPreviewTransition,
 }: Props) {
   const [pxPerSec, setPxPerSec] = useState(80);
   const [playheadMs, setPlayheadMs] = useState(0);
@@ -689,12 +691,13 @@ export function TimelineWorkspace({
               fromLabel={clipLabel(elements.find((e) => e.id === selectedTransition.fromId) || ({} as TimelineElement))}
               toLabel={clipLabel(elements.find((e) => e.id === selectedTransition.toId) || ({} as TimelineElement))}
               current={transitions[transitionKey(selectedTransition.fromId, selectedTransition.toId)] || null}
-              onSet={(t) =>
+              onSet={(t) => {
                 setTransitions((prev) => ({
                   ...prev,
                   [transitionKey(selectedTransition.fromId, selectedTransition.toId)]: t,
-                }))
-              }
+                }));
+                onPreviewTransition?.(selectedTransition.fromId, selectedTransition.toId, t.type, t.duration_ms);
+              }}
               onRemove={() =>
                 setTransitions((prev) => {
                   const next = { ...prev };
