@@ -298,6 +298,29 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
           }
         }
 
+        // Apply scene-level element transitions (persisted in scene.transitions).
+        const txMap = (scene.transitions ?? {}) as Record<string, TxEntry>;
+        const enterTx = findTx(txMap, "to", el.id);
+        const exitTx = findTx(txMap, "from", el.id);
+        let txMul = 1, txTx = 0, txTy = 0, txScale = 1, txBlur = 0;
+        if (enterTx) {
+          const durF = Math.max(1, Math.round((enterTx.duration_ms / 1000) * fps));
+          if (frame >= revealFrame && frame <= revealFrame + durF) {
+            const t = (frame - revealFrame) / durF;
+            const r = txTransform(enterTx.type, Math.max(0, Math.min(1, t)), "enter");
+            txMul *= r.opacity; txTx += r.translateX; txTy += r.translateY; txScale *= r.scale; txBlur = Math.max(txBlur, r.blurPx);
+          }
+        }
+        if (exitTx && Number.isFinite(endFrame)) {
+          const durF = Math.max(1, Math.round((exitTx.duration_ms / 1000) * fps));
+          const exitStart = (endFrame as number) - durF;
+          if (frame >= exitStart && frame <= endFrame) {
+            const t = (frame - exitStart) / durF;
+            const r = txTransform(exitTx.type, Math.max(0, Math.min(1, t)), "exit");
+            txMul *= r.opacity; txTx += r.translateX; txTy += r.translateY; txScale *= r.scale; txBlur = Math.max(txBlur, r.blurPx);
+          }
+        }
+
         const style: React.CSSProperties = {
           position: "absolute",
           left: el.position?.x ?? 0,
@@ -305,10 +328,10 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
           width: el.position?.w ?? 100,
           height: el.position?.h ?? 100,
           zIndex: el.z_index ?? 0,
-          opacity: iaOpacity,
-          transform: `translate(${translateX}px, ${translateY}px) scale(${scale}) rotate(${rotate}deg)`,
+          opacity: iaOpacity * txMul,
+          transform: `translate(${translateX + txTx}px, ${translateY + txTy}px) scale(${scale * txScale}) rotate(${rotate}deg)`,
           transformOrigin: "center center",
-          filter: blurPx > 0 ? `blur(${blurPx}px)` : undefined,
+          filter: (blurPx + txBlur) > 0 ? `blur(${blurPx + txBlur}px)` : undefined,
           overflow: "hidden",
         };
 
