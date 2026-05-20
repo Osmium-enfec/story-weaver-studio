@@ -605,6 +605,49 @@ export function TimelineWorkspace({
                         </div>
                       );
                     })}
+
+                    {/* Transition handles between adjacent clips */}
+                    {!hiddenLanes[g.key] && adjacentPairs
+                      .filter((p) => p.laneKey === g.key)
+                      .map((p) => {
+                        const key = transitionKey(p.fromId, p.toId);
+                        const existing = transitions[key];
+                        const isSelTx = selectedTransition?.fromId === p.fromId && selectedTransition?.toId === p.toId;
+                        const isHover = hoverPairId === key;
+                        const showIcon = !!existing || isHover || isSelTx;
+                        const center = ((p.gapStart + p.gapEnd) / 2) * pxPerMs;
+                        const top = ROW_GAP + p.row * (ROW_HEIGHT + ROW_GAP) + ROW_HEIGHT / 2;
+                        return (
+                          <div
+                            key={`tx-${key}`}
+                            className="absolute z-10"
+                            style={{ left: center - 18, top: top - 18, width: 36, height: 36 }}
+                            onMouseEnter={() => setHoverPairId(key)}
+                            onMouseLeave={() => setHoverPairId((h) => (h === key ? null : h))}
+                          >
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTransition({ fromId: p.fromId, toId: p.toId });
+                              }}
+                              title={existing ? `Transition: ${existing.type}` : "Add transition"}
+                              className={`flex h-9 w-9 items-center justify-center rounded-full border text-white shadow-lg transition-all ${
+                                showIcon ? "opacity-100 scale-100" : "opacity-0 scale-75 pointer-events-none"
+                              } ${
+                                isSelTx
+                                  ? "border-fuchsia-300 bg-gradient-to-br from-fuchsia-500 to-purple-600 ring-2 ring-fuchsia-300/60"
+                                  : existing
+                                  ? "border-fuchsia-300/60 bg-gradient-to-br from-fuchsia-500/90 to-purple-600/90 hover:scale-110"
+                                  : "border-white/30 bg-zinc-900/80 backdrop-blur hover:bg-fuchsia-600/80 hover:border-fuchsia-300/60 hover:scale-110"
+                              }`}
+                            >
+                              {existing ? <Sparkles className="h-4 w-4" /> : <ArrowLeftRight className="h-4 w-4" />}
+                            </button>
+                          </div>
+                        );
+                      })}
                   </div>
                 );
               })}
