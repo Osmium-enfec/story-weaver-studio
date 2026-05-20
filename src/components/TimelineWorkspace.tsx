@@ -67,6 +67,7 @@ interface Props {
     },
   ) => void;
   onWordSearch?: (word: string) => void;
+  onPreviewTransition?: (fromId: string, toId: string, type: TransitionType, duration_ms: number) => void;
 }
 
 const MIN_CLIP_MS = 200;
