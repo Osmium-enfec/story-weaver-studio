@@ -1225,7 +1225,7 @@ function ScriptCanvas() {
                   }
                   return (
                   <Rnd
-                    key={`${el.id}-${txKey}`}
+                    key={el.id}
                     bounds="parent"
                     scale={canvasScales[s.id] ?? 1}
                     size={{ width: el.position.w, height: el.position.h }}
