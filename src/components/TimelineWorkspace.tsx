@@ -179,7 +179,7 @@ export function TimelineWorkspace({
     if (loadedSceneRef.current !== sceneId) return;
     try { localStorage.setItem(`cm.timeline.transitions.${sceneId}`, JSON.stringify(transitions)); } catch {}
     const handle = setTimeout(() => {
-      supabase.from("scenes").update({ transitions }).eq("id", sceneId).then(() => {});
+      supabase.from("scenes").update({ transitions: transitions as unknown as never }).eq("id", sceneId).then(() => {});
     }, 300);
     return () => clearTimeout(handle);
   }, [transitions, sceneId]);
