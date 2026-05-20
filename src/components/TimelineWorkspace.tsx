@@ -195,6 +195,40 @@ export function TimelineWorkspace({
     return { byLane, packed };
   }, [elements, voiceUrl, durationMs, dragOverride]);
 
+  // Compute adjacent clip pairs per lane+row for transition handles
+  const adjacentPairs = useMemo(() => {
+    const out: { laneKey: LaneKey; row: number; fromId: string; toId: string; gapStart: number; gapEnd: number }[] = [];
+    (Object.keys(lanesData.byLane) as LaneKey[]).forEach((k) => {
+      if (k === "audio") return; // transitions only between visual elements
+      const items = lanesData.byLane[k].map((el) => {
+        const ov = dragOverride && dragOverride.id === el.id ? dragOverride : null;
+        const s = ov ? ov.start : Math.max(0, el.start_ms ?? 0);
+        const e = ov ? ov.end   : Math.max(s + MIN_CLIP_MS, el.end_ms ?? durationMs);
+        const row = lanesData.packed[k].rowOf[el.id] ?? 0;
+        return { id: el.id, start: s, end: e, row };
+      });
+      // group by row, then sort
+      const byRow: Record<number, typeof items> = {};
+      items.forEach((it) => { (byRow[it.row] ||= []).push(it); });
+      Object.entries(byRow).forEach(([rowStr, arr]) => {
+        const row = Number(rowStr);
+        const sorted = [...arr].sort((a, b) => a.start - b.start);
+        for (let i = 0; i < sorted.length - 1; i++) {
+          const a = sorted[i], b = sorted[i + 1];
+          // include adjacent (gap >= 0) and small overlaps (gap < 0 but > -800ms)
+          if (b.start - a.end >= -800) {
+            out.push({
+              laneKey: k, row,
+              fromId: a.id, toId: b.id,
+              gapStart: a.end, gapEnd: b.start,
+            });
+          }
+        }
+      });
+    });
+    return out;
+  }, [lanesData, dragOverride]);
+
   const laneHeights = useMemo(() => {
     const h: Record<LaneKey, number> = { elements: 0, audio: 0 };
     (Object.keys(h) as LaneKey[]).forEach((k) => {
