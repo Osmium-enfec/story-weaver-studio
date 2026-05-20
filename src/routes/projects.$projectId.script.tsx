@@ -1324,8 +1324,22 @@ function ScriptCanvas() {
             {getMode(s.id) === "timeline" ? (
               <TimelineWorkspace
                 sceneId={s.id}
+                projectId={projectId}
                 durationMs={s.duration_ms || 8000}
                 voiceUrl={s.voice_url}
+                narration={s.narration ?? ""}
+                wordTimings={s.word_timings ?? []}
+                audioState={{
+                  voice_url: s.voice_url,
+                  voice_start_ms: s.voice_start_ms,
+                  voice_end_ms: s.voice_end_ms,
+                  voice_trim_start_ms: s.voice_trim_start_ms,
+                  voice_trim_end_ms: s.voice_trim_end_ms,
+                  voice_cuts: s.voice_cuts,
+                  voice_volume: s.voice_volume,
+                  voice_fade_in_ms: s.voice_fade_in_ms,
+                  voice_fade_out_ms: s.voice_fade_out_ms,
+                }}
                 elements={s.elements.map((e) => ({
                   id: e.id,
                   type: e.type,
@@ -1341,7 +1355,17 @@ function ScriptCanvas() {
                 onPlayheadChange={(ms: number, playing: boolean) =>
                   setTimelinePreview((prev) => ({ ...prev, [s.id]: { ms, playing } }))
                 }
+                onAudioChange={(patch) =>
+                  setScenes((prev) => prev.map((x) => (x.id === s.id ? { ...x, ...patch } : x)))
+                }
+                onWordSearch={(w) => {
+                  setActiveIdx(idx);
+                  setSelectedWord(w);
+                  setRightTab("animations");
+                  setAnimationSubTab("search");
+                }}
               />
+
             ) : (
             <>
             {/* Per-canvas script (word-stitched mode) */}
