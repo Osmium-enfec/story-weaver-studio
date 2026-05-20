@@ -3,6 +3,8 @@ import {
   Play, Pause, ZoomIn, ZoomOut, Trash2, Layers, Music, Eye, EyeOff, Lock, Unlock,
 } from "lucide-react";
 import type { AnimationBlockContent } from "@/components/AnimationBlock";
+import { TimelineAudioPanel } from "@/components/TimelineAudioPanel";
+import type { CanvasAudioState } from "@/components/CanvasAudioEditor";
 
 export interface TimelineElement {
   id: string;
