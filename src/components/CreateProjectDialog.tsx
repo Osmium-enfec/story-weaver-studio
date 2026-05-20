@@ -83,6 +83,7 @@ export function CreateProjectDialog({
         title: title.trim(),
         aspect_ratio: ratio,
         voice_mode: voice,
+        canvas_mode: canvasMode,
         // legacy required-ish columns kept at sensible defaults
         course_type: "Other",
         audience_level: "Beginner",
