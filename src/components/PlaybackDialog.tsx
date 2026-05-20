@@ -90,6 +90,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       setCurrentIdx(0);
       setTransitioning(false);
       setRevealedIds(new Set());
+      setTxPhases({});
     }
   }, [open]);
 
