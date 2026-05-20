@@ -39,6 +39,7 @@ export function CreateProjectDialog({
   const [themeKey, setThemeKey] = useState<string>("firebase");
   const [savedThemes, setSavedThemes] = useState<SavedThemeOption[]>([]);
   const [voice, setVoice] = useState<VoiceMode>("no_voice");
+  const [canvasMode, setCanvasMode] = useState<CanvasMode>("word");
   const [voiceFile, setVoiceFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string>("");
