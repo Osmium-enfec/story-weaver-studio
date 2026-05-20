@@ -30,6 +30,7 @@ import { proxyImageAsDataUrl } from "@/server/proxy-image.functions";
 import { CanvasAudioEditor } from "@/components/CanvasAudioEditor";
 import { TimelineWorkspace } from "@/components/TimelineWorkspace";
 import { applyPendingTheme, consumePendingTheme } from "@/lib/pending-theme";
+import { loadTransitions, findEnterTransition, findExitTransition } from "@/lib/timeline-transitions";
 
 async function inlineAllImages(root: HTMLElement) {
   const imgs = Array.from(root.querySelectorAll("img"));
@@ -1211,7 +1212,7 @@ function ScriptCanvas() {
                   const playPass = tp?.playing && inTimelineMode && isTimelineClip
                     ? `play-${elStart}-${elEnd}`
                     : "idle";
-                  // Transition preview animation styling
+                  // Transition preview animation styling — either from inspector pick or live playback
                   const tx = txPreview[s.id];
                   let txStyle: React.CSSProperties | undefined;
                   let txKey = "";
@@ -1222,6 +1223,17 @@ function ScriptCanvas() {
                       zIndex: 50,
                     };
                     txKey = `tx-${tx.tick}-${phase}`;
+                  } else if (tp?.playing && inTimelineMode && isTimelineClip) {
+                    const txMap = loadTransitions(s.id);
+                    const enterTx = findEnterTransition(txMap, el.id);
+                    const exitTx = findExitTransition(txMap, el.id);
+                    if (enterTx && tp.ms >= elStart && tp.ms < elStart + enterTx.duration_ms) {
+                      txStyle = { animation: `tx-enter-${enterTx.type} ${enterTx.duration_ms}ms ease forwards` };
+                      txKey = `pb-enter-${elStart}`;
+                    } else if (exitTx && tp.ms >= elEnd - exitTx.duration_ms && tp.ms < elEnd) {
+                      txStyle = { animation: `tx-exit-${exitTx.type} ${exitTx.duration_ms}ms ease forwards` };
+                      txKey = `pb-exit-${elEnd}`;
+                    }
                   }
                   return (
                   <Rnd

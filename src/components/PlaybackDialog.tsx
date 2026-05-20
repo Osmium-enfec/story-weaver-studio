@@ -9,6 +9,7 @@ import { BackgroundLayer, type SceneBackground } from "@/components/BackgroundPi
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cellRect } from "@/lib/grid";
+import { loadTransitions, findEnterTransition, findExitTransition, type ClipTransition } from "@/lib/timeline-transitions";
 
 export interface PlaybackElement {
   id: string;
@@ -64,6 +65,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
   const [currentIdx, setCurrentIdx] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
   const [revealedIds, setRevealedIds] = useState<Set<string>>(new Set());
+  const [txPhases, setTxPhases] = useState<Record<string, { phase: "enter" | "exit"; tx: ClipTransition; tick: number }>>({});
   const stageRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -88,6 +90,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
       setCurrentIdx(0);
       setTransitioning(false);
       setRevealedIds(new Set());
+      setTxPhases({});
     }
   }, [open]);
 
@@ -146,9 +149,13 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
 
       // Schedule timeline-mode clips to appear at their start_ms and disappear at end_ms.
       const timelineClips = scene.elements.filter((el) => el.content.timing_mode === "timeline");
+      const txMap = loadTransitions(scene.id);
+      let txTickSeed = Date.now();
       for (const el of timelineClips) {
         const start = Math.max(0, el.start_ms ?? 0);
         const end = Math.max(start + 1, el.end_ms ?? start + 1);
+        const enterTx = findEnterTransition(txMap, el.id);
+        const exitTx = findExitTransition(txMap, el.id);
         const tIn = setTimeout(() => {
           if (cancelRef.current) return;
           setRevealedIds((prev) => {
@@ -156,13 +163,41 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
             next.add(el.id);
             return next;
           });
+          if (enterTx) {
+            const tick = ++txTickSeed;
+            setTxPhases((prev) => ({ ...prev, [el.id]: { phase: "enter", tx: enterTx, tick } }));
+            const tClear = setTimeout(() => {
+              if (cancelRef.current) return;
+              setTxPhases((prev) => {
+                if (prev[el.id]?.tick !== tick) return prev;
+                const next = { ...prev };
+                delete next[el.id];
+                return next;
+              });
+            }, enterTx.duration_ms);
+            timersRef.current.push(tClear);
+          }
         }, start);
+        if (exitTx) {
+          const tExit = setTimeout(() => {
+            if (cancelRef.current) return;
+            const tick = ++txTickSeed;
+            setTxPhases((prev) => ({ ...prev, [el.id]: { phase: "exit", tx: exitTx, tick } }));
+          }, Math.max(0, end - exitTx.duration_ms));
+          timersRef.current.push(tExit);
+        }
         const tOut = setTimeout(() => {
           if (cancelRef.current) return;
           setRevealedIds((prev) => {
             if (!prev.has(el.id)) return prev;
             const next = new Set(prev);
             next.delete(el.id);
+            return next;
+          });
+          setTxPhases((prev) => {
+            if (!prev[el.id]) return prev;
+            const next = { ...prev };
+            delete next[el.id];
             return next;
           });
         }, end);
@@ -423,6 +458,14 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
                   const p = el.position;
                   const hasSaved = p && typeof p.w === "number" && typeof p.h === "number" && p.w > 0 && p.h > 0;
                   const rect = hasSaved ? p : cellRect(idx);
+                  const txp = txPhases[el.id];
+                  const txStyle: React.CSSProperties = txp
+                    ? { animation: `tx-${txp.phase}-${txp.tx.type} ${txp.tx.duration_ms}ms ease forwards` }
+                    : {
+                        opacity: visible ? 1 : 0,
+                        transform: visible && !isText ? "scale(1)" : !isText ? "scale(0.92)" : undefined,
+                        transition: isText ? "opacity 150ms ease" : "opacity 350ms ease, transform 350ms ease",
+                      };
                   return (
                     <div
                       key={el.id}
@@ -433,12 +476,11 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
                         width: `${(rect.w / canvasSize.w) * 100}%`,
                         height: `${(rect.h / canvasSize.h) * 100}%`,
                         zIndex: el.z_index,
-                        opacity: visible ? 1 : 0,
-                        transform: visible && !isText ? "scale(1)" : !isText ? "scale(0.92)" : undefined,
-                        transition: isText ? "opacity 150ms ease" : "opacity 350ms ease, transform 350ms ease",
                         overflow: "hidden",
+                        ...txStyle,
                       }}
                     >
+                      <div key={txp ? `tx-${txp.tick}` : undefined} style={{ width: "100%", height: "100%" }}>
                       {isText ? (
                         <TextBlockRenderer
                           key={`${el.id}-${playing ? "playing" : "idle"}-${visible ? "visible" : "hidden"}`}
@@ -451,6 +493,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
                           content={el.content}
                         />
                       )}
+                      </div>
                     </div>
                   );
                 })}
