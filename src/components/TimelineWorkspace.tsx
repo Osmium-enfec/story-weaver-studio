@@ -98,8 +98,9 @@ function packRows(clips: { id: string; start: number; end: number }[]): {
 }
 
 export function TimelineWorkspace({
-  sceneId, durationMs, voiceUrl, elements, selectedId,
-  onSelect, onChangeTimes, onDelete, onPlayheadChange,
+  sceneId, projectId, durationMs, voiceUrl, elements, selectedId,
+  narration, wordTimings, audioState,
+  onSelect, onChangeTimes, onDelete, onPlayheadChange, onAudioChange, onWordSearch,
 }: Props) {
   const [pxPerSec, setPxPerSec] = useState(80);
   const [playheadMs, setPlayheadMs] = useState(0);
