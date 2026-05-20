@@ -575,6 +575,7 @@ export function TimelineWorkspace({
                           onMouseDown={(e) => {
                             e.stopPropagation();
                             onSelect(el.id);
+                            setSelectedTransition(null);
                             if (isLocked) return;
                             setDrag({ id: el.id, mode: "move", originX: e.clientX, startS: start, startE: end });
                           }}
