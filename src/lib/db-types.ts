@@ -15,6 +15,7 @@ export interface Project {
   aspect_ratio: AspectRatio;
   theme: ThemeName;
   voice_mode: VoiceMode;
+  canvas_mode: CanvasMode;
   script: string;
   status: string;
   thumbnail_url: string | null;
