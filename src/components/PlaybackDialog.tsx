@@ -9,6 +9,7 @@ import { BackgroundLayer, type SceneBackground } from "@/components/BackgroundPi
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cellRect } from "@/lib/grid";
+import { loadTransitions, findEnterTransition, findExitTransition, type ClipTransition } from "@/lib/timeline-transitions";
 
 export interface PlaybackElement {
   id: string;
