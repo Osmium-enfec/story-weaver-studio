@@ -113,6 +113,7 @@ function ScriptCanvas() {
   const [isPlaying, setIsPlaying] = useState(false);
   // Per-scene timeline playhead state: drives canvas reveal when in timeline mode
   const [timelinePreview, setTimelinePreview] = useState<Record<string, { ms: number; playing: boolean }>>({});
+  const [txPreview, setTxPreview] = useState<Record<string, { fromId: string; toId: string; type: string; duration_ms: number; tick: number } | null>>({});
   const [isExporting, setIsExporting] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
   const [previewSceneId, setPreviewSceneId] = useState<string | null>(null);
