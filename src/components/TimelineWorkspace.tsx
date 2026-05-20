@@ -133,6 +133,7 @@ export function TimelineWorkspace({
   sceneId, projectId, durationMs, voiceUrl, elements, selectedId,
   narration, wordTimings, audioState,
   onSelect, onChangeTimes, onDelete, onPlayheadChange, onAudioChange, onWordSearch,
+  onPreviewTransition,
 }: Props) {
   const [pxPerSec, setPxPerSec] = useState(80);
   const [playheadMs, setPlayheadMs] = useState(0);
