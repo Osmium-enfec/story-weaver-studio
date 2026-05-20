@@ -302,6 +302,8 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
         const txMap = (scene.transitions ?? {}) as Record<string, TxEntry>;
         const enterTx = findTx(txMap, "to", el.id);
         const exitTx = findTx(txMap, "from", el.id);
+        const hasActiveTransition =
+          !!enterTx || (!!exitTx && Number.isFinite(endFrame));
         let txMul = 1, txTx = 0, txTy = 0, txScale = 1, txBlur = 0;
         if (enterTx) {
           const durF = Math.max(1, Math.round((enterTx.duration_ms / 1000) * fps));
@@ -347,6 +349,7 @@ export const SceneRenderer: React.FC<{ scene: any }> = ({ scene }) => {
               revealFrame={revealFrame}
               currentFrame={frame}
               fps={fps}
+              disableEntranceAnimation={hasActiveTransition}
             />
           );
 
