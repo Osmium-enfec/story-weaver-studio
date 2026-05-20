@@ -17,6 +17,41 @@ import { ShapeElement } from "./elements/ShapeElement";
 const TEXT_REVEAL_FRAMES = 5; // ~150ms @ 30fps
 const BLOCK_REVEAL_FRAMES = 11; // ~350ms @ 30fps
 
+type TxType =
+  | "fade" | "dissolve" | "slide-left" | "slide-right"
+  | "slide-up" | "wipe" | "zoom" | "blur";
+
+interface TxEntry { type: TxType; duration_ms: number }
+
+function findTx(map: Record<string, TxEntry>, role: "from" | "to", elementId: string): TxEntry | null {
+  if (!map) return null;
+  for (const k of Object.keys(map)) {
+    const [from, to] = k.split("__");
+    if (role === "from" && from === elementId) return map[k];
+    if (role === "to" && to === elementId) return map[k];
+  }
+  return null;
+}
+
+function txTransform(type: TxType, t: number, phase: "enter" | "exit") {
+  // t = 0..1, where for "enter" 0=hidden→1=visible, for "exit" 1=visible→0=hidden
+  const p = phase === "enter" ? t : 1 - t;
+  let opacity = p;
+  let translateX = 0, translateY = 0, scale = 1, blurPx = 0;
+  switch (type) {
+    case "fade":
+    case "dissolve":
+      break;
+    case "slide-left":  translateX = (1 - p) * (phase === "enter" ? 60 : -60); break;
+    case "slide-right": translateX = (1 - p) * (phase === "enter" ? -60 : 60); break;
+    case "slide-up":    translateY = (1 - p) * (phase === "enter" ? 60 : -60); break;
+    case "wipe":        translateX = (1 - p) * (phase === "enter" ? 80 : -80); opacity = p > 0.05 ? 1 : 0; break;
+    case "zoom":        scale = 0.6 + 0.4 * p; break;
+    case "blur":        blurPx = 14 * (1 - p); break;
+  }
+  return { opacity, translateX, translateY, scale, blurPx };
+}
+
 function normalizeWord(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9_-]/g, "");
 }
