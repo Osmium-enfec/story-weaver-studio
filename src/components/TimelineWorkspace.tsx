@@ -148,21 +148,39 @@ export function TimelineWorkspace({
   const transitionsKey = `cm.timeline.transitions.${sceneId}`;
   const loadedSceneRef = useRef<string | null>(null);
 
-  // Load transitions for the current scene
+  // Load transitions for the current scene — DB first, localStorage fallback.
   useEffect(() => {
+    let cancelled = false;
+    setSelectedTransition(null);
+    loadedSceneRef.current = null;
+    // Show cached value instantly while DB fetch is in flight
     try {
       const raw = localStorage.getItem(`cm.timeline.transitions.${sceneId}`);
       setTransitions(raw ? JSON.parse(raw) : {});
     } catch { setTransitions({}); }
-    setSelectedTransition(null);
-    loadedSceneRef.current = sceneId;
+    (async () => {
+      const { data } = await supabase.from("scenes").select("transitions").eq("id", sceneId).maybeSingle();
+      if (cancelled) return;
+      const dbTx = (data?.transitions ?? {}) as Record<string, ClipTransition>;
+      if (dbTx && typeof dbTx === "object") {
+        setTransitions(dbTx);
+        try { localStorage.setItem(`cm.timeline.transitions.${sceneId}`, JSON.stringify(dbTx)); } catch {}
+      }
+      loadedSceneRef.current = sceneId;
+    })();
+    return () => { cancelled = true; };
   }, [sceneId]);
 
-  // Persist — only after load has completed for THIS sceneId, so a scene
-  // switch can't write stale state under the new scene's key.
+  // Persist — only after load has completed for THIS sceneId. Writes to
+  // localStorage (fast cache) AND the scenes row (so the server worker
+  // can render transitions in the exported MP4).
   useEffect(() => {
     if (loadedSceneRef.current !== sceneId) return;
     try { localStorage.setItem(`cm.timeline.transitions.${sceneId}`, JSON.stringify(transitions)); } catch {}
+    const handle = setTimeout(() => {
+      supabase.from("scenes").update({ transitions }).eq("id", sceneId).then(() => {});
+    }, 300);
+    return () => clearTimeout(handle);
   }, [transitions, sceneId]);
   const lanesRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
