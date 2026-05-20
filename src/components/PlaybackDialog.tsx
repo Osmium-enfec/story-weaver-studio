@@ -458,6 +458,14 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
                   const p = el.position;
                   const hasSaved = p && typeof p.w === "number" && typeof p.h === "number" && p.w > 0 && p.h > 0;
                   const rect = hasSaved ? p : cellRect(idx);
+                  const txp = txPhases[el.id];
+                  const txStyle: React.CSSProperties = txp
+                    ? { animation: `tx-${txp.phase}-${txp.tx.type} ${txp.tx.duration_ms}ms ease forwards` }
+                    : {
+                        opacity: visible ? 1 : 0,
+                        transform: visible && !isText ? "scale(1)" : !isText ? "scale(0.92)" : undefined,
+                        transition: isText ? "opacity 150ms ease" : "opacity 350ms ease, transform 350ms ease",
+                      };
                   return (
                     <div
                       key={el.id}
@@ -468,12 +476,11 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
                         width: `${(rect.w / canvasSize.w) * 100}%`,
                         height: `${(rect.h / canvasSize.h) * 100}%`,
                         zIndex: el.z_index,
-                        opacity: visible ? 1 : 0,
-                        transform: visible && !isText ? "scale(1)" : !isText ? "scale(0.92)" : undefined,
-                        transition: isText ? "opacity 150ms ease" : "opacity 350ms ease, transform 350ms ease",
                         overflow: "hidden",
+                        ...txStyle,
                       }}
                     >
+                      <div key={txp ? `tx-${txp.tick}` : undefined} style={{ width: "100%", height: "100%" }}>
                       {isText ? (
                         <TextBlockRenderer
                           key={`${el.id}-${playing ? "playing" : "idle"}-${visible ? "visible" : "hidden"}`}
@@ -486,6 +493,7 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
                           content={el.content}
                         />
                       )}
+                      </div>
                     </div>
                   );
                 })}
