@@ -145,20 +145,24 @@ export function TimelineWorkspace({
   const [selectedTransition, setSelectedTransition] = useState<{ fromId: string; toId: string } | null>(null);
   const [hoverPairId, setHoverPairId] = useState<string | null>(null);
   const transitionsKey = `cm.timeline.transitions.${sceneId}`;
+  const loadedSceneRef = useRef<string | null>(null);
 
-  // Load + persist transitions per scene
+  // Load transitions for the current scene
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(transitionsKey);
+      const raw = localStorage.getItem(`cm.timeline.transitions.${sceneId}`);
       setTransitions(raw ? JSON.parse(raw) : {});
-      setSelectedTransition(null);
     } catch { setTransitions({}); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setSelectedTransition(null);
+    loadedSceneRef.current = sceneId;
   }, [sceneId]);
+
+  // Persist — only after load has completed for THIS sceneId, so a scene
+  // switch can't write stale state under the new scene's key.
   useEffect(() => {
-    try { localStorage.setItem(transitionsKey, JSON.stringify(transitions)); } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transitions]);
+    if (loadedSceneRef.current !== sceneId) return;
+    try { localStorage.setItem(`cm.timeline.transitions.${sceneId}`, JSON.stringify(transitions)); } catch {}
+  }, [transitions, sceneId]);
   const lanesRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const rafRef = useRef<number | null>(null);
