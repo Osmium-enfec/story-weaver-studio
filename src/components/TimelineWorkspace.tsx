@@ -1,10 +1,41 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Play, Pause, ZoomIn, ZoomOut, Trash2, Layers, Music, Eye, EyeOff, Lock, Unlock,
+  Sparkles, ArrowLeftRight, Wand2,
 } from "lucide-react";
 import type { AnimationBlockContent } from "@/components/AnimationBlock";
 import { TimelineAudioPanel } from "@/components/TimelineAudioPanel";
 import type { CanvasAudioState } from "@/components/CanvasAudioEditor";
+
+export type TransitionType =
+  | "fade"
+  | "dissolve"
+  | "slide-left"
+  | "slide-right"
+  | "slide-up"
+  | "wipe"
+  | "zoom"
+  | "blur";
+
+export interface ClipTransition {
+  type: TransitionType;
+  duration_ms: number;
+}
+
+const TRANSITION_PRESETS: { type: TransitionType; label: string; desc: string }[] = [
+  { type: "fade",        label: "Fade",         desc: "Soft cross-fade between clips" },
+  { type: "dissolve",    label: "Dissolve",     desc: "Pixel dissolve blend" },
+  { type: "slide-left",  label: "Slide Left",   desc: "Next clip slides in from right" },
+  { type: "slide-right", label: "Slide Right",  desc: "Next clip slides in from left" },
+  { type: "slide-up",    label: "Slide Up",     desc: "Next clip pushes up" },
+  { type: "wipe",        label: "Wipe",         desc: "Linear wipe reveal" },
+  { type: "zoom",        label: "Zoom",         desc: "Zoom in to next clip" },
+  { type: "blur",        label: "Blur",         desc: "Defocus to next clip" },
+];
+
+function transitionKey(fromId: string, toId: string) {
+  return `${fromId}__${toId}`;
+}
 
 export interface TimelineElement {
   id: string;
@@ -108,6 +139,24 @@ export function TimelineWorkspace({
   const [hiddenLanes, setHiddenLanes] = useState<Record<string, boolean>>({});
   const [lockedLanes, setLockedLanes] = useState<Record<string, boolean>>({});
   const [dragOverride, setDragOverride] = useState<{ id: string; start: number; end: number } | null>(null);
+  const [transitions, setTransitions] = useState<Record<string, ClipTransition>>({});
+  const [selectedTransition, setSelectedTransition] = useState<{ fromId: string; toId: string } | null>(null);
+  const [hoverPairId, setHoverPairId] = useState<string | null>(null);
+  const transitionsKey = `cm.timeline.transitions.${sceneId}`;
+
+  // Load + persist transitions per scene
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(transitionsKey);
+      setTransitions(raw ? JSON.parse(raw) : {});
+      setSelectedTransition(null);
+    } catch { setTransitions({}); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sceneId]);
+  useEffect(() => {
+    try { localStorage.setItem(transitionsKey, JSON.stringify(transitions)); } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transitions]);
   const lanesRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const rafRef = useRef<number | null>(null);
@@ -145,6 +194,40 @@ export function TimelineWorkspace({
 
     return { byLane, packed };
   }, [elements, voiceUrl, durationMs, dragOverride]);
+
+  // Compute adjacent clip pairs per lane+row for transition handles
+  const adjacentPairs = useMemo(() => {
+    const out: { laneKey: LaneKey; row: number; fromId: string; toId: string; gapStart: number; gapEnd: number }[] = [];
+    (Object.keys(lanesData.byLane) as LaneKey[]).forEach((k) => {
+      if (k === "audio") return; // transitions only between visual elements
+      const items = lanesData.byLane[k].map((el) => {
+        const ov = dragOverride && dragOverride.id === el.id ? dragOverride : null;
+        const s = ov ? ov.start : Math.max(0, el.start_ms ?? 0);
+        const e = ov ? ov.end   : Math.max(s + MIN_CLIP_MS, el.end_ms ?? durationMs);
+        const row = lanesData.packed[k].rowOf[el.id] ?? 0;
+        return { id: el.id, start: s, end: e, row };
+      });
+      // group by row, then sort
+      const byRow: Record<number, typeof items> = {};
+      items.forEach((it) => { (byRow[it.row] ||= []).push(it); });
+      Object.entries(byRow).forEach(([rowStr, arr]) => {
+        const row = Number(rowStr);
+        const sorted = [...arr].sort((a, b) => a.start - b.start);
+        for (let i = 0; i < sorted.length - 1; i++) {
+          const a = sorted[i], b = sorted[i + 1];
+          // include adjacent (gap >= 0) and small overlaps (gap < 0 but > -800ms)
+          if (b.start - a.end >= -800) {
+            out.push({
+              laneKey: k, row,
+              fromId: a.id, toId: b.id,
+              gapStart: a.end, gapEnd: b.start,
+            });
+          }
+        }
+      });
+    });
+    return out;
+  }, [lanesData, dragOverride]);
 
   const laneHeights = useMemo(() => {
     const h: Record<LaneKey, number> = { elements: 0, audio: 0 };
@@ -492,6 +575,7 @@ export function TimelineWorkspace({
                           onMouseDown={(e) => {
                             e.stopPropagation();
                             onSelect(el.id);
+                            setSelectedTransition(null);
                             if (isLocked) return;
                             setDrag({ id: el.id, mode: "move", originX: e.clientX, startS: start, startE: end });
                           }}
@@ -521,6 +605,49 @@ export function TimelineWorkspace({
                         </div>
                       );
                     })}
+
+                    {/* Transition handles between adjacent clips */}
+                    {!hiddenLanes[g.key] && adjacentPairs
+                      .filter((p) => p.laneKey === g.key)
+                      .map((p) => {
+                        const key = transitionKey(p.fromId, p.toId);
+                        const existing = transitions[key];
+                        const isSelTx = selectedTransition?.fromId === p.fromId && selectedTransition?.toId === p.toId;
+                        const isHover = hoverPairId === key;
+                        const showIcon = !!existing || isHover || isSelTx;
+                        const center = ((p.gapStart + p.gapEnd) / 2) * pxPerMs;
+                        const top = ROW_GAP + p.row * (ROW_HEIGHT + ROW_GAP) + ROW_HEIGHT / 2;
+                        return (
+                          <div
+                            key={`tx-${key}`}
+                            className="absolute z-10"
+                            style={{ left: center - 18, top: top - 18, width: 36, height: 36 }}
+                            onMouseEnter={() => setHoverPairId(key)}
+                            onMouseLeave={() => setHoverPairId((h) => (h === key ? null : h))}
+                          >
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTransition({ fromId: p.fromId, toId: p.toId });
+                              }}
+                              title={existing ? `Transition: ${existing.type}` : "Add transition"}
+                              className={`flex h-9 w-9 items-center justify-center rounded-full border text-white shadow-lg transition-all ${
+                                showIcon ? "opacity-100 scale-100" : "opacity-0 scale-75 pointer-events-none"
+                              } ${
+                                isSelTx
+                                  ? "border-fuchsia-300 bg-gradient-to-br from-fuchsia-500 to-purple-600 ring-2 ring-fuchsia-300/60"
+                                  : existing
+                                  ? "border-fuchsia-300/60 bg-gradient-to-br from-fuchsia-500/90 to-purple-600/90 hover:scale-110"
+                                  : "border-white/30 bg-zinc-900/80 backdrop-blur hover:bg-fuchsia-600/80 hover:border-fuchsia-300/60 hover:scale-110"
+                              }`}
+                            >
+                              {existing ? <Sparkles className="h-4 w-4" /> : <ArrowLeftRight className="h-4 w-4" />}
+                            </button>
+                          </div>
+                        );
+                      })}
                   </div>
                 );
               })}
@@ -542,40 +669,75 @@ export function TimelineWorkspace({
           className="flex shrink-0 flex-col border-l border-white/5 bg-white/[0.02]"
           style={{ width: 320, height: 32 + totalLanesHeight, minHeight: 360 }}
         >
-          <div className="border-b border-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-            Properties
-          </div>
-          {/* 20% — delete only */}
-          <div
-            className="flex shrink-0 items-center border-b border-white/5 px-3"
-            style={{ flexBasis: "20%" }}
-          >
-            {selected ? (
+          <div className="flex items-center justify-between border-b border-white/5 px-3 py-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+              {selectedTransition ? "Transition" : "Properties"}
+            </span>
+            {selectedTransition && (
               <button
                 type="button"
-                onClick={() => onDelete?.(selected.id)}
-                className="flex w-full items-center justify-center gap-1.5 rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-300 hover:bg-red-500/20"
+                onClick={() => setSelectedTransition(null)}
+                className="text-[10px] text-zinc-400 hover:text-white"
               >
-                <Trash2 className="h-3.5 w-3.5" /> Delete clip
+                Close
               </button>
-            ) : (
-              <p className="w-full text-center text-[11px] text-zinc-500">
-                Select a clip to delete
-              </p>
             )}
           </div>
-          {/* 80% — audio + transcript */}
-          <div className="min-h-0 flex-1 p-3" style={{ flexBasis: "80%" }}>
-            <TimelineAudioPanel
-              sceneId={sceneId}
-              projectId={projectId}
-              state={audioState}
-              narration={narration}
-              wordTimings={wordTimings}
-              onChange={onAudioChange}
-              onWordSearch={onWordSearch}
+
+          {selectedTransition ? (
+            <TransitionInspector
+              fromLabel={clipLabel(elements.find((e) => e.id === selectedTransition.fromId) || ({} as TimelineElement))}
+              toLabel={clipLabel(elements.find((e) => e.id === selectedTransition.toId) || ({} as TimelineElement))}
+              current={transitions[transitionKey(selectedTransition.fromId, selectedTransition.toId)] || null}
+              onSet={(t) =>
+                setTransitions((prev) => ({
+                  ...prev,
+                  [transitionKey(selectedTransition.fromId, selectedTransition.toId)]: t,
+                }))
+              }
+              onRemove={() =>
+                setTransitions((prev) => {
+                  const next = { ...prev };
+                  delete next[transitionKey(selectedTransition.fromId, selectedTransition.toId)];
+                  return next;
+                })
+              }
             />
-          </div>
+          ) : (
+            <>
+              {/* 20% — delete only */}
+              <div
+                className="flex shrink-0 items-center border-b border-white/5 px-3"
+                style={{ flexBasis: "20%" }}
+              >
+                {selected ? (
+                  <button
+                    type="button"
+                    onClick={() => onDelete?.(selected.id)}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-300 hover:bg-red-500/20"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete clip
+                  </button>
+                ) : (
+                  <p className="w-full text-center text-[11px] text-zinc-500">
+                    Select a clip to delete
+                  </p>
+                )}
+              </div>
+              {/* 80% — audio + transcript */}
+              <div className="min-h-0 flex-1 p-3" style={{ flexBasis: "80%" }}>
+                <TimelineAudioPanel
+                  sceneId={sceneId}
+                  projectId={projectId}
+                  state={audioState}
+                  narration={narration}
+                  wordTimings={wordTimings}
+                  onChange={onAudioChange}
+                  onWordSearch={onWordSearch}
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -627,6 +789,89 @@ function InspectorPanel({
           <Trash2 className="h-3.5 w-3.5" /> Delete clip
         </button>
       )}
+    </div>
+  );
+}
+
+function TransitionInspector({
+  fromLabel, toLabel, current, onSet, onRemove,
+}: {
+  fromLabel: string;
+  toLabel: string;
+  current: ClipTransition | null;
+  onSet: (t: ClipTransition) => void;
+  onRemove: () => void;
+}) {
+  const [duration, setDuration] = useState<number>(current?.duration_ms ?? 500);
+
+  useEffect(() => {
+    if (current) setDuration(current.duration_ms);
+  }, [current?.type]);
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col p-3">
+      <div className="mb-3 flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1.5 text-[11px] text-zinc-300">
+        <span className="truncate">{fromLabel || "Clip A"}</span>
+        <ArrowLeftRight className="h-3 w-3 shrink-0 text-fuchsia-400" />
+        <span className="truncate">{toLabel || "Clip B"}</span>
+      </div>
+
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-wider text-zinc-500">Style</span>
+        {current && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="flex items-center gap-1 rounded-md border border-red-500/30 bg-red-500/10 px-1.5 py-0.5 text-[10px] text-red-300 hover:bg-red-500/20"
+          >
+            <Trash2 className="h-3 w-3" /> Remove
+          </button>
+        )}
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto pr-1">
+        {TRANSITION_PRESETS.map((p) => {
+          const active = current?.type === p.type;
+          return (
+            <button
+              key={p.type}
+              type="button"
+              onClick={() => onSet({ type: p.type, duration_ms: duration })}
+              className={`group flex flex-col items-start gap-1 rounded-lg border px-2.5 py-2 text-left transition-all ${
+                active
+                  ? "border-fuchsia-300/70 bg-gradient-to-br from-fuchsia-500/20 to-purple-600/20 ring-1 ring-fuchsia-300/50"
+                  : "border-white/10 bg-white/[0.03] hover:border-fuchsia-300/40 hover:bg-white/[0.06]"
+              }`}
+            >
+              <div className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-100">
+                <Wand2 className={`h-3 w-3 ${active ? "text-fuchsia-300" : "text-zinc-400 group-hover:text-fuchsia-300"}`} />
+                {p.label}
+              </div>
+              <div className="text-[9px] leading-snug text-zinc-500">{p.desc}</div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 border-t border-white/5 pt-2">
+        <label className="flex items-center justify-between text-[10px] text-zinc-400">
+          <span>Duration</span>
+          <span className="font-mono text-zinc-200">{(duration / 1000).toFixed(2)}s</span>
+        </label>
+        <input
+          type="range"
+          min={100}
+          max={2000}
+          step={50}
+          value={duration}
+          onChange={(e) => {
+            const d = parseInt(e.target.value);
+            setDuration(d);
+            if (current) onSet({ type: current.type, duration_ms: d });
+          }}
+          className="mt-1 h-1 w-full cursor-pointer accent-fuchsia-500"
+        />
+      </div>
     </div>
   );
 }
