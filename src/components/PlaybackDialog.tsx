@@ -149,9 +149,13 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
 
       // Schedule timeline-mode clips to appear at their start_ms and disappear at end_ms.
       const timelineClips = scene.elements.filter((el) => el.content.timing_mode === "timeline");
+      const txMap = loadTransitions(scene.id);
+      let txTickSeed = Date.now();
       for (const el of timelineClips) {
         const start = Math.max(0, el.start_ms ?? 0);
         const end = Math.max(start + 1, el.end_ms ?? start + 1);
+        const enterTx = findEnterTransition(txMap, el.id);
+        const exitTx = findExitTransition(txMap, el.id);
         const tIn = setTimeout(() => {
           if (cancelRef.current) return;
           setRevealedIds((prev) => {
@@ -159,13 +163,41 @@ export function PlaybackDialog({ open, onOpenChange, scenes, canvasSize }: Props
             next.add(el.id);
             return next;
           });
+          if (enterTx) {
+            const tick = ++txTickSeed;
+            setTxPhases((prev) => ({ ...prev, [el.id]: { phase: "enter", tx: enterTx, tick } }));
+            const tClear = setTimeout(() => {
+              if (cancelRef.current) return;
+              setTxPhases((prev) => {
+                if (prev[el.id]?.tick !== tick) return prev;
+                const next = { ...prev };
+                delete next[el.id];
+                return next;
+              });
+            }, enterTx.duration_ms);
+            timersRef.current.push(tClear);
+          }
         }, start);
+        if (exitTx) {
+          const tExit = setTimeout(() => {
+            if (cancelRef.current) return;
+            const tick = ++txTickSeed;
+            setTxPhases((prev) => ({ ...prev, [el.id]: { phase: "exit", tx: exitTx, tick } }));
+          }, Math.max(0, end - exitTx.duration_ms));
+          timersRef.current.push(tExit);
+        }
         const tOut = setTimeout(() => {
           if (cancelRef.current) return;
           setRevealedIds((prev) => {
             if (!prev.has(el.id)) return prev;
             const next = new Set(prev);
             next.delete(el.id);
+            return next;
+          });
+          setTxPhases((prev) => {
+            if (!prev[el.id]) return prev;
+            const next = { ...prev };
+            delete next[el.id];
             return next;
           });
         }, end);
