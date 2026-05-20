@@ -224,6 +224,7 @@ export type Database = {
         Row: {
           aspect_ratio: string
           audience_level: string
+          canvas_mode: string
           course_type: string
           created_at: string
           estimated_duration_ms: number
@@ -240,6 +241,7 @@ export type Database = {
         Insert: {
           aspect_ratio?: string
           audience_level?: string
+          canvas_mode?: string
           course_type?: string
           created_at?: string
           estimated_duration_ms?: number
@@ -256,6 +258,7 @@ export type Database = {
         Update: {
           aspect_ratio?: string
           audience_level?: string
+          canvas_mode?: string
           course_type?: string
           created_at?: string
           estimated_duration_ms?: number
