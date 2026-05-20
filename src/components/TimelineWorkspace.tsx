@@ -139,6 +139,24 @@ export function TimelineWorkspace({
   const [hiddenLanes, setHiddenLanes] = useState<Record<string, boolean>>({});
   const [lockedLanes, setLockedLanes] = useState<Record<string, boolean>>({});
   const [dragOverride, setDragOverride] = useState<{ id: string; start: number; end: number } | null>(null);
+  const [transitions, setTransitions] = useState<Record<string, ClipTransition>>({});
+  const [selectedTransition, setSelectedTransition] = useState<{ fromId: string; toId: string } | null>(null);
+  const [hoverPairId, setHoverPairId] = useState<string | null>(null);
+  const transitionsKey = `cm.timeline.transitions.${sceneId}`;
+
+  // Load + persist transitions per scene
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(transitionsKey);
+      setTransitions(raw ? JSON.parse(raw) : {});
+      setSelectedTransition(null);
+    } catch { setTransitions({}); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sceneId]);
+  useEffect(() => {
+    try { localStorage.setItem(transitionsKey, JSON.stringify(transitions)); } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transitions]);
   const lanesRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const rafRef = useRef<number | null>(null);
