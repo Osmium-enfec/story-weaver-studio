@@ -1365,6 +1365,16 @@ function ScriptCanvas() {
                   setRightTab("animations");
                   setAnimationSubTab("search");
                 }}
+                onPreviewTransition={(fromId, toId, type, duration_ms) => {
+                  setActiveIdx(idx);
+                  setTxPreview((prev) => ({
+                    ...prev,
+                    [s.id]: { fromId, toId, type, duration_ms, tick: (prev[s.id]?.tick ?? 0) + 1 },
+                  }));
+                  window.setTimeout(() => {
+                    setTxPreview((prev) => ({ ...prev, [s.id]: null }));
+                  }, duration_ms + 100);
+                }}
               />
 
             ) : (
