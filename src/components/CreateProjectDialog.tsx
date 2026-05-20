@@ -214,6 +214,19 @@ export function CreateProjectDialog({
             </p>
           </Field>
 
+          <Field label="Edit mode">
+            <Select value={canvasMode} onValueChange={(v) => setCanvasMode(v as CanvasMode)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="word">Stitch to words — animations sync to spoken words</SelectItem>
+                <SelectItem value="timeline">Timeline — drag &amp; slide clips on a timeline</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              This applies to every canvas in this project and can't be changed later.
+            </p>
+          </Field>
+
           {voice === "upload_voice" && (
             <div className="rounded-lg border border-dashed border-border bg-muted/30 p-3">
               {voiceFile ? (
