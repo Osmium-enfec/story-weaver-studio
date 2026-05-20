@@ -1211,6 +1211,18 @@ function ScriptCanvas() {
                   const playPass = tp?.playing && inTimelineMode && isTimelineClip
                     ? `play-${elStart}-${elEnd}`
                     : "idle";
+                  // Transition preview animation styling
+                  const tx = txPreview[s.id];
+                  let txStyle: React.CSSProperties | undefined;
+                  let txKey = "";
+                  if (tx && (tx.fromId === el.id || tx.toId === el.id)) {
+                    const phase = tx.fromId === el.id ? "exit" : "enter";
+                    txStyle = {
+                      animation: `tx-${phase}-${tx.type} ${tx.duration_ms}ms ease forwards`,
+                      zIndex: 50,
+                    };
+                    txKey = `tx-${tx.tick}-${phase}`;
+                  }
                   return (
                   <Rnd
                     key={el.id}
