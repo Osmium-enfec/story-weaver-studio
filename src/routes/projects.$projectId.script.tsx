@@ -1252,9 +1252,12 @@ function ScriptCanvas() {
                       selectedElementId === el.id ? "border-primary" : "border-transparent hover:border-primary/40"
                     } ${hideForTimeline ? "pointer-events-none opacity-0" : "opacity-100"}`}
                     data-canvas-element="true"
-                    style={txStyle}
                   >
-                    <div className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}>
+                    <div
+                      key={txKey || undefined}
+                      className={`relative h-full w-full ${isPlaying ? "animate-fade-in" : ""}`}
+                      style={txStyle}
+                    >
                       {el.content.word && (
                         <span className="pointer-events-none absolute left-1 top-1 z-20 flex h-5 max-w-[calc(100%-0.5rem)] items-center gap-0.5 truncate rounded-full bg-accent px-1.5 text-[10px] font-semibold text-accent-foreground shadow">
                           🔗 {el.content.word}
