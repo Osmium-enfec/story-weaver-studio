@@ -538,24 +538,47 @@ export function TimelineWorkspace({
         </div>
 
         {/* Inspector */}
-        <div className="shrink-0 border-l border-white/5 bg-white/[0.02] p-3" style={{ width: 220 }}>
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        <div
+          className="flex shrink-0 flex-col border-l border-white/5 bg-white/[0.02]"
+          style={{ width: 320, height: 32 + totalLanesHeight, minHeight: 360 }}
+        >
+          <div className="border-b border-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             Properties
           </div>
-          {!selected ? (
-            <div className="rounded-md border border-dashed border-white/10 p-3 text-[11px] text-zinc-500">
-              Select a clip to edit its timing.
-            </div>
-          ) : (
-            <InspectorPanel
-              key={selected.id}
-              element={selected}
-              durationMs={durationMs}
-              onDelete={onDelete}
+          {/* 20% — delete only */}
+          <div
+            className="flex shrink-0 items-center border-b border-white/5 px-3"
+            style={{ flexBasis: "20%" }}
+          >
+            {selected ? (
+              <button
+                type="button"
+                onClick={() => onDelete?.(selected.id)}
+                className="flex w-full items-center justify-center gap-1.5 rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-300 hover:bg-red-500/20"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Delete clip
+              </button>
+            ) : (
+              <p className="w-full text-center text-[11px] text-zinc-500">
+                Select a clip to delete
+              </p>
+            )}
+          </div>
+          {/* 80% — audio + transcript */}
+          <div className="min-h-0 flex-1 p-3" style={{ flexBasis: "80%" }}>
+            <TimelineAudioPanel
+              sceneId={sceneId}
+              projectId={projectId}
+              state={audioState}
+              narration={narration}
+              wordTimings={wordTimings}
+              onChange={onAudioChange}
+              onWordSearch={onWordSearch}
             />
-          )}
+          </div>
         </div>
       </div>
+
 
       <div className="flex items-center gap-3 border-t border-white/5 bg-white/[0.02] px-3 py-1.5 text-[10px] text-zinc-500">
         <span>⌥ Alt-drag: bypass snap</span>
