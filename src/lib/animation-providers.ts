@@ -104,6 +104,7 @@ async function searchLottie({ query, limit = 24 }: SearchOpts): Promise<Animatio
     lottie_url: r.lottie_url,
     thumbnail_url: r.thumbnail_url,
     color_support: (r.color_support as AnimationResult["color_support"]) ?? "theme",
+    local: true,
   }));
 }
 
