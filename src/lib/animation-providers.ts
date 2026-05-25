@@ -76,6 +76,7 @@ async function searchInternal({ query, limit = 24 }: SearchOpts): Promise<Animat
       external_id: (r as { external_id?: string | null }).external_id ?? null,
       color_support: (r.color_support as AnimationResult["color_support"]) ?? "fixed",
       palette,
+      local: true,
     };
   });
 }
