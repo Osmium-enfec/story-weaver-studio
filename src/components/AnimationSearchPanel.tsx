@@ -85,8 +85,10 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
     iconify: results.filter((r) => r.provider === "iconify").length,
     unsplash: results.filter((r) => r.provider === "unsplash").length,
     freepik: results.filter((r) => r.provider === "freepik").length,
-    internal: results.filter((r) => r.provider === "internal").length,
-    upload: results.filter((r) => r.provider === "upload").length,
+    // "Local" = anything served from our own DB / storage, regardless of
+    // original provider (built-in components + mirrored Iconscout/Freepik/etc + uploads).
+    internal: results.filter((r) => r.local).length,
+    upload: results.filter((r) => r.provider === "upload" || r.provider === "image").length,
   };
 
   async function handleSelect(r: AnimationResult) {
