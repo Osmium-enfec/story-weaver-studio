@@ -130,6 +130,7 @@ async function searchUploads({ query, limit = 24 }: SearchOpts): Promise<Animati
         thumbnail_url: isImage ? url.publicUrl : null,
         video_url: isImage ? url.publicUrl : null,
         color_support: "theme" as const,
+        local: true,
       };
     });
 }
