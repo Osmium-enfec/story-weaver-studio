@@ -216,7 +216,23 @@ export async function searchAllAnimations(opts: SearchOpts): Promise<AnimationRe
     searchUnsplashResults(opts).catch(() => []),
     searchFreepikResults(opts).catch(() => []),
   ]);
-  return [...lottie, ...iconscout, ...iconify, ...unsplash, ...freepik, ...internal, ...uploads];
+
+  // Locally-mirrored Iconscout items live in `animation_components` with
+  // provider='iconscout' and are returned by searchInternal. Drop any live
+  // Iconscout API hits that we've already mirrored so the local copy wins
+  // (it's tagged local:true and shows up under the "Local" filter too).
+  const mirroredIconscoutIds = new Set(
+    internal
+      .filter((r) => r.provider === "iconscout" && r.external_id)
+      .map((r) => String(r.external_id)),
+  );
+  const liveIconscout = iconscout.filter(
+    (r) => !r.external_id || !mirroredIconscoutIds.has(String(r.external_id)),
+  );
+
+  // Surface local content first so users see what's already in their library
+  // before scrolling through live external API results.
+  return [...lottie, ...internal, ...uploads, ...liveIconscout, ...iconify, ...unsplash, ...freepik];
 }
 
 /**
