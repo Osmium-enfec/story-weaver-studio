@@ -85,8 +85,10 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
     iconify: results.filter((r) => r.provider === "iconify").length,
     unsplash: results.filter((r) => r.provider === "unsplash").length,
     freepik: results.filter((r) => r.provider === "freepik").length,
-    internal: results.filter((r) => r.provider === "internal").length,
-    upload: results.filter((r) => r.provider === "upload").length,
+    // "Local" = anything served from our own DB / storage, regardless of
+    // original provider (built-in components + mirrored Iconscout/Freepik/etc + uploads).
+    internal: results.filter((r) => r.local).length,
+    upload: results.filter((r) => r.provider === "upload" || r.provider === "image").length,
   };
 
   async function handleSelect(r: AnimationResult) {
@@ -176,7 +178,12 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
         )}
         <div className="grid grid-cols-2 gap-2">
           {results
-            .filter((r) => filter === "all" || r.provider === filter)
+            .filter((r) => {
+              if (filter === "all") return true;
+              if (filter === "internal") return !!r.local;
+              if (filter === "upload") return r.provider === "upload" || r.provider === "image";
+              return r.provider === filter;
+            })
             .map((r) => (
             <button
               key={r.id}
@@ -215,6 +222,11 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
                 <span className="absolute left-1 top-1 rounded bg-background/80 px-1 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
                   {r.provider}
                 </span>
+                {r.local && (
+                  <span className="absolute right-1 top-1 rounded bg-primary/90 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary-foreground">
+                    Local
+                  </span>
+                )}
               </div>
               <div className="px-2 py-1.5">
                 <div className="line-clamp-1 text-xs font-medium">{r.name}</div>

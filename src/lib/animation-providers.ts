@@ -35,6 +35,8 @@ export interface AnimationResult {
   color_support: "fixed" | "theme" | "custom";
   /** Source palette (e.g. for mirrored Freepik items). */
   palette?: string[];
+  /** True when the result came from our own DB / storage (mirrored or built-in) rather than a live external API. */
+  local?: boolean;
 }
 
 interface SearchOpts {
@@ -74,6 +76,7 @@ async function searchInternal({ query, limit = 24 }: SearchOpts): Promise<Animat
       external_id: (r as { external_id?: string | null }).external_id ?? null,
       color_support: (r.color_support as AnimationResult["color_support"]) ?? "fixed",
       palette,
+      local: true,
     };
   });
 }
@@ -101,6 +104,7 @@ async function searchLottie({ query, limit = 24 }: SearchOpts): Promise<Animatio
     lottie_url: r.lottie_url,
     thumbnail_url: r.thumbnail_url,
     color_support: (r.color_support as AnimationResult["color_support"]) ?? "theme",
+    local: true,
   }));
 }
 
@@ -126,6 +130,7 @@ async function searchUploads({ query, limit = 24 }: SearchOpts): Promise<Animati
         thumbnail_url: isImage ? url.publicUrl : null,
         video_url: isImage ? url.publicUrl : null,
         color_support: "theme" as const,
+        local: true,
       };
     });
 }
@@ -211,7 +216,23 @@ export async function searchAllAnimations(opts: SearchOpts): Promise<AnimationRe
     searchUnsplashResults(opts).catch(() => []),
     searchFreepikResults(opts).catch(() => []),
   ]);
-  return [...lottie, ...iconscout, ...iconify, ...unsplash, ...freepik, ...internal, ...uploads];
+
+  // Locally-mirrored Iconscout items live in `animation_components` with
+  // provider='iconscout' and are returned by searchInternal. Drop any live
+  // Iconscout API hits that we've already mirrored so the local copy wins
+  // (it's tagged local:true and shows up under the "Local" filter too).
+  const mirroredIconscoutIds = new Set(
+    internal
+      .filter((r) => r.provider === "iconscout" && r.external_id)
+      .map((r) => String(r.external_id)),
+  );
+  const liveIconscout = iconscout.filter(
+    (r) => !r.external_id || !mirroredIconscoutIds.has(String(r.external_id)),
+  );
+
+  // Surface local content first so users see what's already in their library
+  // before scrolling through live external API results.
+  return [...lottie, ...internal, ...uploads, ...liveIconscout, ...iconify, ...unsplash, ...freepik];
 }
 
 /**
