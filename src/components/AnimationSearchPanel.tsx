@@ -222,6 +222,11 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
                 <span className="absolute left-1 top-1 rounded bg-background/80 px-1 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
                   {r.provider}
                 </span>
+                {r.local && (
+                  <span className="absolute right-1 top-1 rounded bg-primary/90 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary-foreground">
+                    Local
+                  </span>
+                )}
               </div>
               <div className="px-2 py-1.5">
                 <div className="line-clamp-1 text-xs font-medium">{r.name}</div>
