@@ -35,6 +35,8 @@ export interface AnimationResult {
   color_support: "fixed" | "theme" | "custom";
   /** Source palette (e.g. for mirrored Freepik items). */
   palette?: string[];
+  /** True when the result came from our own DB / storage (mirrored or built-in) rather than a live external API. */
+  local?: boolean;
 }
 
 interface SearchOpts {
