@@ -178,7 +178,12 @@ export function AnimationSearchPanel({ initialQuery = "", onSelect }: Props) {
         )}
         <div className="grid grid-cols-2 gap-2">
           {results
-            .filter((r) => filter === "all" || r.provider === filter)
+            .filter((r) => {
+              if (filter === "all") return true;
+              if (filter === "internal") return !!r.local;
+              if (filter === "upload") return r.provider === "upload" || r.provider === "image";
+              return r.provider === filter;
+            })
             .map((r) => (
             <button
               key={r.id}
